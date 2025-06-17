@@ -106,7 +106,7 @@ if DEBUG:
             "USER": "postgres",  # Replace with your actual DB user
             "PASSWORD": "JlcDSbkGlYHJLzGDGwRjjOrfHwMwXlZf",  # Replace with your actual DB password
             "HOST": "postgres.railway.internal",  # Use Railway's host
-            "PORT": "5432",  # PostgreSQL default port
+            "PORT": "5432",  # PostgreSQL default por
         }
     }
     
