@@ -120,11 +120,13 @@ if DEBUG:
     #     },
     # }
 
-    REDIS_USER = os.getenv("REDIS_USER", "default")  # Railway default
-    REDIS_PASSWORD = os.getenv("REDIS_PASSWORD")
-    REDIS_HOST = os.getenv("REDIS_HOST")
-    REDIS_PORT = os.getenv("REDIS_PORT", 6379)
-    REDIS_DB = os.getenv("REDIS_DB", 0)
+    # settings.py or your appropriate config file
+
+    REDIS_USER = "default"
+    REDIS_PASSWORD = "lIoMFNdVwBEbkmEgEAxYfRtMxaluLbcU"
+    REDIS_HOST = "redis.railway.internal"
+    REDIS_PORT = 6379
+    REDIS_DB = 0
 
     REDIS_URL = f"redis://{REDIS_USER}:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
 
@@ -136,6 +138,7 @@ if DEBUG:
             },
         },
     }
+
 
 
 
