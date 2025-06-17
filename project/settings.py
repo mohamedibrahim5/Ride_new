@@ -110,15 +110,31 @@ if DEBUG:
         }
     }
     
+    # CHANNEL_LAYERS = {
+    #     "default": {
+    #         "BACKEND": "channels_redis.core.RedisChannelLayer",
+    #         "CONFIG": {
+    #             "hosts": [("127.0.0.1", 6379)],#192.168.1.8, 192.168.1.23
+    #             # "prefix": "gradcam",
+    #         },
+    #     },
+    # }
+
+    REDIS_HOST = os.getenv("REDIS_HOST")
+    REDIS_PORT = os.getenv("REDIS_PORT")
+    REDIS_DB = os.getenv("REDIS_DB")
+    REDIS_PASSWORD = os.getenv("REDIS_PASSWORD")
+    REDIS_URL = f"redis://:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
+
     CHANNEL_LAYERS = {
         "default": {
             "BACKEND": "channels_redis.core.RedisChannelLayer",
             "CONFIG": {
-                "hosts": [("127.0.0.1", 6379)],#192.168.1.8, 192.168.1.23
-                # "prefix": "gradcam",
+                "hosts": [REDIS_URL],
             },
         },
     }
+
 
     
 else:
