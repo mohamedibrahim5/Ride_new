@@ -15,6 +15,7 @@ RUN apt-get update && apt-get install -y \
     python3-dev \
     && rm -rf /var/lib/apt/lists/*
 
+RUN apt-get update && apt-get install -y python3-pip
 # Upgrade pip and install Python dependencies
 RUN python3 -m pip install --upgrade pip
 RUN python3 -m pip install -r requirements.txt
