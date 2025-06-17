@@ -1,0 +1,9 @@
+/.venv/
+/.idea/
+/logs/
+/media/
+/static/
+db.sqlite3
+celerybeat-schedule
+.env
+*.pyc

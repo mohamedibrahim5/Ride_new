@@ -1,0 +1,374 @@
+    # SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-06-17 06:31+0300\n"
+"PO-Revision-Date: 2025-06-17 05:15+0300\n"
+"Last-Translator: Mohamed Ayyad <example@email.com>\n"
+"Language-Team: Arabic <LL@li.org>\n"
+"Language: ar\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=6; plural=n==0 ? 0 : n==1 ? 1 : n==2 ? 2 : n%100>=3 "
+"&& n%100<=10 ? 3 : n%100>=11 && n%100<=99 ? 4 : 5;\n"
+
+#: admin.py:42
+msgid "User Name"
+msgstr "الاسم"
+
+#: admin.py:46
+msgid "Phone Number"
+msgstr "الرقم"
+
+#: admin.py:50 models.py:187 models.py:211 models.py:238
+msgid "Created At"
+msgstr "تاريخ الإنشاء"
+
+#: admin.py:60
+msgid "Basic Information"
+msgstr "معلومات أساسية"
+
+#: admin.py:63
+msgid "Pricing and Stock"
+msgstr "التسعير والمخزون"
+
+#: admin.py:66 admin.py:83 models.py:176
+msgid "Status"
+msgstr "الحالة"
+
+#: admin.py:69 admin.py:120
+msgid "Timestamps"
+msgstr "الطوابع الزمنية"
+
+#: admin.py:77
+msgid "Provider Name"
+msgstr "مقدم الخدمة"
+
+#: admin.py:89
+msgid "No image"
+msgstr "لا توجد صورة"
+
+#: admin.py:90 admin.py:107
+msgid "Preview"
+msgstr "معاينة"
+
+#: admin.py:102 admin.py:132
+msgid "Product Name"
+msgstr "اسم المنتج"
+
+#: admin.py:117
+msgid "Purchase Information"
+msgstr "معلومات الشراء"
+
+#: admin.py:128
+msgid "Customer Name"
+msgstr "اسم العميل"
+
+#: models.py:12 models.py:53 models.py:206
+msgid "Name"
+msgstr "الاسم"
+
+#: models.py:13
+msgid "Phone"
+msgstr "رقم الهاتف"
+
+#: models.py:14 models.py:70 models.py:113 models.py:223
+msgid "Image"
+msgstr "الصورة"
+
+#: models.py:15
+msgid "Role"
+msgstr "الدور"
+
+#: models.py:16 models.py:138
+msgid "Location"
+msgstr "الموقع"
+
+#: models.py:17
+msgid "Location2"
+msgstr "الموقع الثاني"
+
+#: models.py:27 models.py:210
+msgid "Is Active"
+msgstr "نشط"
+
+#: models.py:36 models.py:41 models.py:81 models.py:94 models.py:125
+#: models.py:193
+msgid "User"
+msgstr "المستخدم"
+
+#: models.py:37
+msgid "Users"
+msgstr "المستخدمون"
+
+#: models.py:42
+msgid "OTP"
+msgstr "رمز التحقق"
+
+#: models.py:48
+msgid "User OTP"
+msgstr "رمز التحقق للمستخدم"
+
+#: models.py:49
+msgid "User OTPs"
+msgstr "رموز التحقق للمستخدمين"
+
+#: models.py:59 models.py:68 models.py:82 models.py:173
+msgid "Service"
+msgstr "الخدمة"
+
+#: models.py:60
+msgid "Services"
+msgstr "الخدمات"
+
+#: models.py:76
+msgid "Service Image"
+msgstr "صورة الخدمة"
+
+#: models.py:77
+msgid "Service Images"
+msgstr "صور الخدمات"
+
+#: models.py:83 models.py:97
+msgid "Is Verified"
+msgstr "تم التحقق"
+
+#: models.py:89 models.py:168 models.py:205
+msgid "Provider"
+msgstr "مقدم الخدمة"
+
+#: models.py:90
+msgid "Providers"
+msgstr "مقدمو الخدمات"
+
+#: models.py:95 models.py:114
+msgid "License"
+msgstr "الرخصة"
+
+#: models.py:96 models.py:126
+msgid "In Ride"
+msgstr "في رحلة"
+
+#: models.py:103 models.py:108
+msgid "Driver"
+msgstr "السائق"
+
+#: models.py:104
+msgid "Drivers"
+msgstr "السائقون"
+
+#: models.py:109
+msgid "Type"
+msgstr "النوع"
+
+#: models.py:110
+msgid "Model"
+msgstr "الموديل"
+
+#: models.py:111
+msgid "Number"
+msgstr "الرقم"
+
+#: models.py:112
+msgid "Color"
+msgstr "اللون"
+
+#: models.py:120
+msgid "Driver Car"
+msgstr "سيارة السائق"
+
+#: models.py:121
+msgid "Driver Cars"
+msgstr "سيارات السائقين"
+
+#: models.py:132 models.py:137 models.py:234
+msgid "Customer"
+msgstr "العميل"
+
+#: models.py:133
+msgid "Customers"
+msgstr "العملاء"
+
+#: models.py:144
+msgid "Customer Place"
+msgstr "مكان العميل"
+
+#: models.py:145
+msgid "Customer Places"
+msgstr "أماكن العملاء"
+
+#: models.py:151
+msgid "Pending"
+msgstr "قيد الانتظار"
+
+#: models.py:152
+msgid "Accepted"
+msgstr "تم القبول"
+
+#: models.py:153
+msgid "Starting"
+msgstr "البدء"
+
+#: models.py:154
+msgid "Arriving"
+msgstr "الوصول"
+
+#: models.py:155
+msgid "Finished"
+msgstr "منتهية"
+
+#: models.py:156
+msgid "Cancelled"
+msgstr "ملغاة"
+
+#: models.py:162
+msgid "Client"
+msgstr "العميل"
+
+#: models.py:182
+msgid "Pickup Latitude"
+msgstr "خط العرض لنقطة الانطلاق"
+
+#: models.py:183
+msgid "Pickup Longitude"
+msgstr "خط الطول لنقطة الانطلاق"
+
+#: models.py:184
+msgid "Drop Latitude"
+msgstr "خط العرض لنقطة الوصول"
+
+#: models.py:185
+msgid "Drop Longitude"
+msgstr "خط الطول لنقطة الوصول"
+
+#: models.py:194
+msgid "Points"
+msgstr "النقاط"
+
+#: models.py:200 models.py:201
+msgid "User Points"
+msgstr "نقاط المستخدم"
+
+#: models.py:207
+msgid "Description"
+msgstr "الوصف"
+
+#: models.py:208
+msgid "Points Price"
+msgstr "سعر النقاط"
+
+#: models.py:209
+msgid "Stock"
+msgstr "المخزون"
+
+#: models.py:212
+msgid "Updated At"
+msgstr "تاريخ التحديث"
+
+#: models.py:218 models.py:222 models.py:235
+msgid "Product"
+msgstr "المنتج"
+
+#: models.py:219
+msgid "Products"
+msgstr "المنتجات"
+
+#: models.py:229
+msgid "Product Image"
+msgstr "صورة المنتج"
+
+#: models.py:230
+msgid "Product Images"
+msgstr "صور المنتجات"
+
+#: models.py:236
+msgid "Points Spent"
+msgstr "النقاط المصروفة"
+
+#: models.py:237
+msgid "Quantity"
+msgstr "الكمية"
+
+#: models.py:244
+msgid "Purchase"
+msgstr "عملية الشراء"
+
+#: models.py:245
+msgid "Purchases"
+msgstr "عمليات الشراء"
+
+#: serializers.py:63 serializers.py:69
+msgid "Invalid location format."
+msgstr "تنسيق الموقع غير صالح."
+
+#: serializers.py:71
+msgid "Location is required."
+msgstr "الموقع مطلوب."
+
+#: serializers.py:91 serializers.py:248
+msgid "the sms service is not working try again later"
+msgstr "خدمة الرسائل غير متاحة، حاول مرة أخرى لاحقًا"
+
+#: serializers.py:127
+msgid "Service not found."
+msgstr "الخدمة غير موجودة."
+
+#: serializers.py:205 serializers.py:240 serializers.py:266
+msgid "Invalid phone"
+msgstr "رقم هاتف غير صالح"
+
+#: serializers.py:208
+msgid "Invalid password"
+msgstr "كلمة المرور غير صحيحة"
+
+#: serializers.py:211
+msgid "User is not active"
+msgstr "المستخدم غير نشط"
+
+#: serializers.py:226
+msgid "User is not verified"
+msgstr "المستخدم لم يتم التحقق منه"
+
+#: serializers.py:271 serializers.py:302
+msgid "Invalid otp"
+msgstr "رمز التحقق غير صالح"
+
+#: serializers.py:295
+msgid "Passwords do not match"
+msgstr "كلمتا المرور غير متطابقتين"
+
+#: serializers.py:332
+msgid "Password do not match confirm password"
+msgstr "كلمة المرور غير متطابقة مع تأكيد كلمة المرور"
+
+#: serializers.py:339
+msgid "Old password is incorrect"
+msgstr "كلمة المرور القديمة غير صحيحة"
+
+#: serializers.py:409
+msgid "Password is incorrect"
+msgstr "كلمة المرور غير صحيحة"
+
+#: serializers.py:513
+msgid "Product is not available."
+msgstr "المنتج غير متوفر."
+
+#: serializers.py:517
+msgid "Not enough stock available."
+msgstr "الكمية المتوفرة في المخزون غير كافية."
+
+#: serializers.py:524
+msgid "Not enough points available."
+msgstr "النقاط المتوفرة غير كافية."
+
+#~ msgid "Ride Status"
+#~ msgstr "حالة الرحلة"
+
+#~ msgid "Ride Statuses"
+#~ msgstr "حالات الرحلات"
