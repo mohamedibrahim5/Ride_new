@@ -3,17 +3,9 @@ from authentication.managers import UserManager
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 from location_field.models.plain import PlainLocationField
-from django.contrib.gis.db import models as gis_models
+#from django.contrib.gis.db import models as gis_models
 from django.utils.translation import gettext_lazy as _
 
-
-try:
-    from django.contrib.gis.db.models import PointField
-except ImportError:
-    class PointField(models.CharField):
-        def __init__(self, *args, **kwargs):
-            kwargs.setdefault("max_length", 100)
-            super().__init__(*args, **kwargs)
 
 class User(AbstractUser):
     name = models.CharField(_("Name"), max_length=30)
@@ -21,7 +13,8 @@ class User(AbstractUser):
     image = models.ImageField(_("Image"),upload_to="user/images/")
     role = models.CharField(_("Role"), max_length=2, choices=ROLE_CHOICES)
     location = PlainLocationField(based_fields=["cairo"], verbose_name=_("Location"))
-    location2 = PointField(null=True, blank=True, verbose_name=_("Location2"))
+    location2_lat = models.FloatField(null=True, blank=True, verbose_name=_("Location2 Latitude"))
+    location2_lng = models.FloatField(null=True, blank=True, verbose_name=_("Location2 Longitude"))
 
 
     # inherited attributes

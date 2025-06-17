@@ -33,7 +33,8 @@ from django.contrib.gis.geos import Point
 class UserSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
     role = serializers.ChoiceField(write_only=True, choices=ROLE_CHOICES)
-    location2 = serializers.CharField(required=False, allow_blank=True)
+    location2_lat = serializers.FloatField(required=False, allow_null=True)
+    location2_lng = serializers.FloatField(required=False, allow_null=True)
 
     class Meta:
         model = User
@@ -46,30 +47,27 @@ class UserSerializer(serializers.ModelSerializer):
             "image",
             "role",
             "location",
-            "location2"
+            "location2_lat",
+            "location2_lng"
         ]
 
 
 
     def validate(self, attrs):
         location_str = attrs.get("location", "")
-        localstr = attrs.get("location2", "")
-
-        if not localstr and  location_str:
-            try:
-                lat, lng = map(float, location_str.split(","))
-                attrs["location2"] = Point(lng, lat)  # Note: Point(longitude, latitude)
-            except Exception as e:
-                raise serializers.ValidationError(_("Invalid location format."))
-        elif localstr:
-            try:
-                lat, lng = map(float, localstr.split(","))
-                attrs["location2"] = Point(lng, lat)  # Note: Point(longitude, latitude)
-            except Exception as e:
-                raise serializers.ValidationError(_("Invalid location format."))
-        else:
-            raise serializers.ValidationError(_("Location is required."))
-        
+        lat = attrs.get("location2_lat")
+        lng = attrs.get("location2_lng")
+        # Accept either lat/lng fields or a comma-separated string in location
+        if lat is None or lng is None:
+            if location_str:
+                try:
+                    lat_val, lng_val = map(float, location_str.split(","))
+                    attrs["location2_lat"] = lat_val
+                    attrs["location2_lng"] = lng_val
+                except Exception:
+                    raise serializers.ValidationError(_("Invalid location format."))
+            else:
+                raise serializers.ValidationError(_("Location is required."))
         return attrs
 
 

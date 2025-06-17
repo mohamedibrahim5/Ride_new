@@ -37,6 +37,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.decorators import action
+import math
 
 
 class UserRegisterView(generics.CreateAPIView):
@@ -257,13 +258,13 @@ class ProviderViewSet(viewsets.ModelViewSet):
 from rest_framework.views import APIView
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
-from django.contrib.gis.geos import Point
-from django.contrib.gis.db.models.functions import Distance
+#from django.contrib.gis.geos import Point
+#from django.contrib.gis.db.models.functions import Distance
 from time import sleep    
-from django.contrib.gis.measure import D
-from django.contrib.gis.geos import Point
-from django.contrib.gis.db.models.functions import Distance
-from django.contrib.gis.measure import D
+#from django.contrib.gis.measure import D
+#from django.contrib.gis.geos import Point
+#from django.contrib.gis.db.models.functions import Distance
+#from django.contrib.gis.measure import D
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -271,6 +272,17 @@ from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 from authentication.models import RideStatus, User
 from django.db import models
+
+
+def haversine(lat1, lng1, lat2, lng2):
+    R = 6371  # Earth radius in km
+    phi1 = math.radians(lat1)
+    phi2 = math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlambda = math.radians(lng2 - lng1)
+    a = math.sin(dphi/2)**2 + math.cos(phi1)*math.cos(phi2)*math.sin(dlambda/2)**2
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    return R * c
 
 
 class RequestProviderView(APIView):
@@ -319,16 +331,29 @@ class StartRideRequestView(APIView):
         if not (lat and lng and service_id):
             return Response({"error": "lat, lng, and service_id are required."}, status=400)
 
-        user_location2 = Point(float(lng), float(lat), srid=4326)
-
+        lat = float(lat)
+        lng = float(lng)
 
         providers = Provider.objects.filter(
             is_verified=True,
             service__id=service_id,
-            user__location2__isnull=False
-        ).annotate(distance=Distance("user__location2", user_location2)).filter(distance__lte=D(km=5)).order_by("distance")
+            user__location2_lat__isnull=False,
+            user__location2_lng__isnull=False
+        )
 
-        if not providers:
+        # Filter providers within 5 km using Haversine
+        nearby_providers = []
+        for provider in providers:
+            plat = provider.user.location2_lat
+            plng = provider.user.location2_lng
+            if plat is not None and plng is not None:
+                distance = haversine(lat, lng, plat, plng)
+                if distance <= 5:
+                    provider.distance = distance
+                    nearby_providers.append(provider)
+        nearby_providers.sort(key=lambda p: p.distance)
+
+        if not nearby_providers:
             return Response({"error": "No nearby providers found."}, status=404)
 
         # Store client info
@@ -339,7 +364,7 @@ class StartRideRequestView(APIView):
             "lng": lng
         }
 
-        for provider in providers:
+        for provider in nearby_providers:
             channel_layer = get_channel_layer()
 
             async_to_sync(channel_layer.group_send)(
@@ -355,7 +380,6 @@ class StartRideRequestView(APIView):
 
             # Wait for 10 seconds to get a response (this is simulated; actual handling is done via WebSocket)
             for _ in range(10):
-                # You should replace this polling with actual state checking (e.g., from Redis or DB)
                 from authentication.models import RideStatus
                 if RideStatus.objects.filter(client_id=request.user.id, accepted=True).exists():
                     return Response({"status": "Accepted by provider"})
@@ -378,7 +402,6 @@ class BroadcastRideRequestView(APIView):
         if RideStatus.objects.filter(client=user).exclude(status__in=["finished", "cancelled"]).exists():
             return Response({"error": "You already have an active ride request."}, status=400)
 
-
         lat = request.data.get("lat")
         lng = request.data.get("lng")
         service_id = request.data.get("service_id")
@@ -386,19 +409,29 @@ class BroadcastRideRequestView(APIView):
         if not (lat and lng and service_id):
             return Response({"error": "lat, lng, and service_id are required."}, status=400)
 
-        user_location2 = Point(float(lng), float(lat), srid=4326)
+        lat = float(lat)
+        lng = float(lng)
 
         providers = Provider.objects.filter(
             is_verified=True,
             service_id=service_id,
-            user__location2__isnull=False
-        ).annotate(
-            distance=Distance("user__location2", user_location2)
-        ).filter(
-            distance__lte=D(km=5)
-        ).order_by("distance")
+            user__location2_lat__isnull=False,
+            user__location2_lng__isnull=False
+        )
 
-        if not providers.exists():
+        # Filter providers within 5 km using Haversine
+        nearby_providers = []
+        for provider in providers:
+            plat = provider.user.location2_lat
+            plng = provider.user.location2_lng
+            if plat is not None and plng is not None:
+                distance = haversine(lat, lng, plat, plng)
+                if distance <= 5:
+                    provider.distance = distance
+                    nearby_providers.append(provider)
+        nearby_providers.sort(key=lambda p: p.distance)
+
+        if not nearby_providers:
             return Response({"error": "No nearby providers found."}, status=404)
 
         # Send to all nearby providers simultaneously
@@ -411,7 +444,7 @@ class BroadcastRideRequestView(APIView):
             "message": "Ride request from nearby client"
         }
 
-        for provider in providers:
+        for provider in nearby_providers:
             async_to_sync(channel_layer.group_send)(
                 f"user_{provider.user.id}",
                 {
@@ -426,7 +459,7 @@ class BroadcastRideRequestView(APIView):
             status="pending"
         )    
 
-        return Response({"status": f"Broadcasted ride request to {providers.count()} nearby providers"})        
+        return Response({"status": f"Broadcasted ride request to {len(nearby_providers)} nearby providers"})        
     
 
 
