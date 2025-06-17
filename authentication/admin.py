@@ -4,7 +4,7 @@ from django.utils.translation import gettext_lazy as _
 from django.utils.html import format_html
 from authentication.models import (
     User,
-    UserOtp,
+    UserOtp,    
     Service,
     Provider,
     Driver,
@@ -18,6 +18,7 @@ from authentication.models import (
     Purchase
 )
 from django import forms
+from rest_framework.authtoken.models import Token
 
 admin.site.unregister(Group)
 admin.site.register(User)
@@ -141,3 +142,9 @@ class PurchaseAdmin(admin.ModelAdmin):
     def product_name(self, obj):
         return obj.product.name
     product_name.short_description = _('Product Name')
+
+
+@admin.register(Token)
+class TokenAdmin(admin.ModelAdmin):
+    list_display = ['key', 'user', 'created']
+    search_fields = ['key', 'user__username']

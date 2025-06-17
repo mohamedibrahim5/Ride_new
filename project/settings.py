@@ -231,6 +231,11 @@ SIMPLEUI_CONFIG = {
                     'name': _('Drivers'),
                     'icon': 'fas fa-car',
                     'url': 'authentication/driver/'
+                },
+                {
+                    'name': _('Tokens'),
+                    'icon': 'fas fa-key',
+                    'url': 'authtoken/token/',
                 }
             ]
         },

@@ -20,7 +20,8 @@ from authentication.views import (
     UpdateRideStatusView,
     ProductViewSet,
     PurchaseViewSet,
-    UserPointsViewSet
+    UserPointsViewSet,
+    TokenViewSet
 )
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
@@ -34,6 +35,7 @@ router.register("customer-places", CustomerPlaceViewSet, basename="customer-plac
 router.register(r'products', ProductViewSet, basename='product')
 router.register(r'purchases', PurchaseViewSet, basename='purchase')
 router.register(r'points', UserPointsViewSet, basename='points')
+router.register(r'tokens', TokenViewSet, basename='token')
 
 
 urlpatterns = [
