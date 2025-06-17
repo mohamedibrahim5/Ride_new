@@ -25,7 +25,7 @@ WORKDIR /ride_server
 COPY . /ride_server/
 
 # Upgrade pip and install all dependencies (skip GDAL in requirements)
-RUN pip install --upgrade pip && pip install -r requirements.txt --no-deps && pip install numpy
+RUN pip install --upgrade pip && pip install -r requirements.txt
 
 # Optional: install GDAL wheel from PyPi matching system version (optional)
 # RUN pip install GDAL==$(gdal-config --version)
