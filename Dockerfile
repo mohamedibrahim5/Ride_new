@@ -16,8 +16,8 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Upgrade pip and install Python dependencies
-RUN pip install --upgrade pip
-RUN pip install -r requirements.txt
+RUN python3 -m pip install --upgrade pip
+RUN python3 -m pip install -r requirements.txt
 
 # Expose port and run
 EXPOSE 8000
