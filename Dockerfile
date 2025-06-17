@@ -1,35 +1,29 @@
-FROM python:3.10-slim-buster
+# Base image with Python 3.10 and GDAL 3.7+ preinstalled
+FROM osgeo/gdal:ubuntu-full-3.7.0
 
-ENV PYTHONUNBUFFERED 1
-ENV PYTHONDONTWRITEBYTECODE 1
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
 
-# Install system dependencies including GDAL
-RUN apt-get update && apt-get install -y \
-    libpq-dev \
-    gcc \
-    net-tools \
-    curl \
-    wget \
-    nano \
-    libgdal-dev \
-    gdal-bin \
-    python3-gdal
-
-# Set GDAL env vars to match system installation
-ENV CPLUS_INCLUDE_PATH=/usr/include/gdal
-ENV C_INCLUDE_PATH=/usr/include/gdal
-
-# Setup project directory
-RUN mkdir -p /ride_server/logs && chown -R root:root /ride_server/logs
+# Set work directory
 WORKDIR /ride_server
+
+# Copy your Django project
 COPY . /ride_server/
 
-# Upgrade pip and install all dependencies (skip GDAL in requirements)
-RUN pip install --upgrade pip && pip install -r requirements.txt
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    libpq-dev \
+    python3-dev \
+    && rm -rf /var/lib/apt/lists/*
 
-# Optional: install GDAL wheel from PyPi matching system version (optional)
-# RUN pip install GDAL==$(gdal-config --version)
+# Upgrade pip and install Python dependencies
+RUN pip install --upgrade pip
+RUN pip install -r requirements.txt
 
+# Expose the port for the app
 EXPOSE 8000
 
+# Run the Django app using gunicorn
 CMD ["gunicorn", "project.wsgi:application", "--bind", "0.0.0.0:8000"]
