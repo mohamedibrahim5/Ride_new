@@ -244,17 +244,3 @@ class Purchase(models.Model):
     class Meta:
         verbose_name = _("Purchase")
         verbose_name_plural = _("Purchases")
-
-class Token(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='auth_token')
-    key = models.CharField(max_length=40, unique=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    last_used = models.DateTimeField(auto_now=True)
-    is_active = models.BooleanField(default=True)
-
-    def __str__(self):
-        return f"Token for {self.user.name}"
-
-    class Meta:
-        verbose_name = _("Token")
-        verbose_name_plural = _("Tokens")

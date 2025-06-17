@@ -9,7 +9,6 @@ from authentication.models import (
     Product,
     Purchase,
     UserPoints,
-    Token,
 )
 from authentication.serializers import (
     UserSerializer,
@@ -30,7 +29,6 @@ from authentication.serializers import (
     ProductSerializer,
     PurchaseSerializer,
     UserPointsSerializer,
-    TokenSerializer,
 )
 from authentication.choices import ROLE_CUSTOMER, ROLE_DRIVER, ROLE_PROVIDER
 from authentication.permissions import IsAdminOrReadOnly, IsCustomer, IsCustomerOrAdmin
@@ -639,24 +637,3 @@ class UserPointsViewSet(viewsets.ModelViewSet):
             return Response({"detail": "Not allowed."}, status=403)
         return super().partial_update(request, *args, **kwargs)
 
-
-class TokenViewSet(viewsets.ModelViewSet):
-    queryset = Token.objects.all()
-    serializer_class = TokenSerializer
-    permission_classes = [IsAuthenticated]
-    http_method_names = ['get', 'post', 'delete']  # Only allow these methods
-
-    def get_queryset(self):
-        if self.request.user.is_staff:
-            return Token.objects.all()
-        return Token.objects.filter(user=self.request.user)
-
-    def perform_create(self, serializer):
-        # Generate a random token key
-        key = ''.join(random.choices(string.ascii_letters + string.digits, k=40))
-        serializer.save(user=self.request.user, key=key)
-
-    def perform_destroy(self, instance):
-        # Instead of deleting, just deactivate the token
-        instance.is_active = False
-        instance.save()
