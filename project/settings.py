@@ -15,8 +15,8 @@ DEBUG = True
 ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS").split(",")
 
 CSRF_TRUSTED_ORIGINS = [
-    "https://ride-production-f23c.up.railway.app",
-    "http://ride-production-f23c.up.railway.app",
+    "https://ridenew-production.up.railway.app/",
+    "http://ridenew-production.up.railway.app/",
 ]
 
 INSTALLED_APPS = [
@@ -71,16 +71,16 @@ ASGI_APPLICATION = "project.asgi.application"
 WSGI_APPLICATION = "project.wsgi.application"
 
 if DEBUG:
-    # DATABASES = {
-    #     'default': {
-    #         'ENGINE': 'django.contrib.gis.db.backends.postgis',
-    #         'NAME': 'ride_db',
-    #         'USER': 'postgres',
-    #         'PASSWORD': 'cyparta@2024',
-    #         'HOST': 'localhost',
-    #         'PORT': '5432',
-    #     }
-    # }
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.contrib.gis.db.backends.postgis',
+            'NAME': 'ride_db',
+            'USER': 'postgres',
+            'PASSWORD': 'cyparta@2024',
+            'HOST': 'localhost',
+            'PORT': '5432',
+        }
+    }
 
 
     # DATABASES = {
@@ -110,16 +110,16 @@ if DEBUG:
         },
     }
 
-    DATABASES = {
-        "default": {
-            "ENGINE": "django.db.backends.postgresql",
-            "NAME": "railway",  # Replace with your actual DB name
-            "USER": "postgres",  # Replace with your actual DB user
-            "PASSWORD": "JlcDSbkGlYHJLzGDGwRjjOrfHwMwXlZf",  # Replace with your actual DB password
-            "HOST": "postgres.railway.internal",  # Use Railway's host
-            "PORT": "5432",  # PostgreSQL default port
-        }
-    }
+    # DATABASES = {
+    #     "default": {
+    #         "ENGINE": "django.db.backends.postgresql",
+    #         "NAME": "railway",  # Replace with your actual DB name
+    #         "USER": "postgres",  # Replace with your actual DB user
+    #         "PASSWORD": "JlcDSbkGlYHJLzGDGwRjjOrfHwMwXlZf",  # Replace with your actual DB password
+    #         "HOST": "postgres.railway.internal",  # Use Railway's host
+    #         "PORT": "5432",  # PostgreSQL default port
+    #     }
+    # }
 else:
     DATABASES = {
         "default": {
