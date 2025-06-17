@@ -115,7 +115,7 @@ if DEBUG:
             "ENGINE": "django.db.backends.postgresql",
             "NAME": "railway",  # Replace with your actual DB name
             "USER": "postgres",  # Replace with your actual DB user
-            "PASSWORD": "ujbmacKsYJwgzqDZyuCtXntbVfNBNxIE",  # Replace with your actual DB password
+            "PASSWORD": "JlcDSbkGlYHJLzGDGwRjjOrfHwMwXlZf",  # Replace with your actual DB password
             "HOST": "postgres.railway.internal",  # Use Railway's host
             "PORT": "5432",  # PostgreSQL default port
         }
