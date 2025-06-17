@@ -15,8 +15,8 @@ DEBUG = True
 ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS").split(",")
 
 CSRF_TRUSTED_ORIGINS = [
-    "https://ridenew-production.up.railway.app/",
-    "http://ridenew-production.up.railway.app/",
+    "https://ridenew-production.up.railway.app",
+    "http://ridenew-production.up.railway.app",
 ]
 
 INSTALLED_APPS = [
