@@ -81,6 +81,7 @@ class Provider(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, verbose_name=_("User"))
     service = models.ForeignKey(Service, on_delete=models.CASCADE, verbose_name=_("Service"))
     is_verified = models.BooleanField(_("Is Verified"), default=False)
+    created_at = models.DateTimeField(_("Created At"), auto_now_add=True,null=True, blank=True)
 
     def __str__(self):
         return self.user.name
