@@ -51,6 +51,7 @@ class UserOtp(models.Model):
 
 class Service(models.Model):
     name = models.CharField(_("Name"), max_length=20, unique=True)
+    created_at = models.DateTimeField(_("Created At"), auto_now_add=True, null=True, blank=True)
 
     def __str__(self):
         return self.name
