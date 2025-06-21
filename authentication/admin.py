@@ -23,7 +23,7 @@ from rest_framework.authtoken.models import Token
 admin.site.unregister(Group)
 admin.site.register(User)
 admin.site.register(UserOtp)
-admin.site.register(Service)
+#admin.site.register(Service)
 admin.site.register(Provider)
 admin.site.register(Driver)
 admin.site.register(DriverCar)
