@@ -15,8 +15,8 @@ DEBUG = True
 ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS").split(",")
 
 CSRF_TRUSTED_ORIGINS = [
-    "https://ridenew-production.up.railway.app",
-    "http://ridenew-production.up.railway.app",
+    "https://ridenew-production-41e4.up.railway.app",
+    "http://ridenew-production-41e4.up.railway.app/",
 ]
 
 INSTALLED_APPS = [
@@ -93,18 +93,18 @@ if DEBUG:
     #         'PORT':'3306',
     #     }
     # }
-    DATABASES = {
-        "default": {
-            "ENGINE": "django.db.backends.sqlite3",
-            "NAME": os.path.join(BASE_DIR, "db.sqlite3"),
-        }
-    }
+    # DATABASES = {
+    #     "default": {
+    #         "ENGINE": "django.db.backends.sqlite3",
+    #         "NAME": os.path.join(BASE_DIR, "db.sqlite3"),
+    #     }
+    # }
     DATABASES = {
         "default": {
             'ENGINE': 'django.db.backends.postgresql',
             "NAME": "railway",  # Replace with your actual DB name
             "USER": "postgres",  # Replace with your actual DB user
-            "PASSWORD": "JlcDSbkGlYHJLzGDGwRjjOrfHwMwXlZf",  # Replace with your actual DB password
+            "PASSWORD": "hscKMhKfGhnAqhaLoToyYiaywiDCNEct",  # Replace with your actual DB password
             "HOST": "postgres.railway.internal",  # Use Railway's host
             "PORT": "5432",  # PostgreSQL default por
         }
@@ -123,7 +123,7 @@ if DEBUG:
     # settings.py or your appropriate config file
 
     REDIS_USER = "default"
-    REDIS_PASSWORD = "lIoMFNdVwBEbkmEgEAxYfRtMxaluLbcU"
+    REDIS_PASSWORD = "kfckXuBMZDDwGNqnmriCUkxqOBpbPrqH"
     REDIS_HOST = "redis.railway.internal"
     REDIS_PORT = 6379
     REDIS_DB = 0
