@@ -148,3 +148,10 @@ class PurchaseAdmin(admin.ModelAdmin):
 class TokenAdmin(admin.ModelAdmin):
     list_display = ['key', 'user', 'created']
     search_fields = ['key', 'user__username']
+
+
+@admin.register(Service)
+class ServiceAdmin(admin.ModelAdmin):
+    list_display = ['name', 'created_at']
+    search_fields = ['name']
+    ordering = ['-created_at']
