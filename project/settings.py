@@ -8,7 +8,6 @@ load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = os.getenv("SECRET_KEY")
 DEBUG = True
 
 ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS").split(",")
@@ -226,7 +225,7 @@ SIMPLEUI_DEFAULT_THEME = 'admin.lte.css'
 
 SIMPLEUI_CONFIG = {
     'system_keep': False,
-    'menu_display': [_('Authentication'), _('Products'), _('Points'), _('Purchases')],
+    'menu_display': [_('Authentication'), _('Products'), _('Points'), _('Purchases'), _('Car Rentals'),  _('Services')],
     'dynamic': True,
     'menus': [
         {
@@ -297,7 +296,40 @@ SIMPLEUI_CONFIG = {
                     'url': 'authentication/purchase/'
                 }
             ]
-        }
+        },
+        {
+            'name': _('Car Rentals'),
+            'icon': 'fas fa-car',
+            'models': [
+                {
+                    'name': _('Car Agencies'),
+                    'icon': 'fas fa-building',
+                    'url': 'authentication/caragency/'
+                },
+                {
+                    'name': _('Car Availability'),
+                    'icon': 'fas fa-calendar-check',
+                    'url': 'authentication/caravailability/'
+                },
+                {
+                    'name': _('Car Rentals'),
+                    'icon': 'fas fa-car-side',
+                    'url': 'authentication/carrental/'
+                }
+            ]
+        },
+        {
+            'name': _('Services'),
+            'icon': 'fas fa-concierge-bell',
+            'models': [
+                {
+                    'name': _('Services'),
+                    'icon': 'fas fa-concierge-bell',
+                    'url': 'authentication/service/'
+                }
+            ]
+        },
+        
     ]
 }
 

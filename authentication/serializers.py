@@ -27,7 +27,7 @@ from rest_framework.authtoken.models import Token
 from django.utils import timezone
 from fcm_django.models import FCMDevice
 from django.contrib.gis.geos import Point
-
+from .models import CarAgency, CarAvailability, CarRental
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -561,3 +561,103 @@ class PurchaseSerializer(serializers.ModelSerializer):
             quantity=quantity,
             points_spent=points_spent
         )
+        
+        
+class CarAgencySerializer(serializers.ModelSerializer):
+    actual_free_times = serializers.SerializerMethodField()
+
+    class Meta:
+        model = CarAgency
+        fields = '__all__'
+
+    def get_actual_free_times(self, obj):
+        slots = obj.availability_slots.all()
+        rentals = obj.rentals.exclude(status='cancelled')
+        actual = []
+        for slot in slots:
+            cuts = [(slot.start_time, slot.end_time)]
+            for rental in rentals:
+                if rental.end_datetime <= slot.start_time or rental.start_datetime >= slot.end_time:
+                    continue
+                new_cuts = []
+                for cut_start, cut_end in cuts:
+                    if rental.end_datetime <= cut_start or rental.start_datetime >= cut_end:
+                        new_cuts.append((cut_start, cut_end))
+                    else:
+                        if rental.start_datetime > cut_start:
+                            new_cuts.append((cut_start, rental.start_datetime))
+                        if rental.end_datetime < cut_end:
+                            new_cuts.append((rental.end_datetime, cut_end))
+                cuts = new_cuts
+            for s, e in cuts:
+                if s < e:
+                    actual.append({'start': s, 'end': e})
+        return actual
+
+
+class CarAvailabilitySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CarAvailability
+        fields = '__all__'
+
+
+
+class CarRentalSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CarRental
+        fields = [
+            'id',
+            'customer',
+            'car',
+            'start_datetime',
+            'end_datetime',
+            'total_price',
+            'status',
+            'created_at',
+        ]
+        read_only_fields = ['customer', 'total_price', 'created_at']
+
+    def validate(self, data):
+        """
+        Custom validation for create + update.
+        """
+        request = self.context['request']
+        is_create = self.instance is None
+
+        # 🔑 Always get the car:
+        if is_create:
+            car = data.get('car')
+            if not car:
+                raise serializers.ValidationError({"car": "Car is required."})
+        else:
+            # If updating, get from existing instance
+            car = self.instance.car
+
+        start_datetime = data.get('start_datetime', getattr(self.instance, 'start_datetime', None))
+        end_datetime = data.get('end_datetime', getattr(self.instance, 'end_datetime', None))
+
+        if is_create and (not start_datetime or not end_datetime):
+            raise serializers.ValidationError({"detail": "Start and End are required for new rental."})
+
+        # Only check overlap if dates present
+        if start_datetime and end_datetime:
+            overlapping_rentals = CarRental.objects.filter(
+                car=car,
+                start_datetime__lt=end_datetime,
+                end_datetime__gt=start_datetime
+            )
+            if self.instance:
+                overlapping_rentals = overlapping_rentals.exclude(pk=self.instance.pk)
+
+            if overlapping_rentals.exists():
+                raise serializers.ValidationError(
+                    {"detail": "This car is already booked in the selected time range."}
+                )
+
+        return data
+
+
+    def create(self, validated_data):
+        validated_data['customer'] = self.context['request'].user.customer
+        rental = CarRental.objects.create(**validated_data)
+        return rental

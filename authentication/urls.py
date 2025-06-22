@@ -21,6 +21,10 @@ from authentication.views import (
     ProductViewSet,
     PurchaseViewSet,
     UserPointsViewSet,
+    CarAgencyViewSet, 
+    CarAvailabilityViewSet, 
+    CarRentalViewSet
+
 )
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
@@ -34,6 +38,9 @@ router.register("customer-places", CustomerPlaceViewSet, basename="customer-plac
 router.register(r'products', ProductViewSet, basename='product')
 router.register(r'purchases', PurchaseViewSet, basename='purchase')
 router.register(r'points', UserPointsViewSet, basename='points')
+router.register(r'cars', CarAgencyViewSet)
+router.register(r'availability', CarAvailabilityViewSet)
+router.register(r'rentals', CarRentalViewSet)
 
 
 urlpatterns = [

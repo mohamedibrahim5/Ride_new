@@ -9,6 +9,16 @@ class IsAdminOrReadOnly(permissions.BasePermission):
 
         return bool(request.user and request.user.is_staff)
 
+class IsAdminOrCarAgency(BasePermission):
+    """
+    Only Admin or Car Agency role can add/update/delete.
+    """
+    def has_permission(self, request, view):
+        return (
+            request.user.is_authenticated and
+            (request.user.is_staff or request.user.role == "CA")
+        )
+
 class IsCustomer(BasePermission):
     def has_permission(self, request, view):
         return hasattr(request.user, 'customer')

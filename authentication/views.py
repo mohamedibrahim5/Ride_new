@@ -9,6 +9,9 @@ from authentication.models import (
     Product,
     Purchase,
     UserPoints,
+    CarAgency, 
+    CarAvailability, 
+    CarRental
 )
 from authentication.serializers import (
     UserSerializer,
@@ -29,10 +32,13 @@ from authentication.serializers import (
     ProductSerializer,
     PurchaseSerializer,
     UserPointsSerializer,
+    CarAgencySerializer,
+    CarAvailabilitySerializer,
+    CarRentalSerializer
 )
 from authentication.choices import ROLE_CUSTOMER, ROLE_DRIVER, ROLE_PROVIDER
-from authentication.permissions import IsAdminOrReadOnly, IsCustomer, IsCustomerOrAdmin
-from rest_framework import status, generics, viewsets
+from authentication.permissions import IsAdminOrReadOnly, IsCustomer, IsCustomerOrAdmin, IsAdminOrCarAgency
+from rest_framework import status, generics, viewsets, filters
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
@@ -40,7 +46,8 @@ from rest_framework.decorators import action
 import math
 import random
 import string
-
+from django.utils import timezone
+from django.shortcuts import get_object_or_404
 
 class UserRegisterView(generics.CreateAPIView):
     def get_serializer_class(self):
@@ -637,3 +644,97 @@ class UserPointsViewSet(viewsets.ModelViewSet):
             return Response({"detail": "Not allowed."}, status=403)
         return super().partial_update(request, *args, **kwargs)
 
+
+class CarAgencyViewSet(viewsets.ModelViewSet):
+    queryset = CarAgency.objects.prefetch_related('availability_slots', 'rentals')
+    serializer_class = CarAgencySerializer
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    filterset_fields = ['brand', 'model', 'color']
+    search_fields = ['brand', 'model', 'color']
+
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            return [IsAdminOrCarAgency()]
+        return [IsAuthenticated()]
+
+    def get_queryset(self):
+        user = self.request.user
+        queryset = super().get_queryset()
+
+        # Customers see only available cars in valid slots & no conflicting rentals
+        if user.role == "CU":
+            now = timezone.now()
+            # cars that have future availability slots
+            queryset = queryset.filter(
+                available=True,
+                availability_slots__end_time__gte=now
+            ).distinct()
+            
+            desired_start = self.request.query_params.get('desired_start')
+            desired_end = self.request.query_params.get('desired_end')
+
+            if desired_start and desired_end:
+                # show cars that have a slot covering this window AND no rental overlap
+                qs_ids = []
+                for car in queryset:
+                    slots = car.availability_slots.filter(
+                        start_time__lte=desired_start,
+                        end_time__gte=desired_end
+                    )
+                    rentals = car.rentals.filter(
+                        start_datetime__lt=desired_end,
+                        end_datetime__gt=desired_start,
+                    )
+                    if slots.exists() and not rentals.exists():
+                        qs_ids.append(car.id)
+                queryset = queryset.filter(id__in=qs_ids)
+
+        return queryset
+
+
+class CarAvailabilityViewSet(viewsets.ModelViewSet):
+    queryset = CarAvailability.objects.all()
+    serializer_class = CarAvailabilitySerializer
+    permission_classes = [IsAuthenticated, IsAdminOrCarAgency]
+
+    @action(detail=False, methods=['post'], url_path='bulk_create')
+    def bulk_create(self, request):
+        car_id = request.data.get('car')
+        slots = request.data.get('slots')
+        if not car_id or not slots:
+            return Response({"detail": "Missing car or slots."}, status=status.HTTP_400_BAD_REQUEST)
+
+        car = get_object_or_404(CarAgency, id=car_id)
+        created_slots = []
+        for slot in slots:
+            serializer = self.get_serializer(data={'car': car.id, **slot})
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+            created_slots.append(serializer.data)
+        return Response({"slots_created": created_slots}, status=status.HTTP_201_CREATED)
+
+
+class CarRentalViewSet(viewsets.ModelViewSet):
+    queryset = CarRental.objects.all()
+    serializer_class = CarRentalSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_permissions(self):
+        if self.action in ['update', 'partial_update']:
+            return [IsAuthenticated(), IsAdminOrCarAgency()]
+        if self.action == 'create':
+            return [IsAuthenticated(), IsCustomer()]
+        return [IsAuthenticated()]
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.role == "CU" and hasattr(user, 'customer'):
+            return CarRental.objects.filter(customer=user.customer)
+        elif user.role == "CA":
+            return CarRental.objects.filter(car__in=CarAgency.objects.all())
+        elif user.is_staff:
+            return CarRental.objects.all()
+        return CarRental.objects.none()
+
+    def perform_create(self, serializer):
+        serializer.save(customer=self.request.user.customer)

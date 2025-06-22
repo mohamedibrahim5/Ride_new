@@ -15,7 +15,10 @@ from authentication.models import (
     UserPoints,
     Product,
     ProductImage,
-    Purchase
+    Purchase, 
+    CarAgency,
+    CarAvailability,
+    CarRental
 )
 from django import forms
 from rest_framework.authtoken.models import Token
@@ -155,3 +158,32 @@ class ServiceAdmin(admin.ModelAdmin):
     list_display = ['name', 'created_at']
     search_fields = ['name']
     ordering = ['-created_at']
+    
+    
+@admin.register(CarAgency)
+class CarAgencyAdmin(admin.ModelAdmin):
+    list_display = ("brand", "model", "color", "price_per_hour", "available", "created_at")
+    list_filter = ("brand", "color", "available", "created_at")
+    list_editable = ("available",)  # ✅ now you CAN edit if you really want
+    search_fields = ("brand", "model", "color")
+    readonly_fields = ("created_at",)
+    ordering = ("-created_at",)
+
+
+
+@admin.register(CarAvailability)
+class CarAvailabilityAdmin(admin.ModelAdmin):
+    list_display = ("car", "start_time", "end_time")
+    list_filter = ("car__brand", "car__model", "start_time", "end_time")
+    search_fields = ("car__brand", "car__model")
+    ordering = ("-start_time",)
+
+
+@admin.register(CarRental)
+class CarRentalAdmin(admin.ModelAdmin):
+    list_display = ("customer", "car", "start_datetime", "end_datetime", "total_price", "status", "created_at")
+    list_filter = ("car__brand", "car__model", "start_datetime", "end_datetime", "status")
+    search_fields = ("customer__user__name", "car__brand", "car__model")
+    readonly_fields = ("total_price", "created_at")
+    ordering = ("-created_at",)
+
