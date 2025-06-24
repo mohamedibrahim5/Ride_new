@@ -1,0 +1,417 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the PACKAGE package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-06-24 07:04+0300\n"
+"PO-Revision-Date: 2025-06-24 08:00+0300\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: Kurdish <ku@li.org>\n"
+"Language: ku\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: admin.py:47
+msgid "User Name"
+msgstr "Navê Bikarhêner"
+
+#: admin.py:51
+msgid "Phone Number"
+msgstr "Hejmara Telefonê"
+
+#: admin.py:55 models.py:55 models.py:190 models.py:215 models.py:242 models.py:259 models.py:347
+msgid "Created At"
+msgstr "Dema Afirandinê"
+
+#: admin.py:75
+msgid "Basic Information"
+msgstr "Agahdariyên Bingehîn"
+
+#: admin.py:78
+msgid "Pricing and Stock"
+msgstr "Bihayê û Stok"
+
+#: admin.py:81 admin.py:98 models.py:179 models.py:342
+msgid "Status"
+msgstr "Rewş"
+
+#: admin.py:84 admin.py:135
+msgid "Timestamps"
+msgstr "Demjimêr"
+
+#: admin.py:92
+msgid "Provider Name"
+msgstr "Navê Pêşkêşkar"
+
+#: admin.py:104
+msgid "No image"
+msgstr "Wêne tune"
+
+#: admin.py:105 admin.py:122
+msgid "Preview"
+msgstr "Pêşdîtin"
+
+#: admin.py:117 admin.py:147
+msgid "Product Name"
+msgstr "Navê Hilberê"
+
+#: admin.py:132
+msgid "Purchase Information"
+msgstr "Agahdariya Kirînê"
+
+#: admin.py:143
+msgid "Customer Name"
+msgstr "Navê Kiryarê"
+
+#: models.py:12 models.py:54 models.py:210
+msgid "Name"
+msgstr "Nav"
+
+#: models.py:13
+msgid "Phone"
+msgstr "Telefon"
+
+#: models.py:14 models.py:72 models.py:116 models.py:227 models.py:258
+msgid "Image"
+msgstr "Wêne"
+
+#: models.py:15
+msgid "Role"
+msgstr "Rol"
+
+#: models.py:16 models.py:141
+msgid "Location"
+msgstr "Cih"
+
+#: models.py:17
+msgid "Location2 Latitude"
+msgstr "Panorayê Cihê 2"
+
+#: models.py:18
+msgid "Location2 Longitude"
+msgstr "Dirêjayê Cihê 2"
+
+#: models.py:28 models.py:214
+msgid "Is Active"
+msgstr "Çalak e"
+
+#: models.py:37 models.py:42 models.py:83 models.py:97 models.py:128 models.py:196
+msgid "User"
+msgstr "Bikarhêner"
+
+#: models.py:38
+msgid "Users"
+msgstr "Bikarhêneran"
+
+#: models.py:43
+msgid "OTP"
+msgstr "Koda OTP"
+
+#: models.py:49
+msgid "User OTP"
+msgstr "OTP ya Bikarhêner"
+
+#: models.py:50
+msgid "User OTPs"
+msgstr "OTP'ên Bikarhêner"
+
+#: models.py:61 models.py:70 models.py:84 models.py:176
+msgid "Service"
+msgstr "Xizmet"
+
+#: models.py:62
+msgid "Services"
+msgstr "Xizmetan"
+
+#: models.py:78
+msgid "Service Image"
+msgstr "Wêneyê Xizmetê"
+
+#: models.py:79
+msgid "Service Images"
+msgstr "Wêneyên Xizmetê"
+
+#: models.py:85 models.py:100
+msgid "Is Verified"
+msgstr "Piştrastkirî ye"
+
+#: models.py:92 models.py:171 models.py:209
+msgid "Provider"
+msgstr "Pêşkêşkar"
+
+#: models.py:93
+msgid "Providers"
+msgstr "Pêşkêşkaran"
+
+#: models.py:98 models.py:117
+msgid "License"
+msgstr "Lîsans"
+
+#: models.py:99 models.py:129
+msgid "In Ride"
+msgstr "Di Rêwîtiyê de ye"
+
+#: models.py:106 models.py:111
+msgid "Driver"
+msgstr "Ajokar"
+
+#: models.py:107
+msgid "Drivers"
+msgstr "Ajokaran"
+
+#: models.py:112
+msgid "Type"
+msgstr "Cure"
+
+#: models.py:113 models.py:253
+msgid "Model"
+msgstr "Model"
+
+#: models.py:114
+msgid "Number"
+msgstr "Hejmara"
+
+#: models.py:115 models.py:255
+msgid "Color"
+msgstr "Reng"
+
+#: models.py:123
+msgid "Driver Car"
+msgstr "Ereba Ajokar"
+
+#: models.py:124
+msgid "Driver Cars"
+msgstr "Erebên Ajokar"
+
+#: models.py:135 models.py:140 models.py:238 models.py:323
+msgid "Customer"
+msgstr "Kiryar"
+
+#: models.py:136
+msgid "Customers"
+msgstr "Kiryarên"
+
+#: models.py:147
+msgid "Customer Place"
+msgstr "Cihê Kiryar"
+
+#: models.py:148
+msgid "Customer Places"
+msgstr "Cihên Kiryar"
+
+#: models.py:154
+msgid "Pending"
+msgstr "Li benda ye"
+
+#: models.py:155
+msgid "Accepted"
+msgstr "Pejirandin"
+
+#: models.py:156
+msgid "Starting"
+msgstr "Destpêkirin"
+
+#: models.py:157
+msgid "Arriving"
+msgstr "Gihîştin"
+
+#: models.py:158
+msgid "Finished"
+msgstr "Qediya"
+
+#: models.py:159
+msgid "Cancelled"
+msgstr "Betalkirî"
+
+#: models.py:165
+msgid "Client"
+msgstr "Kiryar"
+
+#: models.py:185
+msgid "Pickup Latitude"
+msgstr "Panoraya Stendinê"
+
+#: models.py:186
+msgid "Pickup Longitude"
+msgstr "Dirêjaya Stendinê"
+
+#: models.py:187
+msgid "Drop Latitude"
+msgstr "Panoraya Danînê"
+
+#: models.py:188
+msgid "Drop Longitude"
+msgstr "Dirêjaya Danînê"
+
+#: models.py:197
+msgid "Points"
+msgstr "Xal"
+
+#: models.py:203 models.py:204
+msgid "User Points"
+msgstr "Xalên Bikarhêner"
+
+#: models.py:211
+msgid "Description"
+msgstr "Terîf"
+
+#: models.py:212
+msgid "Points Price"
+msgstr "Bihayê Xal"
+
+#: models.py:213
+msgid "Stock"
+msgstr "Stok"
+
+#: models.py:216
+msgid "Updated At"
+msgstr "Rojanekirî di"
+
+#: models.py:222 models.py:226 models.py:239
+msgid "Product"
+msgstr "Hilber"
+
+#: models.py:223
+msgid "Products"
+msgstr "Hilberan"
+
+#: models.py:233
+msgid "Product Image"
+msgstr "Wêneya Hilberê"
+
+#: models.py:234
+msgid "Product Images"
+msgstr "Wêneyên Hilberê"
+
+#: models.py:240
+msgid "Points Spent"
+msgstr "Xalên Xerckirî"
+
+#: models.py:241
+msgid "Quantity"
+msgstr "Hejmara"
+
+#: models.py:248
+msgid "Purchase"
+msgstr "Kirîn"
+
+#: models.py:249
+msgid "Purchases"
+msgstr "Kirînan"
+
+#: models.py:254
+msgid "Brand"
+msgstr "Brend"
+
+#: models.py:256
+msgid "Price per Hour"
+msgstr "Bihayê di saetê de"
+
+#: models.py:257
+msgid "Available"
+msgstr "Guncaw"
+
+#: models.py:297
+msgid "Available From"
+msgstr "Guncaw ji"
+
+#: models.py:298
+msgid "Available Until"
+msgstr "Guncaw heta"
+
+#: models.py:329
+msgid "Car"
+msgstr "Ereb"
+
+#: models.py:331
+msgid "Rental Start"
+msgstr "Destpêka Kirê"
+
+#: models.py:332
+msgid "Rental End"
+msgstr "Dawiya Kirê"
+
+#: models.py:335
+msgid "Total Price"
+msgstr "Bihayê Giştî"
+
+#: models.py:372
+msgid "Car Rental"
+msgstr "Kiraê Ereban"
+
+#: models.py:373
+msgid "Car Rentals"
+msgstr "Kiraên Ereban"
+
+#: serializers.py:68
+msgid "Invalid location format."
+msgstr "Forma cihê nederbasdar e."
+
+#: serializers.py:70
+msgid "Location is required."
+msgstr "Cih pêwîst e."
+
+#: serializers.py:89 serializers.py:246
+msgid "the sms service is not working try again later"
+msgstr "Xizmeta SMSê nekar dike, paşê dîsa biceribîne"
+
+#: serializers.py:125
+msgid "Service not found."
+msgstr "Xizmet nehate dîtin."
+
+#: serializers.py:203 serializers.py:238 serializers.py:264
+msgid "Invalid phone"
+msgstr "Telefonê nederbasdar"
+
+#: serializers.py:206
+msgid "Invalid password"
+msgstr "Şîfreya nederbasdar"
+
+#: serializers.py:209
+msgid "User is not active"
+msgstr "Bikarhêner neçalak e"
+
+#: serializers.py:224
+msgid "User is not verified"
+msgstr "Bikarhêner nehat piştrastkirin"
+
+#: serializers.py:269 serializers.py:300
+msgid "Invalid otp"
+msgstr "OTP ya nederbasdar"
+
+#: serializers.py:293
+msgid "Passwords do not match"
+msgstr "Şîfrek nakevin hev"
+
+#: serializers.py:330
+msgid "Password do not match confirm password"
+msgstr "Şîfre bi şîfreya piştrastkirinê re nakeve hev"
+
+#: serializers.py:337
+msgid "Old password is incorrect"
+msgstr "Şîfreya kevn şaş e"
+
+#: serializers.py:407
+msgid "Password is incorrect"
+msgstr "Şîfreya şaş"
+
+#: serializers.py:494
+msgid "Authenticated user must be a provider with a service name containing \"store\"."
+msgstr "Bikarhênerê têkilî divê pêşkêşkar be û navê xizmetê wê \"store\" tê de hebin."
+
+#: serializers.py:521
+msgid "Product is not available."
+msgstr "Hilber nehate peyda kirin."
+
+#: serializers.py:525
+msgid "Not enough stock available."
+msgstr "Stokê nehatiye gihîştin."
+
+#: serializers.py:532
+msgid "Not enough points available."
+msgstr "Xalê negelek heye."

@@ -37,7 +37,7 @@ from authentication.serializers import (
     CarRentalSerializer
 )
 from authentication.choices import ROLE_CUSTOMER, ROLE_DRIVER, ROLE_PROVIDER
-from authentication.permissions import IsAdminOrReadOnly, IsCustomer, IsCustomerOrAdmin, IsAdminOrCarAgency
+from authentication.permissions import IsAdminOrReadOnly, IsCustomer, IsCustomerOrAdmin, IsAdminOrCarAgency, IsStoreProvider
 from rest_framework import status, generics, viewsets, filters
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -554,14 +554,12 @@ class UpdateRideStatusView(APIView):
 class ProductViewSet(viewsets.ModelViewSet):
     queryset = Product.objects.select_related('provider__user').prefetch_related('images')
     serializer_class = ProductSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, IsStoreProvider]
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['is_active', 'provider']
 
     def get_queryset(self):
         queryset = super().get_queryset()
-        # Only show products for providers with service name 'online store'
-        queryset = queryset.filter(provider__service__name__icontains='store')
         if self.request.user.role == ROLE_PROVIDER:
             return queryset.filter(provider__user=self.request.user)
         return queryset.filter(is_active=True)
@@ -574,19 +572,32 @@ class ProductViewSet(viewsets.ModelViewSet):
 
 class PurchaseViewSet(viewsets.ModelViewSet):
     serializer_class = PurchaseSerializer
+    filter_backends = [DjangoFilterBackend]
+    filterset_fields = ['status', 'product__provider']
 
     def get_permissions(self):
         if self.action == 'create':
             return [IsAuthenticated(), IsCustomer()]
+        elif self.action in ['update', 'partial_update']:
+            return [IsAuthenticated()]
         return [IsAuthenticated()]
 
     def get_queryset(self):
         user = self.request.user
         if hasattr(user, 'customer'):
-            return Purchase.objects.filter(customer__user=user)
+            return Purchase.objects.filter(customer__user=user).select_related('product', 'customer__user')
         elif hasattr(user, 'provider'):
-            return Purchase.objects.filter(product__provider__user=user)
+            # Only show purchases for store providers
+            if 'store' in user.provider.service.name.lower():
+                return Purchase.objects.filter(product__provider__user=user).select_related('product', 'customer__user')
+            return Purchase.objects.none()
         return Purchase.objects.none()
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        if hasattr(self.request.user, 'customer'):
+            context['customer'] = self.request.user.customer
+        return context
 
     def create(self, request, *args, **kwargs):
         if not hasattr(request.user, 'customer'):
@@ -595,6 +606,32 @@ class PurchaseViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_403_FORBIDDEN
             )
         return super().create(request, *args, **kwargs)
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        user = request.user
+        
+        # Only allow providers with store service to update status of their products' purchases
+        if hasattr(user, 'provider'):
+            if not 'store' in user.provider.service.name.lower():
+                return Response(
+                    {"detail": "Only store providers can update purchase status."},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+            if instance.product.provider.user != user:
+                return Response(
+                    {"detail": "You can only update purchases of your own products."},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+        # Customers can only update their own purchases
+        elif hasattr(user, 'customer'):
+            if instance.customer.user != user:
+                return Response(
+                    {"detail": "You can only update your own purchases."},
+                    status=status.HTTP_403_FORBIDDEN
+                )
+        
+        return super().update(request, *args, **kwargs)
 
 
 class UserPointsViewSet(viewsets.ModelViewSet):

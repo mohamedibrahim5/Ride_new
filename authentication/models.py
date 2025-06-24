@@ -209,7 +209,7 @@ class Product(models.Model):
     provider = models.ForeignKey(Provider, on_delete=models.CASCADE, related_name="products", verbose_name=_("Provider"))
     name = models.CharField(_("Name"), max_length=100)
     description = models.TextField(_("Description"))
-    points_price = models.PositiveIntegerField(_("Points Price"))
+    display_price = models.PositiveIntegerField(_("Display Price"), default=0)
     stock = models.PositiveIntegerField(_("Stock"), default=0)
     is_active = models.BooleanField(_("Is Active"), default=True)
     created_at = models.DateTimeField(_("Created At"), auto_now_add=True)
@@ -235,10 +235,30 @@ class ProductImage(models.Model):
 
 
 class Purchase(models.Model):
+    STATUS_PENDING = "pending"
+    STATUS_CONFIRMED = "confirmed"
+    STATUS_IN_PROGRESS = "in_progress"
+    STATUS_COMPLETED = "completed"
+    STATUS_CANCELLED = "cancelled"
+
+    STATUS_CHOICES = [
+        (STATUS_PENDING, _("Pending")),
+        (STATUS_CONFIRMED, _("Confirmed")),
+        (STATUS_IN_PROGRESS, _("In Progress")),
+        (STATUS_COMPLETED, _("Completed")),
+        (STATUS_CANCELLED, _("Cancelled")),
+    ]
+    
     customer = models.ForeignKey(Customer, on_delete=models.CASCADE, related_name="purchases", verbose_name=_("Customer"))
     product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="purchases", verbose_name=_("Product"))
-    points_spent = models.PositiveIntegerField(_("Points Spent"))
+    money_spent = models.PositiveIntegerField(_("Money Spent"), default=0)
     quantity = models.PositiveIntegerField(_("Quantity"), default=1)
+    status = models.CharField(
+        _("Status"),
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default=STATUS_PENDING
+    )
     created_at = models.DateTimeField(_("Created At"), auto_now_add=True)
 
     def __str__(self):

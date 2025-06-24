@@ -66,7 +66,7 @@ class ProductAdminForm(forms.ModelForm):
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
     form = ProductAdminForm
-    list_display = ('name', 'provider_name', 'points_price', 'stock', 'status', 'created_at')
+    list_display = ('name', 'provider_name', 'display_price', 'stock', 'status', 'created_at')
     list_filter = ('is_active', 'provider', 'created_at')
     search_fields = ('name', 'description', 'provider__user__name')
     ordering = ('-created_at',)
@@ -76,7 +76,7 @@ class ProductAdmin(admin.ModelAdmin):
             'fields': ('name', 'description', 'provider')
         }),
         (_('Pricing and Stock'), {
-            'fields': ('points_price', 'stock')
+            'fields': ('display_price', 'stock')
         }),
         (_('Status'), {
             'fields': ('is_active',)
@@ -123,14 +123,17 @@ class ProductImageAdmin(admin.ModelAdmin):
 
 @admin.register(Purchase)
 class PurchaseAdmin(admin.ModelAdmin):
-    list_display = ('customer_name', 'product_name', 'points_spent', 'quantity', 'created_at')
-    list_filter = ('created_at', 'product__provider')
+    list_display = ('customer_name', 'product_name', 'money_spent', 'quantity', 'status', 'status_display', 'created_at')
+    list_filter = ('status', 'created_at', 'product__provider')
     search_fields = ('customer__user__name', 'product__name')
     ordering = ('-created_at',)
     readonly_fields = ('created_at',)
     fieldsets = (
         (_('Purchase Information'), {
-            'fields': ('customer', 'product', 'quantity', 'points_spent')
+            'fields': ('customer', 'product', 'quantity', 'money_spent')
+        }),
+        (_('Status'), {
+            'fields': ('status',)
         }),
         (_('Timestamps'), {
             'fields': ('created_at',),
@@ -145,13 +148,23 @@ class PurchaseAdmin(admin.ModelAdmin):
     def product_name(self, obj):
         return obj.product.name
     product_name.short_description = _('Product Name')
-
+    
+    def status_display(self, obj):
+        status_colors = {
+            'pending': 'orange',
+            'confirmed': 'blue',
+            'in_progress': 'purple',
+            'completed': 'green',
+            'cancelled': 'red',
+        }
+        color = status_colors.get(obj.status, 'black')
+        return format_html('<span style="color: {};">●</span> {}', color, obj.get_status_display())
+    status_display.short_description = _('Status')
 
 @admin.register(Token)
 class TokenAdmin(admin.ModelAdmin):
     list_display = ['key', 'user', 'created']
     search_fields = ['key', 'user__username']
-
 
 @admin.register(Service)
 class ServiceAdmin(admin.ModelAdmin):
@@ -169,15 +182,12 @@ class CarAgencyAdmin(admin.ModelAdmin):
     readonly_fields = ("created_at",)
     ordering = ("-created_at",)
 
-
-
 @admin.register(CarAvailability)
 class CarAvailabilityAdmin(admin.ModelAdmin):
     list_display = ("car", "start_time", "end_time")
     list_filter = ("car__brand", "car__model", "start_time", "end_time")
     search_fields = ("car__brand", "car__model")
     ordering = ("-start_time",)
-
 
 @admin.register(CarRental)
 class CarRentalAdmin(admin.ModelAdmin):

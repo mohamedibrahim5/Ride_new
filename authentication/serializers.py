@@ -482,17 +482,9 @@ class ProductSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Product
-        fields = ['id', 'name', 'description', 'points_price', 'stock', 'is_active', 
+        fields = ['id', 'name', 'description', 'display_price', 'stock', 'is_active', 
                  'created_at', 'updated_at', 'images', 'provider_name']
         read_only_fields = ['provider']
-
-    def validate(self, attrs):
-        request = self.context.get('request')
-        user = getattr(request, 'user', None)
-        provider = getattr(user, 'provider', None)
-        if not provider or 'store' not in provider.service.name.lower():
-            raise serializers.ValidationError({'provider': _('Authenticated user must be a provider with a service name containing \"store\".')})
-        return attrs
 
     def create(self, validated_data):
         request = self.context.get('request')
@@ -507,9 +499,9 @@ class PurchaseSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Purchase
-        fields = ['id', 'product', 'product_name', 'customer_name', 'points_spent', 
-                 'quantity', 'created_at']
-        read_only_fields = ['customer', 'points_spent']
+        fields = ['id', 'product', 'product_name', 'customer_name', 'money_spent', 
+                 'quantity', 'status', 'created_at']
+        read_only_fields = ['customer', 'money_spent', 'created_at']
 
     def validate(self, attrs):
         product = attrs.get('product')
@@ -525,41 +517,41 @@ class PurchaseSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(_("Not enough stock available."))
         
         # Check if customer has enough points
-        total_points = product.points_price * quantity
-        user_points = UserPoints.objects.get(user=customer.user)
+        total_price = product.display_price * quantity
+        # user_points = UserPoints.objects.get(user=customer.user)
         
-        if user_points.points < total_points:
-            raise serializers.ValidationError(_("Not enough points available."))
+        # if user_points.points < total_points:
+        #     raise serializers.ValidationError(_("Not enough points available."))
         
-        attrs['points_spent'] = total_points
+        attrs['money_spent'] = total_price
         return attrs
 
     def create(self, validated_data):
         customer = self.context.get('customer')
         product = validated_data.get('product')
         quantity = validated_data.get('quantity', 1)
-        points_spent = validated_data.get('points_spent')
+        money_spent = validated_data.get('money_spent')
 
         # Update stock
         product.stock -= quantity
         product.save()
 
         # Update customer points
-        user_points = UserPoints.objects.get(user=customer.user)
-        user_points.points -= points_spent
-        user_points.save()
+        # user_points = UserPoints.objects.get(user=customer.user)
+        # user_points.points -= points_spent
+        # user_points.save()
 
         # Update provider points
-        provider_user = product.provider.user
-        provider_points, _ = UserPoints.objects.get_or_create(user=provider_user)
-        provider_points.points += points_spent
-        provider_points.save()
+        # provider_user = product.provider.user
+        # provider_points, _ = UserPoints.objects.get_or_create(user=provider_user)
+        # provider_points.points += points_spent
+        # provider_points.save()
 
         return Purchase.objects.create(
             customer=customer,
             product=product,
             quantity=quantity,
-            points_spent=points_spent
+            money_spent=money_spent
         )
         
         
