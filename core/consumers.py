@@ -203,7 +203,7 @@ class ApplyConsumer(AsyncWebsocketConsumer):
             if not ride:
                 return  # Already processed
 
-            if accepted:
+            if accepted == True:
                 ride.provider_id = self.scope["user"].id
                 ride.status = "accepted"
                 ride.save()
@@ -214,7 +214,7 @@ class ApplyConsumer(AsyncWebsocketConsumer):
             await self.channel_layer.group_send(
                 f"user_{client_id}",
                 {
-                    "type": "send_acceptance" if accepted else "send_cancel",
+                    "type": "send_acceptance" if ride.status == "accepted" else "send_cancel",
                     "data": {
                         "provider_id": self.scope['user'].id,
                         "accepted": accepted,
