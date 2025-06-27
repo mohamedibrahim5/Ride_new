@@ -198,23 +198,28 @@ class ApplyConsumer(AsyncWebsocketConsumer):
             client_id = data["client_id"]
             accepted = data["accepted"]
 
+            from authentication.models import RideStatus
+
             # Only process if ride is still pending
             ride = RideStatus.objects.filter(client_id=client_id, status="pending").first()
             if not ride:
-                return  # Already processed
+                # Ride already accepted/cancelled, do not send any event
+                return
 
-            if accepted == True:
+            if accepted:
                 ride.provider_id = self.scope["user"].id
                 ride.status = "accepted"
                 ride.save()
+                event_type = "send_acceptance"
             else:
                 ride.status = "cancelled"
                 ride.save()
+                event_type = "send_cancel"
 
             await self.channel_layer.group_send(
                 f"user_{client_id}",
                 {
-                    "type": "send_acceptance" if ride.status == "accepted" else "send_cancel",
+                    "type": event_type,
                     "data": {
                         "provider_id": self.scope['user'].id,
                         "accepted": accepted,
