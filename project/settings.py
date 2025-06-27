@@ -72,6 +72,9 @@ TEMPLATES = [
 ASGI_APPLICATION = "project.asgi.application"
 WSGI_APPLICATION = "project.wsgi.application"
 
+# GDAL configuration for Homebrew
+GEOS_LIBRARY_PATH = '/usr/local/Cellar/geos/3.13.1/lib/libgeos_c.dylib'
+
 if DEBUG:
     # DATABASES = {
     #     'default': {
