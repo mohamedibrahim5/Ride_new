@@ -13,7 +13,7 @@ class ApplyConsumer(AsyncWebsocketConsumer):
         data = {}
         if self.scope["user"]:
             image = self.scope["user"].image
-        data["user_image"] = image
+            data["user_image"] = image
         if sender:
             user_sender = User.objects.get(phone=user)
             data["sender_image"] = user_sender.image
@@ -45,17 +45,34 @@ class ApplyConsumer(AsyncWebsocketConsumer):
             return None
 
     @database_sync_to_async
-    def lock_and_get_ride(self, client_id):
+    def lock_and_process_ride(self, client_id, provider_id, accepted):
         try:
             with transaction.atomic():
                 ride = RideStatus.objects.select_for_update().get(client_id=client_id)
+
                 if ride.status != "pending":
-                    return None
-                return ride
+                    return None  # Already accepted or cancelled
+
+                if accepted:
+                    ride.provider_id = provider_id
+                    ride.status = "accepted"
+                    ride.save()
+                    return "send_acceptance"
+                else:
+                    ride.status = "cancelled"
+                    ride.save()
+                    return "send_cancel"
         except RideStatus.DoesNotExist:
             return None
 
-    # Event senders
+    # Generic JSON sender
+    async def send_json(self, event):
+        await self.send(text_data=json.dumps({
+            "type": event["type"],
+            "data": event["data"]
+        }))
+
+    # Event-specific senders
     async def send_apply(self, event): await self.send_json(event)
     async def send_not(self, event): await self.send_json(event)
     async def send_acceptance(self, event): await self.send_json(event)
@@ -73,12 +90,6 @@ class ApplyConsumer(AsyncWebsocketConsumer):
     async def send_client_cancel(self, event): await self.send_json(event)
     async def ride_status_update(self, event): await self.send_json(event)
 
-    async def send_json(self, event):
-        await self.send(text_data=json.dumps({
-            "type": event["type"],
-            "data": event["data"]
-        }))
-
     async def location(self, event):
         await self.send(text_data=json.dumps({
             "type": "location",
@@ -89,63 +100,65 @@ class ApplyConsumer(AsyncWebsocketConsumer):
         }))
 
     async def receive(self, text_data):
-        data = json.loads(text_data)
-        if not data:
-            return
+        try:
+            data = json.loads(text_data)
+            if not data:
+                return
 
-        msg_type = data.get("type")
-        print("WebSocket message:", data)
+            msg_type = data.get("type")
+            print("WebSocket message:", data)
 
-        if msg_type == "location_update":
-            location = data.get("location")
-            heading = data.get("heading")
+            if msg_type == "location_update":
+                location = data.get("location")
+                heading = data.get("heading")
 
-            if location:
-                await self.update_location(location=location)
+                if location:
+                    await self.update_location(location=location)
 
-                from authentication.models import RideStatus
-                ride = RideStatus.objects.filter(provider_id=self.scope["user"].id, status="accepted").first()
-                
-                if ride:
-                    client_id = ride.client_id
+                    ride = await database_sync_to_async(
+                        lambda: RideStatus.objects.filter(
+                            provider_id=self.scope["user"].id,
+                            status="accepted"
+                        ).first()
+                    )()
+
+                    if ride:
+                        client_id = ride.client_id
+                        await self.channel_layer.group_send(
+                            f"user_{client_id}",
+                            {
+                                "type": "location",
+                                "location": location,
+                                "heading": heading,
+                            }
+                        )
+
+            elif msg_type == "provider_response":
+                client_id = data.get("client_id")
+                accepted = data.get("accepted")
+
+                if client_id is None or accepted is None:
+                    print("Missing client_id or accepted in provider_response")
+                    return
+
+                event_type = await self.lock_and_process_ride(
+                    client_id=client_id,
+                    provider_id=self.scope["user"].id,
+                    accepted=accepted
+                )
+
+                if event_type:
                     await self.channel_layer.group_send(
                         f"user_{client_id}",
                         {
-                            "type": "location",
-                            "location": location,
-                            "heading": heading,
+                            "type": event_type,
+                            "data": {
+                                "provider_id": self.scope['user'].id,
+                                "accepted": accepted
+                            }
                         }
                     )
-
-        elif msg_type == "provider_response":
-            client_id = data.get("client_id")
-            accepted = data.get("accepted")
-            if client_id is None or accepted is None:
-                print("Missing client_id or accepted")
-                return
-
-            ride = await self.lock_and_get_ride(client_id)
-            if not ride:
-                print("Ride not found or already processed.")
-                return
-
-            if accepted:
-                ride.provider_id = self.scope["user"]
-                ride.status = "accepted"
-                ride.save()
-                event_type = "send_acceptance"
-            else:
-                ride.status = "cancelled"
-                ride.save()
-                event_type = "send_cancel"
-
-            await self.channel_layer.group_send(
-                f"user_{client_id}",
-                {
-                    "type": event_type,
-                    "data": {
-                        "provider_id": self.scope['user'].id,
-                        "accepted": accepted
-                    }
-                }
-            )
+                else:
+                    print("Ride was already handled or not found.")
+        except Exception as e:
+            print("WebSocket receive error:", e)
