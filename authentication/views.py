@@ -442,12 +442,16 @@ class BroadcastRideRequestView(APIView):
         lat = request.data.get("lat")
         lng = request.data.get("lng")
         service_id = request.data.get("service_id")
+        drop_lat = request.data.get("drop_lat")
+        drop_lng = request.data.get("drop_lng")
 
-        if not (lat and lng and service_id):
-            return Response({"error": "lat, lng, and service_id are required."}, status=400)
+        if not (lat and lng and service_id and drop_lat and drop_lng):
+            return Response({"error": "lat, lng, service_id, drop_lat, and drop_lng are required."}, status=400)
 
         lat = float(lat)
         lng = float(lng)
+        drop_lat = float(drop_lat)
+        drop_lng = float(drop_lng)
 
         providers = Provider.objects.filter(
             is_verified=True,
@@ -481,6 +485,8 @@ class BroadcastRideRequestView(APIView):
             "client_name": request.user.name,
             "lat": lat,
             "lng": lng,
+            "drop_lat": drop_lat,
+            "drop_lng": drop_lng,
             "message": "Ride request from nearby client"
         }
 
