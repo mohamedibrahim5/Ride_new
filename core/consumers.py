@@ -1,273 +1,143 @@
 import json
 from channels.generic.websocket import AsyncWebsocketConsumer
-# from service.models import Apply
 from channels.db import database_sync_to_async
-import json
+from django.db import transaction
 from authentication.models import User, RideStatus
 
 
 class ApplyConsumer(AsyncWebsocketConsumer):
-    """
-    WebSocket consumer for handling apply-related events.
-
-    Attributes:
-        connected_users (set): A set of connected user IDs.
-
-    Methods:
-        get_image(user, sender): Retrieves the image associated with the user and sender.
-        connect(): Connects the consumer to the WebSocket.
-        disconnect(close_code): Disconnects the consumer from the WebSocket.
-        update_location(location): Updates the location of the user.
-        send_apply(event): Sends an apply event to the WebSocket.
-        send_not(event): Sends a not event to the WebSocket.
-        send_acceptance(event): Sends an acceptance event to the WebSocket.
-        send_arrival(event): Sends an arrival event to the WebSocket.
-        send_done(event): Sends a done event to the WebSocket.
-        send_cancel(event): Sends a cancel event to the WebSocket.
-        send_cancel_apply(event): Sends a cancel apply event to the WebSocket.
-        send_approval(event): Sends an approval event to the WebSocket.
-        send_cash(event): Sends a cash event to the WebSocket.
-        send_user(event): Sends a user event to the WebSocket.
-        receive(text_data): Receives data from the WebSocket.
-        location(event): Sends a location event to the WebSocket.
-        send_new_ride(event): Sends a new ride event to the WebSocket.
-    """
     connected_users = set()
 
     @database_sync_to_async
     def get_image(self, user, sender):
-        """
-        Retrieves the image associated with the user and sender.
-
-        Args:
-            user (str): The phone number of the user.
-            sender (bool): Indicates whether the sender's image should be retrieved.
-
-        Returns:
-            dict: A dictionary containing the user's image and, if specified, the sender's image.
-        """
         data = {}
-
         if self.scope["user"]:
             image = self.scope["user"].image
         data["user_image"] = image
         if sender:
             user_sender = User.objects.get(phone=user)
-            sender_image = user_sender.image
-            data["sender_image"] = sender_image
+            data["sender_image"] = user_sender.image
         return data
-    
 
     async def connect(self):
         user_id = self.scope['user'].id
-        print(user_id)
-        print(self.scope['user'])
-        print('120120120',self.scope['user'].id)
-        group_name = f'user_{user_id}'
-        await self.channel_layer.group_add(
-            group_name,
-            self.channel_name
-        )
+        await self.channel_layer.group_add(f'user_{user_id}', self.channel_name)
         self.connected_users.add(user_id)
-        print(self.connected_users)
         await self.accept()
-
-
 
     async def disconnect(self, close_code):
         user_id = self.scope['user'].id
-        group_name = f'user_{user_id}'
-        await self.channel_layer.group_discard(
-            group_name,
-            self.channel_name
-        )
+        await self.channel_layer.group_discard(f'user_{user_id}', self.channel_name)
         self.connected_users.discard(user_id)
-
-# --------------------------------------------------------------
-# --------------------------------------------------------------
-# --------------------------Events------------------------------
-# --------------------------------------------------------------
-# --------------------------------------------------------------
 
     @database_sync_to_async
     def update_location(self, location):
-        """
-        Update user location with both string format and lat/lng coordinates
-        """
         try:
-            # Parse location string (format: "lat,lng")
             if isinstance(location, str) and ',' in location:
                 lat_str, lng_str = location.split(',')
-                lat = float(lat_str.strip())
-                lng = float(lng_str.strip())
-                
-                # Update both location string and coordinates
-                user = User.objects.filter(id=self.scope['user'].id).update(
-                    location=location,
-                    location2_lat=lat,
-                    location2_lng=lng
+                lat, lng = float(lat_str.strip()), float(lng_str.strip())
+                return User.objects.filter(id=self.scope['user'].id).update(
+                    location=location, location2_lat=lat, location2_lng=lng
                 )
-            else:
-                # If location is not in expected format, just update the string
-                user = User.objects.filter(id=self.scope['user'].id).update(location=location)
-            
-            return user
+            return User.objects.filter(id=self.scope['user'].id).update(location=location)
         except Exception as e:
             print(f"Error updating location: {e}")
             return None
-        
-    
 
-    async def send_apply(self, event):
-        text_data = {
-            "type": event['type'],
-            "data": event['data']
-        }
-        await self.send(text_data=json.dumps(text_data))
+    @database_sync_to_async
+    def lock_and_get_ride(self, client_id):
+        try:
+            with transaction.atomic():
+                ride = RideStatus.objects.select_for_update().get(client_id=client_id)
+                if ride.status != "pending":
+                    return None
+                return ride
+        except RideStatus.DoesNotExist:
+            return None
 
-    async def send_not(self, event):
-        text_data = {
-            "type": event['type'],
-            "data": event['data']
-        }
-        await self.send(text_data=json.dumps(text_data))
+    # Event senders
+    async def send_apply(self, event): await self.send_json(event)
+    async def send_not(self, event): await self.send_json(event)
+    async def send_acceptance(self, event): await self.send_json(event)
+    async def send_cancel(self, event): await self.send_json(event)
+    async def send_arrival(self, event): await self.send_json(event)
+    async def send_done(self, event): await self.send_json(event)
+    async def send_cancel_apply(self, event): await self.send_json(event)
+    async def send_approval(self, event): await self.send_json(event)
+    async def send_cash(self, event): await self.send_json(event)
+    async def send_user(self, event): await self.send_json(event)
+    async def send_new_ride(self, event): await self.send_json(event)
+    async def ride_finished(self, event): await self.send_json(event)
+    async def user_not_accept_cash(self, event): await self.send_json(event)
+    async def fail_card(self, event): await self.send_json(event)
+    async def send_client_cancel(self, event): await self.send_json(event)
+    async def ride_status_update(self, event): await self.send_json(event)
 
-    async def send_acceptance(self, event):
-        text_data = {
-            "type": event['type'],
-            "data": event['data']
-        }
-        await self.send(text_data=json.dumps(text_data))
-    # ride status update 
-    async def ride_status_update(self, event):
-        text_data = {
-            "type": event['type'],
-            "data": event['data']
-        }
-        await self.send(text_data=json.dumps(text_data))
-    async def send_arrival(self, event):
-        text_data = {
-            "type": event['type'],
-            "data": event['data']
-        }
-        await self.send(text_data=json.dumps(text_data))
+    async def send_json(self, event):
+        await self.send(text_data=json.dumps({
+            "type": event["type"],
+            "data": event["data"]
+        }))
 
-    async def send_start_ride(self, event):
-        text_data = {
-            "type": event['type'],
-            "data": event['data']
-        }
-        await self.send(text_data=json.dumps(text_data))
-
-
-    async def send_done(self, event):
-        text_data = {
-            "type": event['type'],
-            "data": event['data']
-        }
-        await self.send(text_data=json.dumps(text_data))
-
-
-    async def send_cancel(self, event):
-        text_data = {
-            "type": event['type'],
-            "data": event['data']
-        }
-        await self.send(text_data=json.dumps(text_data))
-
-
-    async def send_cancel_apply(self, event):
-        text_data = {
-            "type": event['type'],
-            "data": event['data']
-        }
-        await self.send(text_data=json.dumps(text_data))
-
-    async def send_approval(self, event):
-        text_data = {
-            "type": event['type'],
-            "data": event['data']
-        }
-        await self.send(text_data=json.dumps(text_data))
-
-    async def send_cash(self, event):
-        text_data = {
-            "type": event['type'],
-            "data": event['data']
-        }
-        await self.send(text_data=json.dumps(text_data))
-
-
-    async def send_user(self, event):
-        text_data = {
-            "type": event['type'],
-            "data": event['data']
-        }
-        await self.send(text_data=json.dumps(text_data))
-
+    async def location(self, event):
+        await self.send(text_data=json.dumps({
+            "type": "location",
+            "data": {
+                "location": event["location"],
+                "heading": event["heading"]
+            }
+        }))
 
     async def receive(self, text_data):
         data = json.loads(text_data)
-        print('-----------------')
-        print(data)
-        print('-----------------')
         if not data:
             return
+
         msg_type = data.get("type")
-        print('------------------------------------------------a7aa7a',msg_type)
-        
+        print("WebSocket message:", data)
+
         if msg_type == "location_update":
-            # Handle location updates
-            location = data.get('location')
-            heading = data.get('heading')
-            
+            location = data.get("location")
+            heading = data.get("heading")
+
             if location:
-                print('Updating location:', location)
                 await self.update_location(location=location)
+
+                from authentication.models import RideStatus
+                ride = RideStatus.objects.filter(provider_id=self.scope["user"].id, status="accepted").first()
                 
-                # Broadcast location to all users in the same group
-                await self.channel_layer.group_send(
-                    f"user_{self.scope['user'].id}",
-                    {
-                        "type": "location",
-                        "location": location,
-                        "heading": heading,
-                    }
-                )
-            return
-            
-        if msg_type == "provider_response":
+                if ride:
+                    client_id = ride.client_id
+                    await self.channel_layer.group_send(
+                        f"user_{client_id}",
+                        {
+                            "type": "location",
+                            "location": location,
+                            "heading": heading,
+                        }
+                    )
+
+        elif msg_type == "provider_response":
             client_id = data.get("client_id")
             accepted = data.get("accepted")
-
             if client_id is None or accepted is None:
-                print("Missing client_id or accepted in provider_response")
+                print("Missing client_id or accepted")
                 return
 
-            # Fetch the ride and check its current status
-            ride = RideStatus.objects.filter(client_id=client_id).first()
-            
+            ride = await self.lock_and_get_ride(client_id)
             if not ride:
-                print("Ride not found for client:", client_id)
-                return
-
-            print("Current ride status:", ride.status)
-
-            if ride.status != "pending":
-                print("Ride already processed. Status:", ride.status)
+                print("Ride not found or already processed.")
                 return
 
             if accepted:
-                ride.provider_id = self.scope["user"].id
+                ride.provider_id = self.scope["user"]
                 ride.status = "accepted"
                 ride.save()
                 event_type = "send_acceptance"
-                print(f"Driver {self.scope['user'].id} accepted the ride for client {client_id}")
             else:
                 ride.status = "cancelled"
                 ride.save()
                 event_type = "send_cancel"
-                print(f"Driver {self.scope['user'].id} cancelled the ride for client {client_id}")
 
             await self.channel_layer.group_send(
                 f"user_{client_id}",
@@ -275,91 +145,7 @@ class ApplyConsumer(AsyncWebsocketConsumer):
                     "type": event_type,
                     "data": {
                         "provider_id": self.scope['user'].id,
-                        "accepted": accepted,
-                    },
+                        "accepted": accepted
+                    }
                 }
             )
-
-        # user_id = data['user']
-        # location = data.get('location')
-        # heading = data.get('heading')
-
-        # if location:
-        #     location = data['location']
-        #     print('aaaaaaaaaaaaaaaaa',await self.update_location(location=location,))
-        #     if await self.update_location(location=location,):
-
-
-        #         await self.channel_layer.group_send(
-        #             f"user_{user_id}",
-        #             {
-        #                 "type": "location",
-        #                 "location": location,
-        #                 "heading": heading,
-        #             },
-        #         )
-
-        #         await self.channel_layer.group_send(
-        #             f"user_{self.scope['user'].id}",
-        #             {
-        #                 "type": "location",
-        #                 "location": location,
-        #                 "heading": heading,
-        #             }
-        #         )
-
-
-
-    async def location(self, event):
-        location = event["location"]
-        heading = event["heading"]
-
-        text_data = {
-            "type": "location",
-            "data": {
-                "location": location,
-                "heading": heading,
-            },
-        }
-
-        await self.send(text_data=json.dumps(text_data))
-
-
-    async def send_new_ride(self, event):
-        text_data = {
-            "type": event['type'],
-            "data": event['data']
-        }
-        await self.send(text_data=json.dumps(text_data))
-        
-
-    async def ride_finished(self, event):
-        text_data = {
-            "type": event['type'],
-            "data": event['data']
-        }
-        await self.send(text_data=json.dumps(text_data))   
-
-
-    async def user_not_accept_cash(self, event):
-        text_data = {
-            "type": event['type'],
-            "data": event['data']
-        }
-        await self.send(text_data=json.dumps(text_data))
-
-
-    async def fail_card(self, event):
-        text_data = {
-            "type": event['type'],
-            "data": event['data']
-        }
-        await self.send(text_data=json.dumps(text_data))
-
-
-    async def send_client_cancel(self, event):
-        text_data = {
-            "type": event['type'],
-            "data": event['data']
-        }
-        await self.send(text_data=json.dumps(text_data))
