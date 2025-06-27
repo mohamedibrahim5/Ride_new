@@ -73,7 +73,7 @@ ASGI_APPLICATION = "project.asgi.application"
 WSGI_APPLICATION = "project.wsgi.application"
 
 # GDAL configuration for Homebrew
-GEOS_LIBRARY_PATH = '/usr/local/Cellar/geos/3.13.1/lib/libgeos_c.dylib'
+# GEOS_LIBRARY_PATH = '/usr/local/Cellar/geos/3.13.1/lib/libgeos_c.dylib'
 
 if DEBUG:
     # DATABASES = {
@@ -98,22 +98,22 @@ if DEBUG:
     #         'PORT':'3306',
     #     }
     # }
-    # DATABASES = {
-    #     "default": {
-    #         "ENGINE": "django.db.backends.sqlite3",
-    #         "NAME": os.path.join(BASE_DIR, "db.sqlite3"),
-    #     }
-    # }
     DATABASES = {
         "default": {
-            'ENGINE': 'django.db.backends.postgresql',
-            "NAME": "railway",  # Replace with your actual DB name
-            "USER": "postgres",  # Replace with your actual DB user
-            "PASSWORD": "hscKMhKfGhnAqhaLoToyYiaywiDCNEct",  # Replace with your actual DB password
-            "HOST": "postgres.railway.internal",  # Use Railway's host
-            "PORT": "5432",  # PostgreSQL default por
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": os.path.join(BASE_DIR, "db.sqlite3"),
         }
     }
+    # DATABASES = {
+    #     "default": {
+    #         'ENGINE': 'django.db.backends.postgresql',
+    #         "NAME": "railway",  # Replace with your actual DB name
+    #         "USER": "postgres",  # Replace with your actual DB user
+    #         "PASSWORD": "hscKMhKfGhnAqhaLoToyYiaywiDCNEct",  # Replace with your actual DB password
+    #         "HOST": "postgres.railway.internal",  # Use Railway's host
+    #         "PORT": "5432",  # PostgreSQL default por
+    #     }
+    # }
     
     # CHANNEL_LAYERS = {
     #     "default": {
@@ -127,36 +127,36 @@ if DEBUG:
 
     # settings.py or your appropriate config file
 
-    REDIS_USER = "default"
-    REDIS_PASSWORD = "kfckXuBMZDDwGNqnmriCUkxqOBpbPrqH"
-    REDIS_HOST = "redis.railway.internal"
+    # REDIS_USER = "default"
+    # REDIS_PASSWORD = "kfckXuBMZDDwGNqnmriCUkxqOBpbPrqH"
+    # REDIS_HOST = "redis.railway.internal"
+    # REDIS_PORT = 6379
+    # REDIS_DB = 0
+
+    # REDIS_URL = f"redis://{REDIS_USER}:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
+
+    # CHANNEL_LAYERS = {
+    #     "default": {
+    #         "BACKEND": "channels_redis.core.RedisChannelLayer",
+    #         "CONFIG": {
+    #             "hosts": [REDIS_URL],
+    #         },
+    #     },
+    # }
+#     # Only inside: if DEBUG:
+    REDIS_HOST = "127.0.0.1"  # or "localhost"
     REDIS_PORT = 6379
     REDIS_DB = 0
-
-    REDIS_URL = f"redis://{REDIS_USER}:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
+    REDIS_URL = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
 
     CHANNEL_LAYERS = {
-        "default": {
-            "BACKEND": "channels_redis.core.RedisChannelLayer",
-            "CONFIG": {
-                "hosts": [REDIS_URL],
-            },
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [REDIS_URL],
         },
-    }
-#     # Only inside: if DEBUG:
-#     REDIS_HOST = "127.0.0.1"  # or "localhost"
-#     REDIS_PORT = 6379
-#     REDIS_DB = 0
-#     REDIS_URL = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
-
-#     CHANNEL_LAYERS = {
-#     "default": {
-#         "BACKEND": "channels_redis.core.RedisChannelLayer",
-#         "CONFIG": {
-#             "hosts": [REDIS_URL],
-#         },
-#     },
-# }
+    },
+}
 
 
 

@@ -156,7 +156,7 @@ class DriverProfileSerializer(serializers.ModelSerializer):
 class DriverCarSerializer(serializers.ModelSerializer):
     class Meta:
         model = DriverCar
-        fields = ["id", "type", "model", "number", "color", "image", "license"]
+        fields = ["type", "model", "number", "color", "image", "license"]
 
 
 class CustomerSerializer(serializers.ModelSerializer):
@@ -659,3 +659,31 @@ class CarRentalSerializer(serializers.ModelSerializer):
         validated_data['customer'] = self.context['request'].user.customer
         rental = CarRental.objects.create(**validated_data)
         return rental
+
+class ProviderRegisterSerializer(serializers.ModelSerializer):
+    service_ids = serializers.ListField(child=serializers.IntegerField(), write_only=True)
+    driver_profile = DriverProfileSerializer(write_only=True)
+    car = DriverCarSerializer(write_only=True)
+    user = UserSerializer(write_only=True)
+
+    class Meta:
+        model = Provider
+        fields = ["user", "service_ids", "driver_profile", "car"]
+
+    def create(self, validated_data):
+        user_data = validated_data.pop("user")
+        service_ids = validated_data.pop("service_ids")
+        driver_profile_data = validated_data.pop("driver_profile")
+        car_data = validated_data.pop("car")
+
+        user_serializer = UserSerializer(data=user_data)
+        user_serializer.is_valid(raise_exception=True)
+        user = user_serializer.save()
+
+        provider = Provider.objects.create(user=user)
+        provider.services.set(Service.objects.filter(pk__in=service_ids))
+
+        driver_profile = DriverProfile.objects.create(provider=provider, **driver_profile_data)
+        DriverCar.objects.create(driver_profile=driver_profile, **car_data)
+
+        return provider
