@@ -48,7 +48,10 @@ class ApplyConsumer(AsyncWebsocketConsumer):
     def lock_and_process_ride(self, client_id, provider_id, accepted):
         try:
             with transaction.atomic():
-                ride = RideStatus.objects.select_for_update().get(client_id=client_id)
+                ride = RideStatus.objects.select_for_update().filter(client_id=client_id).order_by('-created_at').first()
+
+                if not ride:
+                    return None  # No ride found
 
                 if ride.status != "pending":
                     return None  # Already accepted or cancelled
