@@ -1,10 +1,9 @@
-
 import json
 from channels.generic.websocket import AsyncWebsocketConsumer
 # from service.models import Apply
 from channels.db import database_sync_to_async
 import json
-from authentication.models import User
+from authentication.models import User, RideStatus
 
 
 class ApplyConsumer(AsyncWebsocketConsumer):
@@ -197,12 +196,20 @@ class ApplyConsumer(AsyncWebsocketConsumer):
         print('------------------------------------------------a7aa7a',msg_type)
         if msg_type == "provider_response":
             client_id = data["client_id"]
-            print('client_id', client_id)
             accepted = data["accepted"]
+
+            # Only process if ride is still pending
+            ride = RideStatus.objects.filter(client_id=client_id, status="pending").first()
+            if not ride:
+                return  # Already processed
+
             if accepted:
-                # Optionally: mark ride as accepted in DB
-                from authentication.models import RideStatus
-                RideStatus.objects.create(client_id=client_id, provider_id=self.scope["user"].id, accepted=True)
+                ride.provider_id = self.scope["user"].id
+                ride.status = "accepted"
+                ride.save()
+            else:
+                ride.status = "cancelled"
+                ride.save()
 
             await self.channel_layer.group_send(
                 f"user_{client_id}",
@@ -210,23 +217,10 @@ class ApplyConsumer(AsyncWebsocketConsumer):
                     "type": "send_acceptance" if accepted else "send_cancel",
                     "data": {
                         "provider_id": self.scope['user'].id,
-                        "accepted": accepted if accepted else "rejected",
+                        "accepted": accepted,
                     },
-                }    
-            )    
-            
-            
-            # response_type = "send_acceptance" if accepted else "send_cancel"
-            # await self.channel_layer.group_send(
-            #     f"user_{client_id}",
-            #     {
-            #         "type": response_type,
-            #         "data": {
-            #             "provider_id": self.scope['user'].id,
-            #             "accepted": accepted,
-            #         },
-            #     }
-            # )
+                }
+            )
         print(data)
         # user_id = data['user']
         # location = data.get('location')
