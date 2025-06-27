@@ -90,10 +90,31 @@ class ApplyConsumer(AsyncWebsocketConsumer):
 # --------------------------------------------------------------
 
     @database_sync_to_async
-    def update_location(self,location):
-        user = User.objects.filter(id=self.scope['user'].id).update(location=location)
-        
-        return user
+    def update_location(self, location):
+        """
+        Update user location with both string format and lat/lng coordinates
+        """
+        try:
+            # Parse location string (format: "lat,lng")
+            if isinstance(location, str) and ',' in location:
+                lat_str, lng_str = location.split(',')
+                lat = float(lat_str.strip())
+                lng = float(lng_str.strip())
+                
+                # Update both location string and coordinates
+                user = User.objects.filter(id=self.scope['user'].id).update(
+                    location=location,
+                    location2_lat=lat,
+                    location2_lng=lng
+                )
+            else:
+                # If location is not in expected format, just update the string
+                user = User.objects.filter(id=self.scope['user'].id).update(location=location)
+            
+            return user
+        except Exception as e:
+            print(f"Error updating location: {e}")
+            return None
         
     
 
@@ -194,16 +215,46 @@ class ApplyConsumer(AsyncWebsocketConsumer):
             return
         msg_type = data.get("type")
         print('------------------------------------------------a7aa7a',msg_type)
+        
+        if msg_type == "location_update":
+            # Handle location updates
+            location = data.get('location')
+            heading = data.get('heading')
+            
+            if location:
+                print('Updating location:', location)
+                await self.update_location(location=location)
+                
+                # Broadcast location to all users in the same group
+                await self.channel_layer.group_send(
+                    f"user_{self.scope['user'].id}",
+                    {
+                        "type": "location",
+                        "location": location,
+                        "heading": heading,
+                    }
+                )
+            return
+            
         if msg_type == "provider_response":
-            client_id = data["client_id"]
-            accepted = data["accepted"]
+            client_id = data.get("client_id")
+            accepted = data.get("accepted")
 
-            from authentication.models import RideStatus
+            if client_id is None or accepted is None:
+                print("Missing client_id or accepted in provider_response")
+                return
 
-            # Only process if ride is still pending
-            ride = RideStatus.objects.filter(client_id=client_id, status="pending").first()
+            # Fetch the ride and check its current status
+            ride = RideStatus.objects.filter(client_id=client_id).first()
+            
             if not ride:
-                # Ride already accepted/cancelled, do not send any event
+                print("Ride not found for client:", client_id)
+                return
+
+            print("Current ride status:", ride.status)
+
+            if ride.status != "pending":
+                print("Ride already processed. Status:", ride.status)
                 return
 
             if accepted:
@@ -211,10 +262,12 @@ class ApplyConsumer(AsyncWebsocketConsumer):
                 ride.status = "accepted"
                 ride.save()
                 event_type = "send_acceptance"
+                print(f"Driver {self.scope['user'].id} accepted the ride for client {client_id}")
             else:
                 ride.status = "cancelled"
                 ride.save()
                 event_type = "send_cancel"
+                print(f"Driver {self.scope['user'].id} cancelled the ride for client {client_id}")
 
             await self.channel_layer.group_send(
                 f"user_{client_id}",
@@ -226,7 +279,7 @@ class ApplyConsumer(AsyncWebsocketConsumer):
                     },
                 }
             )
-        print(data)
+
         # user_id = data['user']
         # location = data.get('location')
         # heading = data.get('heading')

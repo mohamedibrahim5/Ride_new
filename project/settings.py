@@ -144,7 +144,7 @@ if DEBUG:
         },
     }
 # #     # Only inside: if DEBUG:
-#     REDIS_HOST = "127.0.0.1"  # or "localhost"
+#     REDIS_HOST = "localhost"  # or "localhost"
 #     REDIS_PORT = 6379
 #     REDIS_DB = 0
 #     REDIS_URL = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"

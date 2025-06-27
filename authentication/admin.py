@@ -29,7 +29,6 @@ admin.site.unregister(Group)
 admin.site.register(User)
 admin.site.register(UserOtp)
 #admin.site.register(Service)
-admin.site.register(Provider)
 admin.site.register(DriverCar)
 admin.site.register(Customer)
 admin.site.register(CustomerPlace)
@@ -206,4 +205,24 @@ class DriverProfileAdmin(admin.ModelAdmin):
     def user_phone(self, obj):
         return obj.provider.user.phone
     user_phone.short_description = _('Phone Number')
+
+@admin.register(Provider)
+class ProviderAdmin(admin.ModelAdmin):
+    list_display = ['user', 'is_verified', 'in_ride', 'sub_service']
+    list_filter = ['is_verified', 'in_ride', 'sub_service']
+    search_fields = ['user__name', 'user__phone', 'sub_service']
+    filter_horizontal = ['services']
+    
+    def get_fields(self, request, obj=None):
+        fields = list(super().get_fields(request, obj))
+        if obj and not obj.has_maintenance_service():
+            if 'sub_service' in fields:
+                fields.remove('sub_service')
+        return fields
+    
+    def get_readonly_fields(self, request, obj=None):
+        readonly_fields = list(super().get_readonly_fields(request, obj))
+        if obj and not obj.has_maintenance_service():
+            readonly_fields.append('sub_service')
+        return readonly_fields
 

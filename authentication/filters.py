@@ -6,10 +6,26 @@ import django_filters
 
 class ProviderFilter(django_filters.FilterSet):
     location = django_filters.CharFilter(method="filter_by_location")
+    sub_service = django_filters.CharFilter(field_name="sub_service", lookup_expr="exact")
 
     class Meta:
         model = Provider
-        fields = ["location"]
+        fields = ["location", "sub_service"]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Only show sub_service filter if we're filtering by maintenance service
+        request = kwargs.get('request')
+        if request:
+            service_id = request.query_params.get('service_id')
+            if service_id:
+                try:
+                    from authentication.models import Service
+                    service = Service.objects.get(pk=service_id)
+                    if service.name.lower() != 'maintenance':
+                        self.filters.pop('sub_service', None)
+                except Service.DoesNotExist:
+                    pass
 
     def filter_by_location(self, queryset, name, value):
         if not value:

@@ -115,25 +115,39 @@ class ProviderSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Provider
-        fields = ["id", "user", "service_ids", "services"]
+        fields = ["id", "user", "service_ids", "services", "sub_service"]
 
     def validate(self, attrs):
-        service_ids = attrs.pop("service_ids", None)
-        if service_ids is not None:
+        service_ids = attrs.get("service_ids", None)
+        sub_service = attrs.get('sub_service')
+        
+        if sub_service and service_ids:
+            # Check if maintenance service is in the service_ids
             services = Service.objects.filter(pk__in=service_ids)
-            if len(services) != len(service_ids):
-                raise serializers.ValidationError({"services": _(f"Some services not found.")})
-            attrs["services"] = services
+            print(f"Service IDs: {service_ids}")
+            print(f"Found services: {[s.name for s in services]}")
+            has_maintenance = any('maintenance' in service.name.lower() for service in services)
+            print(f"Has maintenance: {has_maintenance}")
+            
+            if not has_maintenance:
+                raise serializers.ValidationError({
+                    "sub_service": _("Sub service can only be set when maintenance service is assigned.")
+                })
+        
         return attrs
 
     def create(self, validated_data):
+        service_ids = validated_data.pop("service_ids", None)
         user_data = extract_user_data(self.initial_data)
         user_serializer = UserSerializer(data=user_data)
         user_serializer.is_valid(raise_exception=True)
         user = user_serializer.save()
-        services = validated_data.pop("services", [])
+        
         provider = Provider.objects.create(user=user, **validated_data)
-        provider.services.set(services)
+        
+        if service_ids:
+            services = Service.objects.filter(pk__in=service_ids)
+            provider.services.set(services)
 
         # Handle driver profile creation if data is present (flat keys or nested)
         driver_profile_data = {}
@@ -700,7 +714,7 @@ class ProviderDriverRegisterSerializer(serializers.ModelSerializer):
     class Meta:
         model = Provider
         fields = [
-            "user", "service_ids", "driver_profile", "car",  # for write
+            "user", "service_ids", "sub_service", "driver_profile", "car",  # for write
             "driver_profile_data", "car_data"  # for read
         ]
 
@@ -709,6 +723,22 @@ class ProviderDriverRegisterSerializer(serializers.ModelSerializer):
             return DriverCarSerializer(obj.driverprofile.car).data
         except:
             return None
+
+    def validate(self, attrs):
+        service_ids = attrs.get('service_ids', [])
+        sub_service = attrs.get('sub_service')
+        
+        if sub_service and service_ids:
+            # Check if maintenance service is in the service_ids
+            services = Service.objects.filter(pk__in=service_ids)
+            has_maintenance = any('maintenance' in service.name.lower() for service in services)
+            
+            if not has_maintenance:
+                raise serializers.ValidationError({
+                    "sub_service": _("Sub service can only be set when maintenance service is assigned.")
+                })
+        
+        return attrs
 
     def create(self, validated_data):
         user_data = validated_data.pop("user")
@@ -720,8 +750,11 @@ class ProviderDriverRegisterSerializer(serializers.ModelSerializer):
         user_serializer.is_valid(raise_exception=True)
         user = user_serializer.save()
 
-        provider = Provider.objects.create(user=user)
-        provider.services.set(Service.objects.filter(pk__in=service_ids))
+        provider = Provider.objects.create(user=user, **validated_data)
+        
+        if service_ids:
+            services = Service.objects.filter(pk__in=service_ids)
+            provider.services.set(services)
 
         driver_profile = DriverProfile.objects.create(provider=provider, **driver_profile_data)
         DriverCar.objects.create(driver_profile=driver_profile, **car_data)

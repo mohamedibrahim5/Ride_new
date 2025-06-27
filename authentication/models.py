@@ -83,11 +83,25 @@ class ServiceImage(models.Model):
 class Provider(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, verbose_name=_("User"))
     services = models.ManyToManyField(Service, verbose_name=_("Services"))
+    sub_service = models.CharField(_("Sub Service"), max_length=50, blank=True, null=True)
     is_verified = models.BooleanField(_("Is Verified"), default=False)
     in_ride = models.BooleanField(_("In Ride"), default=False)
 
     def __str__(self):
         return self.user.name
+    
+    def has_maintenance_service(self):
+        """Check if provider has maintenance service"""
+        return self.services.filter(name__icontains='maintenance').exists()
+    
+    def clean(self):
+        """Validate that sub_service is only set when maintenance service is assigned"""
+        from django.core.exceptions import ValidationError
+        super().clean()
+        if self.sub_service and not self.has_maintenance_service():
+            raise ValidationError({
+                'sub_service': _('Sub service can only be set when maintenance service is assigned.')
+            })
     
     class Meta:
         verbose_name = _("Provider")

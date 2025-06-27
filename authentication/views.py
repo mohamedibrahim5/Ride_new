@@ -349,10 +349,53 @@ class ProviderViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         service_id = self.request.query_params.get("service_id")
-        return Provider.objects.filter(
+        sub_service = self.request.query_params.get("sub_service")
+        
+        print(f"Debug - service_id: {service_id}, sub_service: {sub_service}")
+        
+        # First, let's see all providers with maintenance service
+        all_maintenance_providers = Provider.objects.filter(
+            services__name__icontains='maintenance'
+        ).select_related("user")
+        print(f"All maintenance providers: {all_maintenance_providers.count()}")
+        for p in all_maintenance_providers:
+            print(f"  Provider: {p.user.name}, sub_service: '{p.sub_service}', verified: {p.is_verified}")
+        
+        queryset = Provider.objects.filter(
             services__id=service_id,
             is_verified=True,
         ).select_related("user")
+        
+        print(f"Providers with service_id {service_id} and verified: {queryset.count()}")
+        
+        # Filter by sub_service if provided and service is maintenance
+        if sub_service and service_id:
+            try:
+                service = Service.objects.get(pk=service_id)
+                print(f"Service found: {service.name}")
+                if 'maintenance' in service.name.lower():
+                    queryset = queryset.filter(sub_service=sub_service)
+                    print(f"After sub_service filter: {queryset.count()}")
+            except Service.DoesNotExist:
+                print(f"Service with ID {service_id} not found")
+                pass
+        
+        return queryset
+    
+    @action(detail=False, methods=['get'])
+    def sub_services(self, request):
+        """Get available sub-services from registered providers"""
+        # Get all unique sub-services from providers who have maintenance service
+        sub_services = Provider.objects.filter(
+            services__name__icontains='maintenance',
+            sub_service__isnull=False
+        ).exclude(
+            sub_service=''
+        ).values_list('sub_service', flat=True).distinct().order_by('sub_service')
+        
+        return Response({
+            'sub_services': list(sub_services)
+        })
 
 
 from rest_framework.views import APIView
