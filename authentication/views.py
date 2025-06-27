@@ -444,14 +444,22 @@ class BroadcastRideRequestView(APIView):
         service_id = request.data.get("service_id")
         drop_lat = request.data.get("drop_lat")
         drop_lng = request.data.get("drop_lng")
-
-        if not (lat and lng and service_id and drop_lat and drop_lng):
-            return Response({"error": "lat, lng, service_id, drop_lat, and drop_lng are required."}, status=400)
-
-        lat = float(lat)
-        lng = float(lng)
-        drop_lat = float(drop_lat)
-        drop_lng = float(drop_lng)
+        ride_type = request.data.get("ride_type", "one_way")
+        # Validate fields based on ride_type
+        if ride_type == "two_way":
+            if not (lat and lng and service_id and drop_lat and drop_lng):
+                return Response({"error": "lat, lng, service_id, drop_lat, and drop_lng are required for two_way rides."}, status=400)
+            lat = float(lat)
+            lng = float(lng)
+            drop_lat = float(drop_lat)
+            drop_lng = float(drop_lng)
+        else:  # one_way
+            if not (lat and lng and service_id):
+                return Response({"error": "lat, lng, and service_id are required for one_way rides."}, status=400)
+            lat = float(lat)
+            lng = float(lng)
+            drop_lat = None
+            drop_lng = None
 
         providers = Provider.objects.filter(
             is_verified=True,
@@ -487,6 +495,7 @@ class BroadcastRideRequestView(APIView):
             "lng": lng,
             "drop_lat": drop_lat,
             "drop_lng": drop_lng,
+            "ride_type": ride_type,
             "message": "Ride request from nearby client"
         }
 
@@ -502,7 +511,12 @@ class BroadcastRideRequestView(APIView):
         RideStatus.objects.create(
             client=user,
             provider=None,  # not selected yet
-            status="pending"
+            status="pending",
+            service_id=service_id,
+            pickup_lat=lat,
+            pickup_lng=lng,
+            drop_lat=drop_lat,
+            drop_lng=drop_lng
         )    
         # Set customer.in_ride = True
         if hasattr(user, 'customer'):
