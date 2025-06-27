@@ -7,28 +7,29 @@ from authentication.models import (
     UserOtp,    
     Service,
     Provider,
-    Driver,
     DriverCar,
     Customer,
     CustomerPlace,
     RideStatus,
     UserPoints,
     Product,
-    ProductImage,
     Purchase, 
     CarAgency,
     CarAvailability,
-    CarRental
+    CarRental,
+    DriverProfile,
+    ProductImage
 )
 from django import forms
 from rest_framework.authtoken.models import Token
+import ast
+from django.conf import settings
 
 admin.site.unregister(Group)
 admin.site.register(User)
 admin.site.register(UserOtp)
 #admin.site.register(Service)
 admin.site.register(Provider)
-admin.site.register(Driver)
 admin.site.register(DriverCar)
 admin.site.register(Customer)
 admin.site.register(CustomerPlace)
@@ -61,16 +62,21 @@ class ProductAdminForm(forms.ModelForm):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['provider'].queryset = Provider.objects.filter(service__name__icontains='store')
+        self.fields['provider'].queryset = Provider.objects.filter(services__name__icontains='store')
 
+class ProductImageInline(admin.TabularInline):
+    model = ProductImage
+    extra = 1
+    
+    
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
     form = ProductAdminForm
-    list_display = ('name', 'provider_name', 'display_price', 'stock', 'status', 'created_at')
+    list_display = ('image_preview', 'name', 'provider_name', 'display_price', 'stock', 'status', 'created_at')
     list_filter = ('is_active', 'provider', 'created_at')
     search_fields = ('name', 'description', 'provider__user__name')
     ordering = ('-created_at',)
-    readonly_fields = ('created_at', 'updated_at', 'preview_image')
+    readonly_fields = ('created_at', 'updated_at')
     fieldsets = (
         (_('Basic Information'), {
             'fields': ('name', 'description', 'provider')
@@ -86,44 +92,35 @@ class ProductAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
     )
-    
+    inlines = [ProductImageInline]
+
     def provider_name(self, obj):
         return obj.provider.user.name
     provider_name.short_description = _('Provider Name')
-    
+
     def status(self, obj):
         if obj.is_active:
-            return format_html('<span style="color: green;">●</span> Active')
-        return format_html('<span style="color: red;">●</span> Inactive')
-    status.short_description = _('Status')
-    
-    def preview_image(self, obj):
-        if obj.images.exists():
-            return format_html('<img src="{}" width="100" height="100" style="object-fit: cover;" />', 
-                             obj.images.first().image.url)
-        return _('No image')
-    preview_image.short_description = _('Preview')
+            return format_html('<span style="color: green;">●</span> {}', _('Active'))
+        return format_html('<span style="color: red;">●</span> {}', _('Inactive'))
 
-@admin.register(ProductImage)
-class ProductImageAdmin(admin.ModelAdmin):
-    list_display = ('product_name', 'preview_image')
-    list_filter = ('product',)
-    search_fields = ('product__name',)
-    ordering = ('product',)
-    readonly_fields = ('preview_image',)
-    
-    def product_name(self, obj):
-        return obj.product.name
-    product_name.short_description = _('Product Name')
-    
-    def preview_image(self, obj):
-        return format_html('<img src="{}" width="100" height="100" style="object-fit: cover;" />', 
-                         obj.image.url)
-    preview_image.short_description = _('Preview')
+    status.short_description = _('Status')
+    def image_preview(self, obj):
+        images = obj.images.all()[:3]  # Show up to 3 images
+        if images:
+            html = ""
+            for image in images:
+                html += format_html(
+                    '<img src="{}" style="max-height: 40px; max-width: 40px; object-fit: cover; border-radius: 4px; margin-right: 2px;" />',
+                    image.image.url
+                )
+            return format_html(html)
+        return "No image"
+    image_preview.short_description = _("Preview")
+    image_preview.allow_tags = True
 
 @admin.register(Purchase)
 class PurchaseAdmin(admin.ModelAdmin):
-    list_display = ('customer_name', 'product_name', 'money_spent', 'quantity', 'status', 'status_display', 'created_at')
+    list_display = ('customer_name', 'product_name', 'money_spent', 'quantity', 'status_display', 'created_at')
     list_filter = ('status', 'created_at', 'product__provider')
     search_fields = ('customer__user__name', 'product__name')
     ordering = ('-created_at',)
@@ -175,10 +172,10 @@ class ServiceAdmin(admin.ModelAdmin):
     
 @admin.register(CarAgency)
 class CarAgencyAdmin(admin.ModelAdmin):
-    list_display = ("brand", "model", "color", "price_per_hour", "available", "created_at")
-    list_filter = ("brand", "color", "available", "created_at")
+    list_display = ("provider", "brand", "model", "color", "price_per_hour", "available", "created_at")
+    list_filter = ("provider", "brand", "color", "available", "created_at")
     list_editable = ("available",)  # ✅ now you CAN edit if you really want
-    search_fields = ("brand", "model", "color")
+    search_fields = ("provider__user__name", "brand", "model", "color")
     readonly_fields = ("created_at",)
     ordering = ("-created_at",)
 
@@ -196,4 +193,17 @@ class CarRentalAdmin(admin.ModelAdmin):
     search_fields = ("customer__user__name", "car__brand", "car__model")
     readonly_fields = ("total_price", "created_at")
     ordering = ("-created_at",)
+
+@admin.register(DriverProfile)
+class DriverProfileAdmin(admin.ModelAdmin):
+    list_display = ('user_name', 'user_phone')
+    search_fields = ('provider__user__name', 'provider__user__phone')
+    
+    def user_name(self, obj):
+        return obj.provider.user.name
+    user_name.short_description = _('User Name')
+    
+    def user_phone(self, obj):
+        return obj.provider.user.phone
+    user_phone.short_description = _('Phone Number')
 

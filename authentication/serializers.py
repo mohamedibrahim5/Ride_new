@@ -1,6 +1,5 @@
 from authentication.choices import (
     ROLE_CUSTOMER,
-    ROLE_DRIVER,
     ROLE_PROVIDER,
     ROLE_CHOICES,
     FCM_CHOICES,
@@ -10,15 +9,14 @@ from authentication.models import (
     UserOtp,
     Service,
     Provider,
-    Driver,
-    DriverCar,
     Customer,
     CustomerPlace,
     RideStatus,
     UserPoints,
-    ProductImage,
     Product,
-    Purchase
+    Purchase,
+    DriverProfile,
+    DriverCar
 )
 from authentication.utils import send_sms, extract_user_data, update_user_data
 from django.utils.translation import gettext_lazy as _
@@ -27,7 +25,7 @@ from rest_framework.authtoken.models import Token
 from django.utils import timezone
 from fcm_django.models import FCMDevice
 from django.contrib.gis.geos import Point
-from .models import CarAgency, CarAvailability, CarRental
+from .models import CarAgency, CarAvailability, CarRental, ProductImage
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -109,23 +107,23 @@ class ServiceSerializer(serializers.ModelSerializer):
 
 
 class ProviderSerializer(serializers.ModelSerializer):
-    service_id = serializers.IntegerField(write_only=True)
+    service_ids = serializers.ListField(
+        child=serializers.IntegerField(), write_only=True, required=False
+    )
     user = UserSerializer(read_only=True)
+    services = ServiceSerializer(many=True, read_only=True)
 
     class Meta:
         model = Provider
-        fields = ["id", "user", "service_id"]
+        fields = ["id", "user", "service_ids", "services"]
 
     def validate(self, attrs):
-        service_id = attrs.pop("service_id")
-
-        service = Service.objects.filter(pk=service_id).first()
-
-        if not service:
-            raise serializers.ValidationError({"service": _("Service not found.")})
-
-        attrs["service"] = service
-
+        service_ids = attrs.pop("service_ids", None)
+        if service_ids is not None:
+            services = Service.objects.filter(pk__in=service_ids)
+            if len(services) != len(service_ids):
+                raise serializers.ValidationError({"services": _(f"Some services not found.")})
+            attrs["services"] = services
         return attrs
 
     def create(self, validated_data):
@@ -133,36 +131,32 @@ class ProviderSerializer(serializers.ModelSerializer):
         user_serializer = UserSerializer(data=user_data)
         user_serializer.is_valid(raise_exception=True)
         user = user_serializer.save()
-        return Provider.objects.create(user=user, **validated_data)
+        services = validated_data.pop("services", [])
+        provider = Provider.objects.create(user=user, **validated_data)
+        provider.services.set(services)
+        return provider
 
     def update(self, instance, validated_data):
         user_data = update_user_data(instance, self.initial_data)
         user_serializer = UserSerializer(instance.user, data=user_data, partial=True)
         user_serializer.is_valid(raise_exception=True)
         user_serializer.save()
+        services = validated_data.pop("services", None)
+        if services is not None:
+            instance.services.set(services)
         return super().update(instance, validated_data)
 
 
-class DriverSerializer(serializers.ModelSerializer):
-    user = UserSerializer(read_only=True)
-
+class DriverProfileSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Driver
-        fields = ["id", "user", "license", "in_ride"]
+        model = DriverProfile
+        fields = ["id", "license", "status", "is_verified"]
 
-    def create(self, validated_data):
-        user_data = extract_user_data(self.initial_data)
-        user_serializer = UserSerializer(data=user_data)
-        user_serializer.is_valid(raise_exception=True)
-        user = user_serializer.save()
-        return Driver.objects.create(user=user, **validated_data)
 
-    def update(self, instance, validated_data):
-        user_data = update_user_data(instance, self.initial_data)
-        user_serializer = UserSerializer(instance.user, data=user_data, partial=True)
-        user_serializer.is_valid(raise_exception=True)
-        user_serializer.save()
-        return super().update(instance, validated_data)
+class DriverCarSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DriverCar
+        fields = ["id", "type", "model", "number", "color", "image", "license"]
 
 
 class CustomerSerializer(serializers.ModelSerializer):
@@ -213,8 +207,6 @@ class LoginSerializer(serializers.Serializer):
         if user.role == ROLE_PROVIDER:
             is_verified = user.provider.is_verified
 
-        if user.role == ROLE_DRIVER:
-            is_verified = user.driver.is_verified
 
         if is_verified:
             user.last_login = timezone.now()
@@ -420,17 +412,6 @@ class DeleteUserSerializer(serializers.Serializer):
         return user.delete()
 
 
-class DriverCarSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = DriverCar
-        fields = ["id", "type", "model", "number", "color", "image", "documents"]
-
-    def create(self, validated_data):
-        user = self.context.get("user")
-        driver = Driver.objects.get(user=user)
-        return DriverCar.objects.create(driver=driver, **validated_data)
-
-
 class CustomerPlaceSerializer(serializers.ModelSerializer):
     class Meta:
         model = CustomerPlace
@@ -473,8 +454,8 @@ class UserPointsSerializer(serializers.ModelSerializer):
 class ProductImageSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProductImage
-        fields = ['id', 'image']
-
+        fields = ['id', 'product', 'image']
+        read_only_fields = ['product']
 
 class ProductSerializer(serializers.ModelSerializer):
     images = ProductImageSerializer(many=True, read_only=True)
@@ -508,22 +489,24 @@ class PurchaseSerializer(serializers.ModelSerializer):
         quantity = attrs.get('quantity', 1)
         customer = self.context.get('customer')
         
-        # Check if product is active
-        if not product.is_active:
-            raise serializers.ValidationError(_("Product is not available."))
-        
-        # Check stock
-        if product.stock < quantity:
-            raise serializers.ValidationError(_("Not enough stock available."))
-        
-        # Check if customer has enough points
-        total_price = product.display_price * quantity
-        # user_points = UserPoints.objects.get(user=customer.user)
-        
-        # if user_points.points < total_points:
-        #     raise serializers.ValidationError(_("Not enough points available."))
-        
-        attrs['money_spent'] = total_price
+        # Only check product if present (i.e., on create, not on PATCH)
+        if product is not None:
+            # Check if product is active
+            if not product.is_active:
+                raise serializers.ValidationError(_("Product is not available."))
+            
+            # Check stock
+            if product.stock < quantity:
+                raise serializers.ValidationError(_("Not enough stock available."))
+            
+            # Check if customer has enough points
+            total_price = product.display_price * quantity
+            # user_points = UserPoints.objects.get(user=customer.user)
+            
+            # if user_points.points < total_points:
+            #     raise serializers.ValidationError(_("Not enough points available."))
+            
+            attrs['money_spent'] = total_price
         return attrs
 
     def create(self, validated_data):
@@ -534,6 +517,8 @@ class PurchaseSerializer(serializers.ModelSerializer):
 
         # Update stock
         product.stock -= quantity
+        if product.stock <= 0:
+            product.is_active = False
         product.save()
 
         # Update customer points
@@ -563,8 +548,14 @@ class CarAgencySerializer(serializers.ModelSerializer):
         fields = '__all__'
 
     def get_actual_free_times(self, obj):
-        slots = obj.availability_slots.all()
-        rentals = obj.rentals.exclude(status='cancelled')
+        from django.utils import timezone
+        now = timezone.now()
+        # Only include slots that have not ended yet
+        slots = obj.availability_slots.filter(end_time__gte=now)
+        # Only exclude rentals that are confirmed, in_progress, or completed
+        rentals = obj.rentals.filter(status__in=[
+            'confirmed', 'in_progress', 'completed'
+        ])
         actual = []
         for slot in slots:
             cuts = [(slot.start_time, slot.end_time)]
@@ -584,6 +575,7 @@ class CarAgencySerializer(serializers.ModelSerializer):
             for s, e in cuts:
                 if s < e:
                     actual.append({'start': s, 'end': e})
+        actual.sort(key=lambda x: x['start'])
         return actual
 
 
@@ -613,6 +605,7 @@ class CarRentalSerializer(serializers.ModelSerializer):
         """
         Custom validation for create + update.
         """
+        from django.utils import timezone
         request = self.context['request']
         is_create = self.instance is None
 
@@ -633,10 +626,23 @@ class CarRentalSerializer(serializers.ModelSerializer):
 
         # Only check overlap if dates present
         if start_datetime and end_datetime:
+            # 1. Check that the requested time is fully within an available slot
+            now = timezone.now()
+            available_slots = car.availability_slots.filter(
+                start_time__lte=start_datetime,
+                end_time__gte=end_datetime
+            )
+            if not available_slots.exists():
+                raise serializers.ValidationError({
+                    "detail": "The car is not available for the entire requested time range."
+                })
+
+            # 2. Check for overlapping rentals (excluding cancelled)
             overlapping_rentals = CarRental.objects.filter(
                 car=car,
                 start_datetime__lt=end_datetime,
-                end_datetime__gt=start_datetime
+                end_datetime__gt=start_datetime,
+                status__in=["pending", "confirmed", "in_progress", "completed"]
             )
             if self.instance:
                 overlapping_rentals = overlapping_rentals.exclude(pk=self.instance.pk)

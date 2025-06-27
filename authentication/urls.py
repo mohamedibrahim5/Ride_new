@@ -23,8 +23,8 @@ from authentication.views import (
     UserPointsViewSet,
     CarAgencyViewSet, 
     CarAvailabilityViewSet, 
-    CarRentalViewSet
-
+    CarRentalViewSet,
+    DriverProfileViewSet, 
 )
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
@@ -41,6 +41,7 @@ router.register(r'points', UserPointsViewSet, basename='points')
 router.register(r'cars', CarAgencyViewSet)
 router.register(r'availability', CarAvailabilityViewSet)
 router.register(r'rentals', CarRentalViewSet)
+router.register("driver-profiles", DriverProfileViewSet, basename="driver-profiles")
 
 
 urlpatterns = [
@@ -62,8 +63,6 @@ urlpatterns = [
     #a7aa7a 
     path("book-ride/", BroadcastRideRequestView.as_view(), name="book-ride"),
     path("ride/respond/", ProviderRideResponseView.as_view(), name="provider_ride_response"),
-    path("update-ride/", UpdateRideStatusView.as_view(), name="update_ride" ),   
-
-
+    path("update-ride/", UpdateRideStatusView.as_view(), name="update_ride" ),
 
 ]

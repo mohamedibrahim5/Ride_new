@@ -1,7 +1,7 @@
 import requests, pyotp
 from firebase_admin import messaging
 
-from authentication.models import Provider, Driver, Customer
+from authentication.models import Provider, Customer
 
 
 def send_sms(phone):
@@ -45,11 +45,11 @@ def send_fcm_notification(token, title, body):
 def retrieve_object(user):
     if user.role == "CU":
         return Customer.objects.select_related("user").get(user=user)
-    elif user.role == "DR":
-        return Driver.objects.select_related("user").get(user=user)
     elif user.role == "PR":
         return Provider.objects.select_related("user").get(user=user)
-
+    # If provider has a driver profile, return it
+    elif hasattr(user, 'provider') and hasattr(user.provider, 'driver_profile'):
+        return user.provider.driver_profile
     return None
 
 

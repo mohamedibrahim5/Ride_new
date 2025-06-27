@@ -1,0 +1,275 @@
+{
+  "info": {
+    "name": "Food Delivery Full Flow",
+    "_postman_id": "f1d2d2f9-1234-4bcd-8e1a-abcdef123456",
+    "description": "Full flow for customer and provider/driver for food delivery.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Customer Register",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Customer Name\",\n  \"phone\": \"1112223333\",\n  \"password\": \"customerpass\",\n  \"role\": \"CU\",\n  \"location\": \"30.0500,31.2400\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/authentication/register/",
+          "host": ["{{base_url}}"],
+          "path": ["authentication", "register", ""]
+        }
+      }
+    },
+    {
+      "name": "Customer Login",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"phone\": \"1112223333\",\n  \"password\": \"customerpass\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/authentication/login/",
+          "host": ["{{base_url}}"],
+          "path": ["authentication", "login", ""]
+        }
+      }
+    },
+    {
+      "name": "Customer Book Food Delivery",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Token {{customer_token}}",
+            "type": "text"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"lat\": 30.0444,\n  \"lng\": 31.2357,\n  \"drop_lat\": 30.0500,\n  \"drop_lng\": 31.2400,\n  \"service_id\": {{food_delivery_service_id}},\n  \"ride_type\": \"two_way\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/authentication/book-ride/",
+          "host": ["{{base_url}}"],
+          "path": ["authentication", "book-ride", ""]
+        }
+      }
+    },
+    {
+      "name": "Provider Register",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"Provider Name\",\n  \"phone\": \"2223334444\",\n  \"password\": \"providerpass\",\n  \"role\": \"PR\",\n  \"location\": \"30.0444,31.2357\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/authentication/register/",
+          "host": ["{{base_url}}"],
+          "path": ["authentication", "register", ""]
+        }
+      }
+    },
+    {
+      "name": "Provider Login",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"phone\": \"2223334444\",\n  \"password\": \"providerpass\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/authentication/login/",
+          "host": ["{{base_url}}"],
+          "path": ["authentication", "login", ""]
+        }
+      }
+    },
+    {
+      "name": "Provider Assign Services",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Token {{provider_token}}",
+            "type": "text"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"service_ids\": [{{food_delivery_service_id}}]\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/authentication/providers/{{provider_id}}/",
+          "host": ["{{base_url}}"],
+          "path": ["authentication", "providers", "{{provider_id}}", ""]
+        }
+      }
+    },
+    {
+      "name": "Provider Create Driver Profile",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Token {{provider_token}}",
+            "type": "text"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"provider\": {{provider_id}},\n  \"license\": \"DRIVER-LICENSE-123\",\n  \"status\": \"available\",\n  \"is_verified\": true\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/authentication/driver-profiles/",
+          "host": ["{{base_url}}"],
+          "path": ["authentication", "driver-profiles", ""]
+        }
+      }
+    },
+    {
+      "name": "Provider Add Car",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Token {{provider_token}}",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "formdata",
+          "formdata": [
+            { "key": "driver_profile", "value": "{{driver_profile_id}}", "type": "text" },
+            { "key": "type", "value": "Sedan", "type": "text" },
+            { "key": "model", "value": "Toyota", "type": "text" },
+            { "key": "number", "value": "1234", "type": "text" },
+            { "key": "color", "value": "Red", "type": "text" },
+            { "key": "license", "value": "CAR-LICENSE-123", "type": "text" },
+            { "key": "image", "type": "file" }
+          ]
+        },
+        "url": {
+          "raw": "{{base_url}}/authentication/driver-cars/",
+          "host": ["{{base_url}}"],
+          "path": ["authentication", "driver-cars", ""]
+        }
+      }
+    },
+    {
+      "name": "Provider Accept Ride",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Token {{provider_token}}",
+            "type": "text"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"client_id\": {{customer_id}},\n  \"accepted\": true\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/authentication/ride/respond/",
+          "host": ["{{base_url}}"],
+          "path": ["authentication", "ride", "respond", ""]
+        }
+      }
+    },
+    {
+      "name": "Provider Update Ride Status (Optional)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Token {{provider_token}}",
+            "type": "text"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status\": \"starting\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/authentication/update-ride/",
+          "host": ["{{base_url}}"],
+          "path": ["authentication", "update-ride", ""]
+        }
+      }
+    },
+    {
+      "name": "Provider Finish Ride",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Token {{provider_token}}",
+            "type": "text"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status\": \"finished\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/authentication/update-ride/",
+          "host": ["{{base_url}}"],
+          "path": ["authentication", "update-ride", ""]
+        }
+      }
+    }
+  ],
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:8000" },
+    { "key": "customer_token", "value": "" },
+    { "key": "provider_token", "value": "" },
+    { "key": "food_delivery_service_id", "value": "" },
+    { "key": "provider_id", "value": "" },
+    { "key": "driver_profile_id", "value": "" },
+    { "key": "customer_id", "value": "" }
+  ]
+} 

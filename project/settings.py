@@ -9,11 +9,12 @@ load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-SECRET_KEY = os.getenv("SECRET_KEY")
+# SECRET_KEY = os.getenv("SECRET_KEY")
+SECRET_KEY = "django-insecure-1234567890"
 DEBUG = True
 
-ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS").split(",")
-
+# ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS").split(",")
+ALLOWED_HOSTS = ['*']
 
 CSRF_TRUSTED_ORIGINS = [
     "https://ridenew-production-41e4.up.railway.app",
@@ -139,6 +140,22 @@ if DEBUG:
             },
         },
     }
+    # Only inside: if DEBUG:
+#     REDIS_HOST = "127.0.0.1"  # or "localhost"
+#     REDIS_PORT = 6379
+#     REDIS_DB = 0
+#     REDIS_URL = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
+
+#     CHANNEL_LAYERS = {
+#     "default": {
+#         "BACKEND": "channels_redis.core.RedisChannelLayer",
+#         "CONFIG": {
+#             "hosts": [REDIS_URL],
+#         },
+#     },
+# }
+
+
 
 
 
@@ -252,9 +269,14 @@ SIMPLEUI_CONFIG = {
                     'url': 'authentication/customer/'
                 },
                 {
-                    'name': _('Drivers'),
+                    'name': _('Driver Profiles'),
+                    'icon': 'fas fa-id-card',
+                    'url': 'authentication/driverprofile/'
+                },
+                {
+                    'name': _('Driver Cars'),
                     'icon': 'fas fa-car',
-                    'url': 'authentication/driver/'
+                    'url': 'authentication/drivercar/'
                 },
                 {
                     'name': _('Tokens'),
@@ -272,11 +294,7 @@ SIMPLEUI_CONFIG = {
                     'icon': 'fas fa-box',
                     'url': 'authentication/product/'
                 },
-                {
-                    'name': _('Product Images'),
-                    'icon': 'fas fa-images',
-                    'url': 'authentication/productimage/'
-                }
+                
             ]
         },
         {

@@ -6,6 +6,7 @@ from location_field.models.plain import PlainLocationField
 #from django.contrib.gis.db import models as gis_models
 from django.utils.translation import gettext_lazy as _
 from django.utils import timezone
+from django.contrib.postgres.fields import JSONField
 
 
 class User(AbstractUser):
@@ -81,9 +82,9 @@ class ServiceImage(models.Model):
 
 class Provider(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, verbose_name=_("User"))
-    service = models.ForeignKey(Service, on_delete=models.CASCADE, verbose_name=_("Service"))
+    services = models.ManyToManyField(Service, verbose_name=_("Services"))
     is_verified = models.BooleanField(_("Is Verified"), default=False)
-    # created_at = models.DateTimeField(_("Created At"), auto_now_add=True,null=True, blank=True)
+    in_ride = models.BooleanField(_("In Ride"), default=False)
 
     def __str__(self):
         return self.user.name
@@ -93,22 +94,23 @@ class Provider(models.Model):
         verbose_name_plural = _("Providers")
 
 
-class Driver(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE, verbose_name=_("User"))
+class DriverProfile(models.Model):
+    provider = models.OneToOneField(Provider, on_delete=models.CASCADE, related_name="driver_profile", verbose_name=_("Provider"))
     license = models.CharField(_("License"), max_length=20, unique=True)
-    in_ride = models.BooleanField(_("In Ride"), default=False)
+    status = models.CharField(_("Status"), max_length=20, choices=[("available", _("Available")), ("in_ride", _("In Ride"))], default="available")
     is_verified = models.BooleanField(_("Is Verified"), default=False)
+    # Add any other driver-specific fields as needed
 
     def __str__(self):
-        return self.user.name
-    
+        return f"{self.provider.user.name} - {self.license}"
+
     class Meta:
-        verbose_name = _("Driver")
-        verbose_name_plural = _("Drivers")
+        verbose_name = _("Driver Profile")
+        verbose_name_plural = _("Driver Profiles")
 
 
 class DriverCar(models.Model):
-    driver = models.ForeignKey(Driver, on_delete=models.CASCADE, verbose_name=_("Driver"))
+    driver_profile = models.OneToOneField(DriverProfile, on_delete=models.CASCADE, related_name="car", null=True, blank=True, verbose_name=_("Driver Profile"))
     type = models.CharField(_("Type"), max_length=20)
     model = models.CharField(_("Model"), max_length=20)
     number = models.CharField(_("Number"), max_length=20)
@@ -117,7 +119,7 @@ class DriverCar(models.Model):
     license = models.CharField(_("License"), max_length=20, unique=True)
 
     def __str__(self):
-        return self.type
+        return f"{self.type} - {self.model} - {self.number}"
 
     class Meta:
         verbose_name = _("Driver Car")
@@ -218,20 +220,14 @@ class Product(models.Model):
     def __str__(self):
         return self.name
     
+    def save(self, *args, **kwargs):
+        if self.stock <= 0:
+            self.is_active = False
+        super().save(*args, **kwargs)
+
     class Meta:
         verbose_name = _("Product")
         verbose_name_plural = _("Products")
-
-class ProductImage(models.Model):
-    product = models.ForeignKey(Product, on_delete=models.CASCADE, related_name="images", verbose_name=_("Product"))
-    image = models.ImageField(_("Image"), upload_to="product/images/")
-
-    def __str__(self):
-        return f"Image for {self.product.name}"
-    
-    class Meta:
-        verbose_name = _("Product Image")
-        verbose_name_plural = _("Product Images")
 
 
 class Purchase(models.Model):
@@ -270,6 +266,7 @@ class Purchase(models.Model):
         
         
 class CarAgency(models.Model):
+    provider = models.ForeignKey('Provider', on_delete=models.CASCADE, related_name='car_agencies', verbose_name=_('Provider'), null=True, blank=True)
     model = models.CharField(_("Model"), max_length=50, null=True, blank=True)
     brand = models.CharField(_("Brand"), max_length=50, null=True, blank=True)
     color = models.CharField(_("Color"), max_length=20, null=True, blank=True)
@@ -291,7 +288,8 @@ class CarAgency(models.Model):
         for slot in slots:
             overlapping_rentals = self.rentals.filter(
                 start_datetime__lt=slot.end_time,
-                end_datetime__gt=slot.start_time
+                end_datetime__gt=slot.start_time,
+                status__in=["pending", "confirmed", "in_progress", "completed"]
             )
             cuts = [(slot.start_time, slot.end_time)]
             for rental in overlapping_rentals:
@@ -313,7 +311,7 @@ class CarAgency(models.Model):
         self.save(update_fields=['available'])
 
 class CarAvailability(models.Model):
-    car = models.ForeignKey(CarAgency, on_delete=models.CASCADE, related_name='availability_slots')
+    car = models.ForeignKey(CarAgency, on_delete=models.CASCADE, related_name='availability_slots', verbose_name=_("Car"))
     start_time = models.DateTimeField(_("Available From"))
     end_time = models.DateTimeField(_("Available Until"))
 
@@ -329,11 +327,11 @@ class CarRental(models.Model):
     STATUS_CANCELLED = "cancelled"
 
     STATUS_CHOICES = [
-        (STATUS_PENDING, "Pending"),
-        (STATUS_CONFIRMED, "Confirmed"),
-        (STATUS_IN_PROGRESS, "In Progress"),
-        (STATUS_COMPLETED, "Completed"),
-        (STATUS_CANCELLED, "Cancelled"),
+        (STATUS_PENDING, _("Pending")),
+        (STATUS_CONFIRMED, _("Confirmed")),
+        (STATUS_IN_PROGRESS, _("In Progress")),
+        (STATUS_COMPLETED, _("Completed")),
+        (STATUS_CANCELLED, _("Cancelled")),
     ]
     
     customer = models.ForeignKey(
@@ -393,4 +391,17 @@ class CarRental(models.Model):
         verbose_name_plural = _("Car Rentals")
 
     
+
+class ProductImage(models.Model):
+    product = models.ForeignKey('Product', related_name='images', on_delete=models.CASCADE, verbose_name=_("Product"))
+    image = models.ImageField(upload_to='product_images/', verbose_name=_("Image"))
+
+    
+    def __str__(self):
+        return _("Image for %(product_name)s") % {"product_name": self.product.name}
+
+    class Meta:
+        verbose_name = _("Product Image")
+        verbose_name_plural = _("Product Images")
+
 

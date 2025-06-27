@@ -1,9 +1,9 @@
 from authentication.filters import ProviderFilter
 from authentication.models import (
     Provider,
-    Driver,
     Customer,
     Service,
+    DriverProfile,
     DriverCar,
     CustomerPlace,
     Product,
@@ -21,7 +21,6 @@ from authentication.serializers import (
     ResetPasswordSerializer,
     ChangePasswordSerializer,
     ProviderSerializer,
-    DriverSerializer,
     CustomerSerializer,
     FcmDeviceSerializer,
     LogoutSerializer,
@@ -34,12 +33,14 @@ from authentication.serializers import (
     UserPointsSerializer,
     CarAgencySerializer,
     CarAvailabilitySerializer,
-    CarRentalSerializer
+    CarRentalSerializer,
+    DriverProfileSerializer,
+    ProductImageSerializer,
 )
-from authentication.choices import ROLE_CUSTOMER, ROLE_DRIVER, ROLE_PROVIDER
-from authentication.permissions import IsAdminOrReadOnly, IsCustomer, IsCustomerOrAdmin, IsAdminOrCarAgency, IsStoreProvider
+from authentication.choices import ROLE_CUSTOMER, ROLE_PROVIDER
+from authentication.permissions import IsAdminOrReadOnly, IsCustomer, IsCustomerOrAdmin, IsAdminOrCarAgency, IsStoreProvider, IsAdminOrOwnCarAgency, ProductImagePermission
 from rest_framework import status, generics, viewsets, filters
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.decorators import action
@@ -48,18 +49,22 @@ import random
 import string
 from django.utils import timezone
 from django.shortcuts import get_object_or_404
+from django.utils.dateparse import parse_datetime
+from rest_framework import serializers
+from django.db import models
+from channels.layers import get_channel_layer
+from asgiref.sync import async_to_sync
 
 class UserRegisterView(generics.CreateAPIView):
     def get_serializer_class(self):
-        role = self.request.data.get("role")
+        role = self.request.data.get("role") 
 
         if role == "CU":
             return CustomerSerializer
-        elif role == "DR":
-            return DriverSerializer
+        # elif role == "DR":
+        #     return ProviderSerializer
         elif role == "PR":
             return ProviderSerializer
-
         return UserSerializer
 
 
@@ -121,10 +126,9 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from django.db.models import Q
 
-from authentication.models import RideStatus, User, Customer, Driver, Provider
+from authentication.models import RideStatus, User, Customer, Provider
 from authentication.serializers import (
     CustomerSerializer,
-    DriverSerializer,
     ProviderSerializer,
     UserSerializer,
     ServiceSerializer,
@@ -170,10 +174,9 @@ class ProfileUserView(generics.RetrieveUpdateAPIView):
         if role == "CU":
             return CustomerSerializer
         elif role == "DR":
-            return DriverSerializer
+            return ProviderSerializer
         elif role == "PR":
             return ProviderSerializer
-
         return UserSerializer
 
     def retrieve(self, request, *args, **kwargs):
@@ -232,13 +235,31 @@ class ServiceViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAdminOrReadOnly]
 
 
+class DriverProfileViewSet(viewsets.ModelViewSet):
+    queryset = DriverProfile.objects.select_related("provider__user")
+    serializer_class = DriverProfileSerializer
+    permission_classes = [IsAuthenticated]
+
+    def perform_create(self, serializer):
+        provider = getattr(self.request.user, 'provider', None)
+        if not provider:
+            raise serializers.ValidationError({'provider': 'Current user is not a provider.'})
+        serializer.save(provider=provider)
+
+
 class DriverCarViewSet(viewsets.ModelViewSet):
-    queryset = DriverCar.objects.select_related("driver__user")
+    queryset = DriverCar.objects.select_related("driver_profile__provider__user")
     serializer_class = DriverCarSerializer
     permission_classes = [IsAuthenticated]
 
     def get_serializer_context(self):
         return super().get_serializer_context() | {"user": self.request.user}
+
+    def perform_create(self, serializer):
+        provider = getattr(self.request.user, 'provider', None)
+        if not provider or not hasattr(provider, 'driver_profile'):
+            raise serializers.ValidationError({'driver_profile': 'Current user does not have a driver profile.'})
+        serializer.save(driver_profile=provider.driver_profile)
 
 
 class CustomerPlaceViewSet(viewsets.ModelViewSet):
@@ -259,7 +280,7 @@ class ProviderViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         service_id = self.request.query_params.get("service_id")
         return Provider.objects.filter(
-            service__id=service_id,
+            services__id=service_id,
             is_verified=True,
         ).select_related("user")
 
@@ -304,7 +325,7 @@ class RequestProviderView(APIView):
 
         try:
             provider = Provider.objects.select_related('user').filter(
-                service_id=service_id,
+                services__id=service_id,
                 is_verified=True
             ).first()
         except Provider.DoesNotExist:
@@ -345,14 +366,17 @@ class StartRideRequestView(APIView):
 
         providers = Provider.objects.filter(
             is_verified=True,
-            service__id=service_id,
+            services__id=service_id,
             user__location2_lat__isnull=False,
             user__location2_lng__isnull=False
         )
 
-        # Filter providers within 5 km using Haversine
+        # Filter providers within 5 km using Haversine and only those available
         nearby_providers = []
         for provider in providers:
+            # Exclude providers whose driver_profile.status is not 'available'
+            if hasattr(provider, 'driver_profile') and provider.driver_profile.status != 'available':
+                continue
             plat = provider.user.location2_lat
             plng = provider.user.location2_lng
             if plat is not None and plng is not None:
@@ -391,6 +415,10 @@ class StartRideRequestView(APIView):
             for _ in range(10):
                 from authentication.models import RideStatus
                 if RideStatus.objects.filter(client_id=request.user.id, accepted=True).exists():
+                    # Set customer.in_ride = True
+                    if hasattr(request.user, 'customer'):
+                        request.user.customer.in_ride = True
+                        request.user.customer.save()
                     return Response({"status": "Accepted by provider"})
                 sleep(1)
 
@@ -423,14 +451,17 @@ class BroadcastRideRequestView(APIView):
 
         providers = Provider.objects.filter(
             is_verified=True,
-            service_id=service_id,
+            services__id=service_id,
             user__location2_lat__isnull=False,
             user__location2_lng__isnull=False
         )
 
-        # Filter providers within 5 km using Haversine
+        # Filter providers within 5 km using Haversine and only those available
         nearby_providers = []
         for provider in providers:
+            # Exclude providers whose driver_profile.status is not 'available'
+            if hasattr(provider, 'driver_profile') and provider.driver_profile.status != 'available':
+                continue
             plat = provider.user.location2_lat
             plng = provider.user.location2_lng
             if plat is not None and plng is not None:
@@ -467,6 +498,10 @@ class BroadcastRideRequestView(APIView):
             provider=None,  # not selected yet
             status="pending"
         )    
+        # Set customer.in_ride = True
+        if hasattr(user, 'customer'):
+            user.customer.in_ride = True
+            user.customer.save()
 
         return Response({"status": f"Broadcasted ride request to {len(nearby_providers)} nearby providers"})        
     
@@ -495,6 +530,27 @@ class ProviderRideResponseView(APIView):
             ride.provider = request.user
             ride.status = "accepted"
             ride.save()
+
+            # Set provider.in_ride = True and driver_profile.status = 'in_ride'
+            provider = getattr(request.user, 'provider', None)
+            if provider:
+                provider.in_ride = True
+                provider.save()
+                if hasattr(provider, 'driver_profile'):
+                    provider.driver_profile.status = 'in_ride'
+                    provider.driver_profile.save()
+
+            # Notify client
+            async_to_sync(get_channel_layer().group_send)(
+                f"user_{client_id}",
+                {
+                    "type": "send_acceptance",
+                    "data": {
+                        "provider_id": request.user.id,
+                        "accepted": accepted,
+                    }
+                }
+            )
         else:
             ride.status = "cancelled"
             ride.save()
@@ -503,7 +559,7 @@ class ProviderRideResponseView(APIView):
         async_to_sync(get_channel_layer().group_send)(
             f"user_{client_id}",
             {
-                "type": "send_acceptance" if accepted else "send_cancel",
+                "type": "send_cancel",
                 "data": {
                     "provider_id": request.user.id,
                     "accepted": accepted,
@@ -536,6 +592,26 @@ class UpdateRideStatusView(APIView):
         ride.status = status
         ride.save()
 
+        # --- Update in_ride and driver_profile status for both provider and customer ---
+        if status in ["finished", "cancelled"]:
+            # Provider
+            provider_user = ride.provider
+            provider = getattr(provider_user, 'provider', None)
+            if provider and hasattr(provider, 'driver_profile'):
+                provider.driver_profile.status = 'available'
+                provider.driver_profile.save()
+            if provider:
+                provider.in_ride = False
+                provider.save()
+            # Customer
+            customer = None
+            if hasattr(ride.client, 'customer'):
+                customer = ride.client.customer
+            if customer and hasattr(customer, 'in_ride'):
+                customer.in_ride = False
+                customer.save()
+        # --- End block ---
+
         async_to_sync(get_channel_layer().group_send)(
             f"user_{ride.client.id}",
             {
@@ -558,6 +634,11 @@ class ProductViewSet(viewsets.ModelViewSet):
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ['is_active', 'provider']
 
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy', 'upload_image']:
+            return [IsAuthenticated(), IsStoreProvider()]
+        return [IsCustomer()]
+
     def get_queryset(self):
         queryset = super().get_queryset()
         if self.request.user.role == ROLE_PROVIDER:
@@ -568,6 +649,55 @@ class ProductViewSet(viewsets.ModelViewSet):
         context = super().get_serializer_context()
         context['request'] = self.request
         return context
+
+    @action(detail=True, methods=['post'], url_path='upload-image')
+    def upload_image(self, request, pk=None):
+        """
+        Upload one or multiple images for a specific product.
+        Only the product owner (provider) can upload images.
+        """
+        try:
+            product = self.get_object()
+        except Product.DoesNotExist:
+            return Response({"detail": "Product not found."}, status=404)
+
+        # Check if the current user is the owner of the product
+        if product.provider.user != request.user:
+            return Response(
+                {"detail": "You can only upload images to your own products."}, 
+                status=403
+            )
+
+        # Handle multiple images
+        uploaded_images = []
+        errors = []
+        
+        # Get all files from request.FILES
+        files = request.FILES.getlist('image') if hasattr(request.FILES, 'getlist') else [request.FILES.get('image')]
+        
+        if not files or not any(files):
+            return Response({"detail": "No image files provided."}, status=400)
+        
+        for file in files:
+            if file:  # Check if file exists
+                serializer = ProductImageSerializer(data={'image': file})
+                if serializer.is_valid():
+                    serializer.save(product=product)
+                    uploaded_images.append(serializer.data)
+                else:
+                    errors.append(f"Error with file {file.name}: {serializer.errors}")
+        
+        if uploaded_images:
+            response_data = {
+                "uploaded_images": uploaded_images,
+                "total_uploaded": len(uploaded_images)
+            }
+            if errors:
+                response_data["errors"] = errors
+            
+            return Response(response_data, status=status.HTTP_201_CREATED)
+        else:
+            return Response({"errors": errors}, status=status.HTTP_400_BAD_REQUEST)
 
 
 class PurchaseViewSet(viewsets.ModelViewSet):
@@ -588,7 +718,7 @@ class PurchaseViewSet(viewsets.ModelViewSet):
             return Purchase.objects.filter(customer__user=user).select_related('product', 'customer__user')
         elif hasattr(user, 'provider'):
             # Only show purchases for store providers
-            if 'store' in user.provider.service.name.lower():
+            if user.provider.services.filter(name__icontains='store').exists():
                 return Purchase.objects.filter(product__provider__user=user).select_related('product', 'customer__user')
             return Purchase.objects.none()
         return Purchase.objects.none()
@@ -613,7 +743,7 @@ class PurchaseViewSet(viewsets.ModelViewSet):
         
         # Only allow providers with store service to update status of their products' purchases
         if hasattr(user, 'provider'):
-            if not 'store' in user.provider.service.name.lower():
+            if not user.provider.services.filter(name__icontains='store').exists():
                 return Response(
                     {"detail": "Only store providers can update purchase status."},
                     status=status.HTTP_403_FORBIDDEN
@@ -691,7 +821,7 @@ class CarAgencyViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [IsAdminOrCarAgency()]
+            return [IsAdminOrOwnCarAgency()]
         return [IsAuthenticated()]
 
     def get_queryset(self):
@@ -701,7 +831,6 @@ class CarAgencyViewSet(viewsets.ModelViewSet):
         # Customers see only available cars in valid slots & no conflicting rentals
         if user.role == "CU":
             now = timezone.now()
-            # cars that have future availability slots
             queryset = queryset.filter(
                 available=True,
                 availability_slots__end_time__gte=now
@@ -711,7 +840,6 @@ class CarAgencyViewSet(viewsets.ModelViewSet):
             desired_end = self.request.query_params.get('desired_end')
 
             if desired_start and desired_end:
-                # show cars that have a slot covering this window AND no rental overlap
                 qs_ids = []
                 for car in queryset:
                     slots = car.availability_slots.filter(
@@ -721,18 +849,102 @@ class CarAgencyViewSet(viewsets.ModelViewSet):
                     rentals = car.rentals.filter(
                         start_datetime__lt=desired_end,
                         end_datetime__gt=desired_start,
+                        status__in=["pending", "confirmed", "in_progress", "completed"]
                     )
                     if slots.exists() and not rentals.exists():
                         qs_ids.append(car.id)
                 queryset = queryset.filter(id__in=qs_ids)
+            else:
+                qs_ids = []
+                for car in queryset:
+                    slots = car.availability_slots.filter(end_time__gte=now)
+                    has_free_slot = False
+                    for slot in slots:
+                        overlapping_rentals = car.rentals.filter(
+                            start_datetime__lt=slot.end_time,
+                            end_datetime__gt=slot.start_time,
+                            status__in=["pending", "confirmed", "in_progress", "completed"]
+                        )
+                        total_slot_time = (slot.end_time - slot.start_time).total_seconds()
+                        reserved_time = 0
+                        for rental in overlapping_rentals:
+                            overlap_start = max(slot.start_time, rental.start_datetime)
+                            overlap_end = min(slot.end_time, rental.end_datetime)
+                            reserved_time += max(0, (overlap_end - overlap_start).total_seconds())
+                        if reserved_time < total_slot_time:
+                            has_free_slot = True
+                            break
+                    if has_free_slot:
+                        qs_ids.append(car.id)
+                queryset = queryset.filter(id__in=qs_ids)
+
+        provider = getattr(user, 'provider', None)
+        if provider and provider.services.filter(name__iexact='car agency').exists():
+            queryset = queryset.filter(provider=provider)
 
         return queryset
+
+    def list(self, request, *args, **kwargs):
+        response = super().list(request, *args, **kwargs)
+        desired_start = request.query_params.get('desired_start')
+        desired_end = request.query_params.get('desired_end')
+        if desired_start and desired_end:
+            desired_start_dt = parse_datetime(desired_start)
+            desired_end_dt = parse_datetime(desired_end)
+            queryset = super().get_queryset()
+            now = timezone.now()
+            queryset = queryset.filter(
+                available=True,
+                availability_slots__end_time__gte=now
+            ).distinct()
+            cars_with_overlap = []
+            for car in queryset:
+                slots = car.availability_slots.filter(
+                    end_time__gte=desired_start_dt,
+                    start_time__lte=desired_end_dt
+                )
+                if slots.exists():
+                    cars_with_overlap.append(car)
+            serializer = self.get_serializer(cars_with_overlap, many=True)
+            filtered_data = []
+            for car, car_data in zip(cars_with_overlap, serializer.data):
+                filtered_times = []
+                for t in car_data.get('actual_free_times', []):
+                    s = parse_datetime(t['start']) if isinstance(t['start'], str) else t['start']
+                    e = parse_datetime(t['end']) if isinstance(t['end'], str) else t['end']
+                    # Only include if overlaps with desired window
+                    overlap_start = max(s, desired_start_dt)
+                    overlap_end = min(e, desired_end_dt)
+                    if overlap_start < overlap_end:
+                        # If the available time fully covers the desired window, only return the desired window
+                        if s <= desired_start_dt and e >= desired_end_dt:
+                            filtered_times = [{
+                                'start': desired_start_dt.isoformat(),
+                                'end': desired_end_dt.isoformat()
+                            }]
+                            break  # Only show the exact desired window
+                        else:
+                            filtered_times.append({
+                                'start': overlap_start.isoformat(),
+                                'end': overlap_end.isoformat()
+                            })
+                if filtered_times:
+                    car_data['actual_free_times'] = filtered_times
+                    filtered_data.append(car_data)
+            return Response(filtered_data, status=status.HTTP_200_OK)
+        return response
+
+    def perform_create(self, serializer):
+        provider = getattr(self.request.user, 'provider', None)
+        if not provider:
+            raise serializers.ValidationError({'provider': 'Current user does not have a provider profile.'})
+        serializer.save(provider=provider)
 
 
 class CarAvailabilityViewSet(viewsets.ModelViewSet):
     queryset = CarAvailability.objects.all()
     serializer_class = CarAvailabilitySerializer
-    permission_classes = [IsAuthenticated, IsAdminOrCarAgency]
+    permission_classes = [IsAuthenticated, IsAdminOrOwnCarAgency]
 
     @action(detail=False, methods=['post'], url_path='bulk_create')
     def bulk_create(self, request):
@@ -757,8 +969,8 @@ class CarRentalViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_permissions(self):
-        if self.action in ['update', 'partial_update']:
-            return [IsAuthenticated(), IsAdminOrCarAgency()]
+        if self.action in ['update', 'partial_update', 'destroy']:
+            return [IsAuthenticated(), IsAdminOrOwnCarAgency()]
         if self.action == 'create':
             return [IsAuthenticated(), IsCustomer()]
         return [IsAuthenticated()]
@@ -767,8 +979,10 @@ class CarRentalViewSet(viewsets.ModelViewSet):
         user = self.request.user
         if user.role == "CU" and hasattr(user, 'customer'):
             return CarRental.objects.filter(customer=user.customer)
-        elif user.role == "CA":
-            return CarRental.objects.filter(car__in=CarAgency.objects.all())
+        # Providers with Car Agency service see rentals for their cars
+        provider = getattr(user, 'provider', None)
+        if provider and provider.services.filter(name__iexact='car agency').exists():
+            return CarRental.objects.filter(car__provider=provider)
         elif user.is_staff:
             return CarRental.objects.all()
         return CarRental.objects.none()
