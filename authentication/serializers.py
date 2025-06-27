@@ -134,6 +134,33 @@ class ProviderSerializer(serializers.ModelSerializer):
         services = validated_data.pop("services", [])
         provider = Provider.objects.create(user=user, **validated_data)
         provider.services.set(services)
+
+        # Handle driver profile creation if data is present (flat keys or nested)
+        driver_profile_data = {}
+        # Check for flat keys
+        driver_profile_fields = ["license", "status", "is_verified", "documents"]
+        for f in driver_profile_fields:
+            val = self.initial_data.get(f"driver_profile.{f}")
+            print(f"driver_profile.{f}: {val}")
+            if val is not None:
+                driver_profile_data[f] = val
+        # Check for nested dict
+        if not driver_profile_data and self.initial_data.get("driver_profile"):
+            driver_profile_data = self.initial_data.get("driver_profile")
+        if driver_profile_data:
+            driver_profile = DriverProfile.objects.create(provider=provider, **driver_profile_data)
+            # Handle car creation if data is present (flat keys or nested)
+            car_data = {}
+            car_fields = ["type", "model", "number", "color", "image"]
+            for f in car_fields:
+                val = self.initial_data.get(f"car.{f}")
+                if val is not None:
+                    car_data[f] = val
+            if not car_data and self.initial_data.get("car"):
+                car_data = self.initial_data.get("car")
+            if car_data:
+                DriverCar.objects.create(driver_profile=driver_profile, **car_data)
+
         return provider
 
     def update(self, instance, validated_data):
@@ -150,13 +177,13 @@ class ProviderSerializer(serializers.ModelSerializer):
 class DriverProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = DriverProfile
-        fields = ["id", "license", "status", "is_verified"]
+        fields = ["id", "license", "status", "is_verified", "documents"]
 
 
 class DriverCarSerializer(serializers.ModelSerializer):
     class Meta:
         model = DriverCar
-        fields = ["type", "model", "number", "color", "image", "license"]
+        fields = ["type", "model", "number", "color", "image"]
 
 
 class CustomerSerializer(serializers.ModelSerializer):
@@ -660,15 +687,28 @@ class CarRentalSerializer(serializers.ModelSerializer):
         rental = CarRental.objects.create(**validated_data)
         return rental
 
-class ProviderRegisterSerializer(serializers.ModelSerializer):
+class ProviderDriverRegisterSerializer(serializers.ModelSerializer):
+    user = UserSerializer(write_only=True)
     service_ids = serializers.ListField(child=serializers.IntegerField(), write_only=True)
     driver_profile = DriverProfileSerializer(write_only=True)
     car = DriverCarSerializer(write_only=True)
-    user = UserSerializer(write_only=True)
+
+    # Add these two for response
+    driver_profile_data = DriverProfileSerializer(source='driverprofile', read_only=True)
+    car_data = serializers.SerializerMethodField()
 
     class Meta:
         model = Provider
-        fields = ["user", "service_ids", "driver_profile", "car"]
+        fields = [
+            "user", "service_ids", "driver_profile", "car",  # for write
+            "driver_profile_data", "car_data"  # for read
+        ]
+
+    def get_car_data(self, obj):
+        try:
+            return DriverCarSerializer(obj.driverprofile.car).data
+        except:
+            return None
 
     def create(self, validated_data):
         user_data = validated_data.pop("user")

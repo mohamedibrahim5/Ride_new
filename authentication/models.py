@@ -99,6 +99,7 @@ class DriverProfile(models.Model):
     license = models.CharField(_("License"), max_length=20, unique=True)
     status = models.CharField(_("Status"), max_length=20, choices=[("available", _("Available")), ("in_ride", _("In Ride"))], default="available")
     is_verified = models.BooleanField(_("Is Verified"), default=False)
+    documents = models.FileField(_("Documents"), upload_to="driver/documents/", null=True, blank=True)
     # Add any other driver-specific fields as needed
 
     def __str__(self):
@@ -116,7 +117,7 @@ class DriverCar(models.Model):
     number = models.CharField(_("Number"), max_length=20)
     color = models.CharField(_("Color"), max_length=20)
     image = models.ImageField(_("Image"), upload_to="car/images/")
-    license = models.CharField(_("License"), max_length=20, unique=True)
+    # license field removed
 
     def __str__(self):
         return f"{self.type} - {self.model} - {self.number}"

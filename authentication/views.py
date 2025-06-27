@@ -36,6 +36,7 @@ from authentication.serializers import (
     CarRentalSerializer,
     DriverProfileSerializer,
     ProductImageSerializer,
+    ProviderDriverRegisterSerializer,
 )
 from authentication.choices import ROLE_CUSTOMER, ROLE_PROVIDER
 from authentication.permissions import IsAdminOrReadOnly, IsCustomer, IsCustomerOrAdmin, IsAdminOrCarAgency, IsStoreProvider, IsAdminOrOwnCarAgency, ProductImagePermission
@@ -54,19 +55,88 @@ from rest_framework import serializers
 from django.db import models
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
+from collections import defaultdict
+import json
+from authentication.signals import set_request_data
+
+def flatten_form_data(data):
+    from collections import defaultdict
+    import json
+
+    result = defaultdict(dict)
+    normal = {}
+
+    for key, value in data.items():
+        if '.' in key:
+            prefix, subkey = key.split('.', 1)
+            # Parse JSON arrays from string if needed
+            if isinstance(value, str) and value.startswith('[') and value.endswith(']'):
+                try:
+                    value = json.loads(value)
+                except Exception:
+                    pass
+            result[prefix][subkey] = value
+        else:
+            if isinstance(value, str) and value.startswith('[') and value.endswith(']'):
+                try:
+                    value = json.loads(value)
+                except Exception:
+                    pass
+            normal[key] = value
+
+    for key, val in result.items():
+        normal[key] = val
+    return normal
+
 
 class UserRegisterView(generics.CreateAPIView):
     def get_serializer_class(self):
         role = self.request.data.get("role") 
-
+        has_nested_user = (
+            any(k.startswith("user.") for k in self.request.data.keys()) or
+            isinstance(self.request.data.get("user"), dict)
+        )
         if role == "CU":
             return CustomerSerializer
-        # elif role == "DR":
-        #     return ProviderSerializer
         elif role == "PR":
+            if has_nested_user:
+                return ProviderDriverRegisterSerializer
             return ProviderSerializer
         return UserSerializer
 
+    def post(self, request, *args, **kwargs):
+        # Only flatten if the request is form-data
+        if request.content_type.startswith("multipart/form-data") or request.content_type.startswith("application/x-www-form-urlencoded"):
+            data = flatten_form_data(request.data)
+        else:
+            data = request.data  # already JSON
+        # Set thread local for signals
+        set_request_data(data)
+        serializer = self.get_serializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        # Custom: include driver_profile and car in response if they exist
+        provider = None
+        if hasattr(serializer, 'instance') and serializer.instance:
+            provider = serializer.instance
+        elif hasattr(serializer, 'data') and 'id' in serializer.data:
+            from authentication.models import Provider
+            try:
+                provider = Provider.objects.get(id=serializer.data['id'])
+            except Exception:
+                provider = None
+        response_data = serializer.data
+        if provider:
+            # Try to get driver profile and car
+            driver_profile = getattr(provider, 'driver_profile', None)
+            if driver_profile:
+                from authentication.serializers import DriverProfileSerializer, DriverCarSerializer
+                response_data['driver_profile'] = DriverProfileSerializer(driver_profile).data
+                car = getattr(driver_profile, 'car', None)
+                if car:
+                    response_data['car'] = DriverCarSerializer(car).data
+        return Response(response_data, status=status.HTTP_201_CREATED, headers=headers)
 
 class LoginView(generics.GenericAPIView):
     serializer_class = LoginSerializer
