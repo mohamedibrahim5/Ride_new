@@ -17,7 +17,7 @@ click-plugins==1.1.1
 click-repl==0.3.0
 colorama==0.4.6
 cryptography==45.0.1
-Django==5.2
+Django>=5.0,<5.3
 django-filter==25.1
 django-location-field==2.7.3
 django-rest-framework-nested==0.0.1

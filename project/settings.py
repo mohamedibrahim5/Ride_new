@@ -72,6 +72,9 @@ TEMPLATES = [
 ASGI_APPLICATION = "project.asgi.application"
 WSGI_APPLICATION = "project.wsgi.application"
 
+# GDAL configuration for Homebrew
+GEOS_LIBRARY_PATH = '/usr/local/Cellar/geos/3.13.1/lib/libgeos_c.dylib'
+
 if DEBUG:
     # DATABASES = {
     #     'default': {
@@ -95,22 +98,22 @@ if DEBUG:
     #         'PORT':'3306',
     #     }
     # }
-    # DATABASES = {
-    #     "default": {
-    #         "ENGINE": "django.db.backends.sqlite3",
-    #         "NAME": os.path.join(BASE_DIR, "db.sqlite3"),
-    #     }
-    # }
     DATABASES = {
         "default": {
-            'ENGINE': 'django.db.backends.postgresql',
-            "NAME": "railway",  # Replace with your actual DB name
-            "USER": "postgres",  # Replace with your actual DB user
-            "PASSWORD": "hscKMhKfGhnAqhaLoToyYiaywiDCNEct",  # Replace with your actual DB password
-            "HOST": "postgres.railway.internal",  # Use Railway's host
-            "PORT": "5432",  # PostgreSQL default por
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": os.path.join(BASE_DIR, "db.sqlite3"),
         }
     }
+    # DATABASES = {
+    #     "default": {
+    #         'ENGINE': 'django.db.backends.postgresql',
+    #         "NAME": "railway",  # Replace with your actual DB name
+    #         "USER": "postgres",  # Replace with your actual DB user
+    #         "PASSWORD": "hscKMhKfGhnAqhaLoToyYiaywiDCNEct",  # Replace with your actual DB password
+    #         "HOST": "postgres.railway.internal",  # Use Railway's host
+    #         "PORT": "5432",  # PostgreSQL default por
+    #     }
+    # }
     
     # CHANNEL_LAYERS = {
     #     "default": {
