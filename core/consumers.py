@@ -102,18 +102,22 @@ class ApplyConsumer(AsyncWebsocketConsumer):
     async def receive(self, text_data):
         try:
             data = json.loads(text_data)
+            print(f"[RECEIVE] Raw text_data: {text_data}")
             if not data:
+                print("[RECEIVE] No data found in message.")
                 return
 
             msg_type = data.get("type")
-            print("WebSocket message:", data)
+            print(f"[RECEIVE] Message type: {msg_type}, Data: {data}")
 
             if msg_type == "location_update":
                 location = data.get("location")
                 heading = data.get("heading")
+                print(f"[LOCATION_UPDATE] Received location: {location}, heading: {heading}")
 
                 if location:
                     await self.update_location(location=location)
+                    print(f"[LOCATION_UPDATE] Updated location for user {self.scope['user'].id}: {location}")
 
                     ride = await database_sync_to_async(
                         lambda: RideStatus.objects.filter(
@@ -124,6 +128,7 @@ class ApplyConsumer(AsyncWebsocketConsumer):
 
                     if ride:
                         client_id = ride.client_id
+                        print(f"[LOCATION_UPDATE] Found accepted ride. Sending location to client {client_id} in group user_{client_id}")
                         await self.channel_layer.group_send(
                             f"user_{client_id}",
                             {
@@ -132,13 +137,23 @@ class ApplyConsumer(AsyncWebsocketConsumer):
                                 "heading": heading,
                             }
                         )
+                        print(f"[LOCATION_UPDATE] Location sent to group user_{client_id}")
+                    else:
+                        print(f"[LOCATION_UPDATE] No accepted ride found for provider {self.scope['user'].id}")
+                        await self.send_json({
+                            "type": "no_accepted_ride",
+                            "data": {
+                                "message": "No accepted ride found for this provider."
+                            }
+                        })
 
             elif msg_type == "provider_response":
                 client_id = data.get("client_id")
                 accepted = data.get("accepted")
+                print(f"[PROVIDER_RESPONSE] client_id: {client_id}, accepted: {accepted}")
 
                 if client_id is None or accepted is None:
-                    print("Missing client_id or accepted in provider_response")
+                    print("[PROVIDER_RESPONSE] Missing client_id or accepted in provider_response")
                     return
 
                 event_type = await self.lock_and_process_ride(
@@ -146,8 +161,10 @@ class ApplyConsumer(AsyncWebsocketConsumer):
                     provider_id=self.scope["user"].id,
                     accepted=accepted
                 )
+                print(f"[PROVIDER_RESPONSE] lock_and_process_ride returned event_type: {event_type}")
 
                 if event_type:
+                    print(f"[PROVIDER_RESPONSE] Sending {event_type} to user_{client_id}")
                     await self.channel_layer.group_send(
                         f"user_{client_id}",
                         {
@@ -158,7 +175,15 @@ class ApplyConsumer(AsyncWebsocketConsumer):
                             }
                         }
                     )
+                    print(f"[PROVIDER_RESPONSE] {event_type} sent to group user_{client_id}")
                 else:
-                    print("Ride was already handled or not found.")
+                    print("[PROVIDER_RESPONSE] Ride was already handled or not found.")
+                    await self.send_json({
+                        "type": "ride_already_handled",
+                        "data": {
+                            "client_id": client_id,
+                            "message": "This ride has already been accepted or cancelled."
+                        }
+                    })
         except Exception as e:
-            print("WebSocket receive error:", e)
+            print("[RECEIVE] WebSocket receive error:", e)
