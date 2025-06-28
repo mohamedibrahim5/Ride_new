@@ -252,6 +252,24 @@ class ProfileUserView(generics.RetrieveUpdateAPIView):
     def retrieve(self, request, *args, **kwargs):
         response = super().retrieve(request, *args, **kwargs)
         current_ride = getattr(request, "current_ride", None)
+        user = request.user
+        
+        # Determine user type
+        if hasattr(user, "customer"):
+            response.data["user_type"] = "customer"
+
+        elif hasattr(user, "provider"):
+            response.data["user_type"] = "provider"
+            provider = user.provider
+            if hasattr(provider, "provider_type"):
+                response.data["provider_type"] = provider.provider_type
+            else:
+                response.data["provider_type"] = None
+
+        else:
+            response.data["user_type"] = "user"            
+            
+                
 
         if current_ride:
             response.data["in_ride"] = True
