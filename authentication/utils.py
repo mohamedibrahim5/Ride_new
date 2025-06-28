@@ -1,5 +1,7 @@
 import requests, pyotp
 from firebase_admin import messaging
+import logging
+
 
 from authentication.models import Provider, Customer
 
@@ -24,22 +26,40 @@ def send_sms(phone):
     return "123456"
 
 
-def send_fcm_notification(token, title, body):
-    message = messaging.Message(
-        notification=messaging.Notification(
-            title=title,
-            body=body,
-        ),
-        token=token,
-    )
+def send_fcm_notification(token, title, body, data=None):
+    """
+    Sends an FCM notification to a specific device.
 
+    Args:
+        token (str): The FCM device token.
+        title (str): Notification title.
+        body (str): Notification body.
+        data (dict, optional): Custom data payload.
+
+    Returns:
+        str or None: Message ID if sent successfully, None otherwise.
+    """
     try:
+        message = messaging.Message(
+            notification=messaging.Notification(
+                title=title,
+                body=body,
+            ),
+            token=token,
+            data=data or {}
+        )
+
         response = messaging.send(message)
-        print("Successfully sent message:", response)
+        logging.info(f"Successfully sent FCM message: {response}")
         return response
+
+    except messaging.ApiCallError as e:
+        # Firebase API-specific errors
+        logging.error(f"FCM API error: {e.code} - {e.message}")
     except Exception as e:
-        print("Error sending message:", e)
-        return None
+        logging.exception(f"Unexpected error sending FCM message: {e}")
+
+    return None
 
 
 def retrieve_object(user):

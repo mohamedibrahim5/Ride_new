@@ -4,7 +4,7 @@ from django.utils.translation import gettext_lazy as _
 from django.utils.html import format_html
 from authentication.models import (
     User,
-    UserOtp,    
+    UserOtp,
     Service,
     Provider,
     DriverCar,
@@ -13,7 +13,7 @@ from authentication.models import (
     RideStatus,
     UserPoints,
     Product,
-    Purchase, 
+    Purchase,
     CarAgency,
     CarAvailability,
     CarRental,
@@ -22,17 +22,65 @@ from authentication.models import (
 )
 from django import forms
 from rest_framework.authtoken.models import Token
-import ast
-from django.conf import settings
 
 admin.site.unregister(Group)
+
 admin.site.register(User)
 admin.site.register(UserOtp)
-#admin.site.register(Service)
 admin.site.register(DriverCar)
 admin.site.register(Customer)
 admin.site.register(CustomerPlace)
-admin.site.register(RideStatus)
+
+# --- Customized RideStatus admin ---
+@admin.register(RideStatus)
+class RideStatusAdmin(admin.ModelAdmin):
+    list_display = (
+        'id', 'client_name', 'provider_name', 'status_display',
+        'service_name', 'pickup_coords', 'drop_coords', 'created_at'
+    )
+    list_filter = ('status', 'service')
+    search_fields = ('client__name', 'provider__name')
+    ordering = ('-created_at',)
+    readonly_fields = ('created_at',)
+
+    def client_name(self, obj):
+        return obj.client.name
+    client_name.short_description = _('Client')
+
+    def provider_name(self, obj):
+        return obj.provider.name if obj.provider else '-'
+    provider_name.short_description = _('Provider')
+
+    def service_name(self, obj):
+        return obj.service.name if obj.service else '-'
+    service_name.short_description = _('Service')
+
+    def pickup_coords(self, obj):
+        if obj.pickup_lat is not None and obj.pickup_lng is not None:
+            return f"{obj.pickup_lat}, {obj.pickup_lng}"
+        return "-"
+    pickup_coords.short_description = _('Pickup Location')
+
+    def drop_coords(self, obj):
+        if obj.drop_lat is not None and obj.drop_lng is not None:
+            return f"{obj.drop_lat}, {obj.drop_lng}"
+        return "-"
+    drop_coords.short_description = _('Drop Location')
+
+    def status_display(self, obj):
+        color_map = {
+            "pending": "orange",
+            "accepted": "blue",
+            "starting": "purple",
+            "arriving": "teal",
+            "finished": "green",
+            "cancelled": "red",
+        }
+        color = color_map.get(obj.status, "black")
+        return format_html('<span style="color: {};">●</span> {}', color, obj.get_status_display())
+    status_display.short_description = _('Status')
+
+# --- Other existing admin registrations ---
 
 @admin.register(UserPoints)
 class UserPointsAdmin(admin.ModelAdmin):
@@ -67,7 +115,6 @@ class ProductImageInline(admin.TabularInline):
     model = ProductImage
     extra = 1
     
-    
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
     form = ProductAdminForm
@@ -101,10 +148,10 @@ class ProductAdmin(admin.ModelAdmin):
         if obj.is_active:
             return format_html('<span style="color: green;">●</span> {}', _('Active'))
         return format_html('<span style="color: red;">●</span> {}', _('Inactive'))
-
     status.short_description = _('Status')
+
     def image_preview(self, obj):
-        images = obj.images.all()[:3]  # Show up to 3 images
+        images = obj.images.all()[:3]
         if images:
             html = ""
             for image in images:
@@ -168,12 +215,11 @@ class ServiceAdmin(admin.ModelAdmin):
     search_fields = ['name']
     ordering = ['-created_at']
     
-    
 @admin.register(CarAgency)
 class CarAgencyAdmin(admin.ModelAdmin):
     list_display = ("provider", "brand", "model", "color", "price_per_hour", "available", "created_at")
     list_filter = ("provider", "brand", "color", "available", "created_at")
-    list_editable = ("available",)  # ✅ now you CAN edit if you really want
+    list_editable = ("available",)
     search_fields = ("provider__user__name", "brand", "model", "color")
     readonly_fields = ("created_at",)
     ordering = ("-created_at",)
@@ -225,4 +271,3 @@ class ProviderAdmin(admin.ModelAdmin):
         if obj and not obj.has_maintenance_service():
             readonly_fields.append('sub_service')
         return readonly_fields
-

@@ -18,6 +18,12 @@ class User(AbstractUser):
     location2_lat = models.FloatField(null=True, blank=True, verbose_name=_("Location2 Latitude"))
     location2_lng = models.FloatField(null=True, blank=True, verbose_name=_("Location2 Longitude"))
 
+    fcm_registration_id = models.CharField(
+        max_length=255, null=True, blank=True, verbose_name=_("FCM Registration ID")
+    )
+
+    device_type = models.CharField(max_length=10, choices=[("android", "Android"), ("ios", "iOS")], null=True, blank=True)
+
 
     # inherited attributes
     username = None

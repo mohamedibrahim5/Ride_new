@@ -58,6 +58,7 @@ from asgiref.sync import async_to_sync
 from collections import defaultdict
 import json
 from authentication.signals import set_request_data
+from .utils import send_fcm_notification
 
 def flatten_form_data(data):
     from collections import defaultdict
@@ -638,6 +639,25 @@ class BroadcastRideRequestView(APIView):
                     "data": client_data
                 }
             )
+            
+            # Push notification
+            notification_title = "New Ride Request"
+            notification_body = f"You have a new ride request from {request.user.name}"
+            
+            # Get all FCM tokens for this provider
+            fcm_tokens = list(provider.user.fcmdevice_set.values_list('registration_id', flat=True))
+            
+            # Send to each device token
+            for token in fcm_tokens:
+                send_fcm_notification(
+                    token=token,
+                    title=notification_title,
+                    body=notification_body,
+                    data={
+                        "type": "new_ride_request",
+                        "ride_data": json.dumps(client_data)
+                    }
+                )
 
         RideStatus.objects.create(
             client=user,
@@ -656,7 +676,6 @@ class BroadcastRideRequestView(APIView):
 
         return Response({"status": f"Broadcasted ride request to {len(nearby_providers)} nearby providers"})        
     
-
 
 
 
@@ -702,6 +721,26 @@ class ProviderRideResponseView(APIView):
                     }
                 }
             )
+            
+            # Send push notification to client
+            notification_title = "Ride Accepted"
+            notification_body = f"Your ride has been accepted by {request.user.name}"
+            
+            # Get all FCM tokens for the client
+            client = User.objects.get(id=client_id)
+            fcm_tokens = list(client.fcmdevice_set.values_list('registration_id', flat=True))
+            
+            for token in fcm_tokens:
+                send_fcm_notification(
+                    token=token,
+                    title=notification_title,
+                    body=notification_body,
+                    data={
+                        "type": "ride_accepted",
+                        "provider_id": str(request.user.id),
+                        "provider_name": request.user.name
+                    }
+                )
         else:
             ride.status = "cancelled"
             ride.save()
@@ -717,6 +756,24 @@ class ProviderRideResponseView(APIView):
                     }
                 }
             )
+            
+            # Send push notification to client
+            notification_title = "Ride Declined"
+            notification_body = "A driver has declined your ride request"
+            
+            # Get all FCM tokens for the client
+            client = User.objects.get(id=client_id)
+            fcm_tokens = list(client.fcmdevice_set.values_list('registration_id', flat=True))
+            
+            for token in fcm_tokens:
+                send_fcm_notification(
+                    token=token,
+                    title=notification_title,
+                    body=notification_body,
+                    data={
+                        "type": "ride_declined"
+                    }
+                )
 
         return Response({"status": "Response processed."})
 
@@ -763,6 +820,35 @@ class UpdateRideStatusView(APIView):
                 customer.save()
         # --- End block ---
 
+        # Notify the other party about status change
+        if request.user == ride.client:
+            # Client is updating status - notify provider
+            notify_user = ride.provider.user
+            notification_title = "Ride Status Update"
+            
+            if status == "finished":
+                notification_body = "The ride has been completed by the client"
+            elif status == "cancelled":
+                notification_body = "The ride has been cancelled by the client"
+            else:
+                notification_body = f"Ride status updated to {status}"
+        else:
+            # Provider is updating status - notify client
+            notify_user = ride.client
+            notification_title = "Ride Status Update"
+            
+            if status == "starting":
+                notification_body = "Your driver is starting the ride"
+            elif status == "arriving":
+                notification_body = "Your driver is arriving at your location"
+            elif status == "finished":
+                notification_body = "Your ride has been completed"
+            elif status == "cancelled":
+                notification_body = "Your ride has been cancelled by the driver"
+            else:
+                notification_body = f"Ride status updated to {status}"
+
+        # Send WebSocket notification
         async_to_sync(get_channel_layer().group_send)(
             f"user_{ride.client.id}",
             {
@@ -774,9 +860,198 @@ class UpdateRideStatusView(APIView):
                 }
             }
         )
+        
+        # Send push notification
+        fcm_tokens = list(notify_user.fcmdevice_set.values_list('registration_id', flat=True))
+        
+        for token in fcm_tokens:
+            send_fcm_notification(
+                token=token,
+                title=notification_title,
+                body=notification_body,
+                data={
+                    "type": "ride_status_update",
+                    "status": status,
+                    "ride_id": str(ride.id)
+                }
+            )
 
         return Response({"status": f"Ride updated to {status}."})
+    
 
+
+class NearbyRideRequestsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+
+        provider = getattr(user, 'provider', None)
+        if not provider:
+            return Response({"error": "You are not a provider."}, status=403)
+
+        lat = user.location2_lat
+        lng = user.location2_lng
+        if lat is None or lng is None:
+            return Response({"error": "Provider location is not set."}, status=400)
+
+        service_ids = provider.services.values_list('id', flat=True)
+
+        pending_rides = RideStatus.objects.filter(
+            status="pending",
+            service_id__in=service_ids,
+            pickup_lat__isnull=False,
+            pickup_lng__isnull=False
+        )
+
+        nearby_rides = []
+        for ride in pending_rides:
+            distance = haversine(lat, lng, ride.pickup_lat, ride.pickup_lng)
+            if distance <= 5:
+                nearby_rides.append({
+                    "ride_id": ride.id,
+                    "client_id": ride.client.id,
+                    "client_name": ride.client.name,
+                    "pickup_lat": ride.pickup_lat,
+                    "pickup_lng": ride.pickup_lng,
+                    "drop_lat": ride.drop_lat,
+                    "drop_lng": ride.drop_lng,
+                    "service_id": ride.service_id,
+                    "distance_km": round(distance, 2)
+                })
+
+        return Response({"rides": nearby_rides})
+
+
+class DriverLocationUpdateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+        location = request.data.get("location")
+        heading = request.data.get("heading", None)
+
+        if not location:
+            return Response({"error": "Location is required."}, status=400)
+
+        # Parse location string
+        try:
+            lat_str, lng_str = location.split(',')
+            lat = float(lat_str.strip())
+            lng = float(lng_str.strip())
+        except Exception:
+            return Response({"error": "Invalid location format. Use 'lat,lng'."}, status=400)
+
+        # Update user location
+        User.objects.filter(id=user.id).update(
+            location=location,
+            location2_lat=lat,
+            location2_lng=lng
+        )
+
+        # Get active ride where this user is the provider
+        ride = RideStatus.objects.filter(
+            provider=user,
+            status__in=["accepted", "starting", "arriving"]
+        ).order_by('-created_at').first()
+
+        if ride and ride.client:
+            # Send location to client via WebSocket
+            channel_layer = get_channel_layer()
+            async_to_sync(channel_layer.group_send)(
+                f"user_{ride.client.id}",
+                {
+                    "type": "location",
+                    "location": location,
+                    "heading": heading,
+                }
+            )
+            
+            # Optionally send push notification if significant location change
+            # (You might want to add logic to only notify on significant changes)
+            notification_title = "Driver Location Update"
+            notification_body = "Your driver's location has been updated"
+            
+            fcm_tokens = list(ride.client.fcmdevice_set.values_list('registration_id', flat=True))
+            
+            for token in fcm_tokens:
+                send_fcm_notification(
+                    token=token,
+                    title=notification_title,
+                    body=notification_body,
+                    data={
+                        "type": "driver_location_update",
+                        "location": location,
+                        "heading": str(heading) if heading else None
+                    }
+                )
+
+        return Response({"message": "Location updated and sent."})
+    
+class ClientCancelRideView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        user = request.user
+
+        # Find an active ride for the client with status "pending" or "accepted"
+        ride = RideStatus.objects.filter(
+            client=user,
+            status__in=["pending", "accepted"]
+        ).first()
+
+        if not ride:
+            return Response({"error": "No active ride found with status 'pending' or 'accepted'."}, status=404)
+
+        # Update ride status to cancelled
+        ride.status = "cancelled"
+        ride.save()
+
+        # Reset customer's in_ride status
+        if hasattr(user, 'customer'):
+            user.customer.in_ride = False
+            user.customer.save()
+
+        # If a provider is assigned, reset their in_ride and driver_profile status
+        if ride.provider:
+            provider = getattr(ride.provider, 'provider', None)
+            if provider:
+                provider.in_ride = False
+                provider.save()
+                if hasattr(provider, 'driver_profile'):
+                    provider.driver_profile.status = 'available'
+                    provider.driver_profile.save()
+
+            # Notify provider via WebSocket
+            async_to_sync(get_channel_layer().group_send)(
+                f"user_{ride.provider.id}",
+                {
+                    "type": "ride_status_update",
+                    "data": {
+                        "status": "cancelled",
+                        "ride_id": ride.id,
+                        "message": "The ride has been cancelled by the client"
+                    }
+                }
+            )
+
+            # Send push notification to provider
+            notification_title = "Ride Cancelled"
+            notification_body = f"The ride request from {user.name} has been cancelled."
+            fcm_tokens = list(ride.provider.fcmdevice_set.values_list('registration_id', flat=True))
+
+            for token in fcm_tokens:
+                send_fcm_notification(
+                    token=token,
+                    title=notification_title,
+                    body=notification_body,
+                    data={
+                        "type": "ride_cancelled",
+                        "ride_id": str(ride.id)
+                    }
+                )
+
+        return Response({"status": "Ride cancelled successfully."})
 
 class ProductViewSet(viewsets.ModelViewSet):
     queryset = Product.objects.select_related('provider__user').prefetch_related('images')

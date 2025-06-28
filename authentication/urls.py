@@ -25,6 +25,9 @@ from authentication.views import (
     CarAvailabilityViewSet, 
     CarRentalViewSet,
     DriverProfileViewSet, 
+    NearbyRideRequestsView,
+    DriverLocationUpdateView,
+    ClientCancelRideView,
 )
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
@@ -64,5 +67,10 @@ urlpatterns = [
     path("book-ride/", BroadcastRideRequestView.as_view(), name="book-ride"),
     path("ride/respond/", ProviderRideResponseView.as_view(), name="provider_ride_response"),
     path("update-ride/", UpdateRideStatusView.as_view(), name="update_ride" ),
+    path("provider/nearby-rides/", NearbyRideRequestsView.as_view(), name="nearby-rides"),
+    path("provider/update-location/", DriverLocationUpdateView.as_view(), name="provider_update_location"),
+    path("cancel-ride/", ClientCancelRideView.as_view(), name="cancel-ride"),  # New URL
+
+
 
 ]

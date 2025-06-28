@@ -143,10 +143,14 @@ class ProviderSerializer(serializers.ModelSerializer):
         user_serializer.is_valid(raise_exception=True)
         user = user_serializer.save()
         
-        provider = Provider.objects.create(user=user, **validated_data)
+        
         
         if service_ids:
             services = Service.objects.filter(pk__in=service_ids)
+            if services is None or not services.exists():
+                raise serializers.ValidationError({"service_ids": _("Invalid service IDs")})
+
+            provider = Provider.objects.create(user=user, **validated_data)
             provider.services.set(services)
 
         # Handle driver profile creation if data is present (flat keys or nested)
@@ -225,12 +229,16 @@ class CustomerSerializer(serializers.ModelSerializer):
 class LoginSerializer(serializers.Serializer):
     phone = serializers.CharField(max_length=20, write_only=True)
     password = serializers.CharField(max_length=128, write_only=True)
+    registration_id = serializers.CharField(max_length=255, write_only=True, required=False)
+    device_type = serializers.ChoiceField(choices=["android", "ios"], required=False)
     token = serializers.CharField(max_length=128, read_only=True)
     is_verified = serializers.BooleanField(read_only=True)
 
     def validate(self, attrs):
         phone = attrs.get("phone")
         password = attrs.get("password")
+        registration_id = attrs.get("registration_id")
+        device_type = attrs.get("device_type")
 
         user = User.objects.filter(phone=phone).first()
 
@@ -250,6 +258,13 @@ class LoginSerializer(serializers.Serializer):
 
 
         if is_verified:
+            if registration_id:
+                user.fcm_registration_id = registration_id
+
+            if device_type:
+                user.device_type = device_type
+                
+                    
             user.last_login = timezone.now()
             user.save()
             attrs["token"] = Token.objects.get(user=user).key
