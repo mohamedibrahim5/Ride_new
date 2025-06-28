@@ -673,7 +673,7 @@ class ProviderRideResponseView(APIView):
                     provider.driver_profile.status = 'in_ride'
                     provider.driver_profile.save()
 
-            # Notify client
+            # Notify client of acceptance
             async_to_sync(get_channel_layer().group_send)(
                 f"user_{client_id}",
                 {
@@ -688,17 +688,17 @@ class ProviderRideResponseView(APIView):
             ride.status = "cancelled"
             ride.save()
 
-        # Notify client
-        async_to_sync(get_channel_layer().group_send)(
-            f"user_{client_id}",
-            {
-                "type": "send_cancel",
-                "data": {
-                    "provider_id": request.user.id,
-                    "accepted": accepted,
+            # Notify client of cancellation
+            async_to_sync(get_channel_layer().group_send)(
+                f"user_{client_id}",
+                {
+                    "type": "send_cancel",
+                    "data": {
+                        "provider_id": request.user.id,
+                        "accepted": accepted,
+                    }
                 }
-            }
-        )
+            )
 
         return Response({"status": "Response processed."})
 
