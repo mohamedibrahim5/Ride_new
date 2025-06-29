@@ -16,7 +16,9 @@ from authentication.models import (
     Product,
     Purchase,
     DriverProfile,
-    DriverCar
+    DriverCar,
+    Notification,
+    Rating,
 )
 from authentication.utils import send_sms, extract_user_data, update_user_data
 from django.utils.translation import gettext_lazy as _
@@ -25,6 +27,7 @@ from rest_framework.authtoken.models import Token
 from django.utils import timezone
 from fcm_django.models import FCMDevice
 from django.contrib.gis.geos import Point
+from django.db.models import Avg
 from .models import CarAgency, CarAvailability, CarRental, ProductImage
 
 
@@ -33,6 +36,7 @@ class UserSerializer(serializers.ModelSerializer):
     role = serializers.ChoiceField(write_only=True, choices=ROLE_CHOICES)
     location2_lat = serializers.FloatField(required=False, allow_null=True)
     location2_lng = serializers.FloatField(required=False, allow_null=True)
+    average_rating = serializers.SerializerMethodField()
 
     class Meta:
         model = User
@@ -46,16 +50,30 @@ class UserSerializer(serializers.ModelSerializer):
             "role",
             "location",
             "location2_lat",
-            "location2_lng"
+            "location2_lng",
+            "average_rating",
         ]
 
-
+    def get_average_rating(self, obj):
+        """
+        Calculate the average rating for the user based on their role.
+        """
+        if obj.role == ROLE_CUSTOMER and hasattr(obj, 'customer'):
+            ratings = Rating.objects.filter(ride__client=obj).exclude(customer_rating__isnull=True)
+            if ratings.exists():
+                avg_rating = ratings.aggregate(Avg('customer_rating'))['customer_rating__avg']
+                return round(avg_rating, 2) if avg_rating else None
+        elif obj.role == ROLE_PROVIDER and hasattr(obj, 'provider'):
+            ratings = Rating.objects.filter(ride__provider=obj).exclude(driver_rating__isnull=True)
+            if ratings.exists():
+                avg_rating = ratings.aggregate(Avg('driver_rating'))['driver_rating__avg']
+                return round(avg_rating, 2) if avg_rating else None
+        return None
 
     def validate(self, attrs):
         location_str = attrs.get("location", "")
         lat = attrs.get("location2_lat")
         lng = attrs.get("location2_lng")
-        # Accept either lat/lng fields or a comma-separated string in location
         if lat is None or lng is None:
             if location_str:
                 try:
@@ -68,19 +86,13 @@ class UserSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError(_("Location is required."))
         return attrs
 
-
-
     def create(self, validated_data):
         print("Creating user with data:", validated_data)
         phone = validated_data.get("phone")
-
         otp = send_sms(phone)
-
         if otp:
             user = User.objects.create_user(**validated_data)
-
             UserOtp.objects.update_or_create(user=user, otp=otp)
-
             return user
         else:
             raise serializers.ValidationError(
@@ -90,13 +102,10 @@ class UserSerializer(serializers.ModelSerializer):
     def update(self, instance, validated_data):
         if "phone" in validated_data:
             validated_data.pop("phone")
-
         if "password" in validated_data:
             validated_data.pop("password")
-
         if "role" in validated_data:
             validated_data.pop("role")
-
         return super().update(instance, validated_data)
 
 
@@ -775,3 +784,27 @@ class ProviderDriverRegisterSerializer(serializers.ModelSerializer):
         DriverCar.objects.create(driver_profile=driver_profile, **car_data)
 
         return provider
+
+
+
+class NotificationSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Notification
+        fields = ['id', 'title', 'message', 'notification_type', 'data', 'is_read', 'created_at']
+        read_only_fields = fields
+
+
+class RatingSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Rating
+        fields = [
+            'id',
+            'ride',
+            'driver_rating',
+            'customer_rating',
+            'driver_comment',
+            'customer_comment',
+            'created_at',
+            'updated_at'
+        ]
+        read_only_fields = ['ride', 'created_at', 'updated_at']

@@ -4,6 +4,8 @@ import logging
 
 
 from authentication.models import Provider, Customer
+from .models import Notification
+
 
 
 def send_sms(phone):
@@ -92,3 +94,17 @@ def update_user_data(instance, initial_data):
         "image": initial_data.get("image", instance.user.image),
         "location": initial_data.get("location", instance.user.location),
     }
+
+
+def create_notification(user, title, message, notification_type='general', data=None):
+    """
+    Creates a new notification for a user
+    """
+    notification = Notification.objects.create(
+        user=user,
+        title=title,
+        message=message,
+        notification_type=notification_type,
+        data=data or {}
+    )
+    return notification

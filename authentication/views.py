@@ -11,7 +11,9 @@ from authentication.models import (
     UserPoints,
     CarAgency, 
     CarAvailability, 
-    CarRental
+    CarRental,
+    Notification,
+    Rating
 )
 from authentication.serializers import (
     UserSerializer,
@@ -37,6 +39,8 @@ from authentication.serializers import (
     DriverProfileSerializer,
     ProductImageSerializer,
     ProviderDriverRegisterSerializer,
+    NotificationSerializer,
+    RatingSerializer
 )
 from authentication.choices import ROLE_CUSTOMER, ROLE_PROVIDER
 from authentication.permissions import IsAdminOrReadOnly, IsCustomer, IsCustomerOrAdmin, IsAdminOrCarAgency, IsStoreProvider, IsAdminOrOwnCarAgency, ProductImagePermission
@@ -45,6 +49,7 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.decorators import action
+from rest_framework.exceptions import PermissionDenied
 import math
 import random
 import string
@@ -52,7 +57,9 @@ from django.utils import timezone
 from django.shortcuts import get_object_or_404
 from django.utils.dateparse import parse_datetime
 from rest_framework import serializers
+from django.http import Http404
 from django.db import models
+from django.db.models import Avg
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 from collections import defaultdict
@@ -559,6 +566,8 @@ class StartRideRequestView(APIView):
 
 
 
+from .models import Notification
+from .utils import create_notification
 
 
 #  a7aa7aa7a
@@ -639,6 +648,21 @@ class BroadcastRideRequestView(APIView):
                     "data": client_data
                 }
             )
+            # Create notification in database
+            create_notification(
+                user=provider.user,
+                title="New Ride Request",
+                message=f"You have a new ride request from {request.user.name}",
+                notification_type='ride_request',
+                data={
+                    'client_id': request.user.id,
+                    'client_name': request.user.name,
+                    'lat': lat,
+                    'lng': lng,
+                    'ride_type': ride_type,
+                    # 'ride_id': ride.id if 'ride' in locals() else None
+                }
+            )
             
             # Push notification
             notification_title = "New Ride Request"
@@ -709,6 +733,18 @@ class ProviderRideResponseView(APIView):
                 if hasattr(provider, 'driver_profile'):
                     provider.driver_profile.status = 'in_ride'
                     provider.driver_profile.save()
+            # Create notification for client
+            create_notification(
+                user=ride.client,
+                title="Ride Accepted",
+                message=f"Your ride has been accepted by {request.user.name}",
+                notification_type='ride_accepted',
+                data={
+                    'provider_id': request.user.id,
+                    'provider_name': request.user.name,
+                    'ride_id': ride.id
+                }
+            )                    
 
             # Notify client of acceptance
             async_to_sync(get_channel_layer().group_send)(
@@ -800,7 +836,12 @@ class UpdateRideStatusView(APIView):
         ride.status = status
         ride.save()
 
-        # --- Update in_ride and driver_profile status for both provider and customer ---
+        # Handle ride completion and rating creation
+        if status == "finished":
+            # Create or get a rating object when ride is finished
+            Rating.objects.get_or_create(ride=ride)
+
+        # Update in_ride and driver_profile status for both provider and customer
         if status in ["finished", "cancelled"]:
             # Provider
             provider_user = ride.provider
@@ -818,18 +859,17 @@ class UpdateRideStatusView(APIView):
             if customer and hasattr(customer, 'in_ride'):
                 customer.in_ride = False
                 customer.save()
-        # --- End block ---
 
         # Notify the other party about status change
         if request.user == ride.client:
             # Client is updating status - notify provider
-            notify_user = ride.provider.user
+            notify_user = ride.provider
             notification_title = "Ride Status Update"
             
             if status == "finished":
-                notification_body = "The ride has been completed by the client"
+                notification_body = "The ride has been completed by the client. You can now rate the client."
             elif status == "cancelled":
-                notification_body = "The ride has been cancelled by the client"
+                notification_body = "The ride has been cancelled by the client."
             else:
                 notification_body = f"Ride status updated to {status}"
         else:
@@ -838,29 +878,43 @@ class UpdateRideStatusView(APIView):
             notification_title = "Ride Status Update"
             
             if status == "starting":
-                notification_body = "Your driver is starting the ride"
+                notification_body = "Your driver is starting the ride."
             elif status == "arriving":
-                notification_body = "Your driver is arriving at your location"
+                notification_body = "Your driver is arriving at your location."
             elif status == "finished":
-                notification_body = "Your ride has been completed"
+                notification_body = "Your ride has been completed. You can now rate the driver."
             elif status == "cancelled":
-                notification_body = "Your ride has been cancelled by the driver"
+                notification_body = "Your ride has been cancelled by the driver."
             else:
                 notification_body = f"Ride status updated to {status}"
 
-        # Send WebSocket notification
+        # Create notification in database
+        create_notification(
+            user=notify_user,
+            title=notification_title,
+            message=notification_body,
+            notification_type='ride_status',
+            data={
+                'status': status,
+                'ride_id': ride.id,
+                'updated_by': request.user.id
+            }
+        )
+
+        # Send WebSocket notification with ride_id
         async_to_sync(get_channel_layer().group_send)(
-            f"user_{ride.client.id}",
+            f"user_{notify_user.id}",
             {
                 "type": "ride_status_update",
                 "data": {
                     "status": status,
                     "ride_id": ride.id,
-                    "provider_id": ride.provider.id if ride.provider else None
+                    "provider_id": ride.provider.id if ride.provider else None,
+                    "message": notification_body
                 }
             }
         )
-        
+
         # Send push notification
         fcm_tokens = list(notify_user.fcmdevice_set.values_list('registration_id', flat=True))
         
@@ -876,7 +930,13 @@ class UpdateRideStatusView(APIView):
                 }
             )
 
-        return Response({"status": f"Ride updated to {status}."})
+        # Prepare response with ride_id
+        response_data = {
+            "status": f"Ride updated to {status}.",
+            "ride_id": ride.id
+        }
+
+        return Response(response_data)
     
 
 
@@ -966,6 +1026,20 @@ class DriverLocationUpdateView(APIView):
                     "heading": heading,
                 }
             )
+
+            # Optionally create notification for significant location updates
+            # You might want to add logic to determine significant changes
+            create_notification(
+                user=ride.client,
+                title="Driver Location Updated",
+                message="Your driver's location has been updated",
+                notification_type='driver_location',
+                data={
+                    'location': location,
+                    'heading': heading,
+                    'ride_id': ride.id
+                }
+            )            
             
             # Optionally send push notification if significant location change
             # (You might want to add logic to only notify on significant changes)
@@ -1021,7 +1095,18 @@ class ClientCancelRideView(APIView):
                 if hasattr(provider, 'driver_profile'):
                     provider.driver_profile.status = 'available'
                     provider.driver_profile.save()
-
+            # Create notification for provider
+            create_notification(
+                user=ride.provider,
+                title="Ride Cancelled",
+                message=f"The ride request from {user.name} has been cancelled",
+                notification_type='ride_cancelled',
+                data={
+                    'client_id': user.id,
+                    'client_name': user.name,
+                    'ride_id': ride.id
+                }
+            )
             # Notify provider via WebSocket
             async_to_sync(get_channel_layer().group_send)(
                 f"user_{ride.provider.id}",
@@ -1415,3 +1500,169 @@ class CarRentalViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(customer=self.request.user.customer)
+
+from .pagination import SimplePagination
+
+class NotificationListView(generics.ListAPIView):
+    serializer_class = NotificationSerializer
+    permission_classes = [IsAuthenticated]
+    pagination_class = SimplePagination
+
+    def get_queryset(self):
+        return Notification.objects.filter(user=self.request.user).order_by('-created_at')
+
+class NotificationMarkAsReadView(generics.UpdateAPIView):
+    permission_classes = [IsAuthenticated]
+    queryset = Notification.objects.all()
+    serializer_class = NotificationSerializer
+
+    def update(self, request, *args, **kwargs):
+        notification = self.get_object()
+        if notification.user != request.user:
+            return Response(
+                {"detail": "You don't have permission to mark this notification as read."},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        notification.mark_as_read()
+        return Response({"status": "Notification marked as read"})
+
+class UnreadNotificationCountView(generics.GenericAPIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        count = Notification.objects.filter(user=request.user, is_read=False).count()
+        return Response({"unread_count": count})
+    
+
+
+from rest_framework.views import APIView
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
+from authentication.models import RideStatus, Rating, Customer, Provider
+from authentication.serializers import RatingSerializer
+from django.db.models import Avg
+from rest_framework import status
+
+class RateRideView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, ride_id):
+        try:
+            ride = RideStatus.objects.get(id=ride_id, status='finished')
+        except RideStatus.DoesNotExist:
+            return Response({"error": "Ride not found or not completed."}, status=404)
+
+        if request.user not in [ride.client, ride.provider]:
+            return Response({"error": "You are not part of this ride."}, status=403)
+
+        rating, created = Rating.objects.get_or_create(ride=ride)
+
+        # Prevent duplicate ratings
+        if request.user == ride.client and rating.driver_rating is not None:
+            return Response({"error": "You have already rated the driver for this ride."}, status=400)
+        elif request.user == ride.provider and rating.customer_rating is not None:
+            return Response({"error": "You have already rated the customer for this ride."}, status=400)
+
+        # Assign rating based on user role
+        if request.user == ride.client:
+            # Customer rates the driver
+            serializer = RatingSerializer(rating, data={
+                'driver_rating': request.data.get('rating'),
+                'driver_comment': request.data.get('comment', '')
+            }, partial=True)
+            notify_user = ride.provider
+            notification_title = "New Driver Rating"
+            notification_message = f"Client {request.user.name} rated you for ride #{ride.id}."
+        elif request.user == ride.provider:
+            # Driver rates the customer
+            serializer = RatingSerializer(rating, data={
+                'customer_rating': request.data.get('rating'),
+                'customer_comment': request.data.get('comment', '')
+            }, partial=True)
+            notify_user = ride.client
+            notification_title = "New Customer Rating"
+            notification_message = f"Driver {request.user.name} rated you for ride #{ride.id}."
+
+        if serializer.is_valid():
+            serializer.save()
+
+            # Update average ratings
+            self.update_user_ratings(ride.client)
+            if ride.provider:
+                self.update_user_ratings(ride.provider)
+
+            # Send WebSocket notification to the other party
+            if notify_user:
+                async_to_sync(get_channel_layer().group_send)(
+                    f"user_{notify_user.id}",
+                    {
+                        "type": "rating_update",
+                        "data": {
+                            "ride_id": ride.id,
+                            "message": notification_message
+                        }
+                    }
+                )
+
+                # Create database notification
+                create_notification(
+                    user=notify_user,
+                    title=notification_title,
+                    message=notification_message,
+                    notification_type='ride_status',
+                    data={
+                        'ride_id': ride.id,
+                        'rated_by': request.user.id,
+                        'rated_by_name': request.user.name
+                    }
+                )
+
+                # Send FCM push notification
+                fcm_tokens = list(notify_user.fcmdevice_set.values_list('registration_id', flat=True))
+                for token in fcm_tokens:
+                    send_fcm_notification(
+                        token=token,
+                        title=notification_title,
+                        body=notification_message,
+                        data={
+                            "type": "rating_update",
+                            "ride_id": str(ride.id),
+                            "rated_by": str(request.user.id)
+                        }
+                    )
+
+            return Response(serializer.data)
+        return Response(serializer.errors, status=400)
+
+    def update_user_ratings(self, user):
+        """Update the average rating for a user"""
+        if hasattr(user, 'customer'):
+            ratings = Rating.objects.filter(ride__client=user).exclude(customer_rating__isnull=True)
+            if ratings.exists():
+                avg_rating = ratings.aggregate(Avg('customer_rating'))['customer_rating__avg']
+                user.customer.average_rating = round(avg_rating, 1)
+                user.customer.save()
+        elif hasattr(user, 'provider'):
+            ratings = Rating.objects.filter(ride__provider=user).exclude(driver_rating__isnull=True)
+            if ratings.exists():
+                avg_rating = ratings.aggregate(Avg('driver_rating'))['driver_rating__avg']
+                user.provider.average_rating = round(avg_rating, 1)
+                user.provider.save()
+
+
+class RideRatingView(generics.RetrieveAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = RatingSerializer
+    queryset = Rating.objects.all()
+
+    def get_object(self):
+        ride_id = self.kwargs.get('ride_id')
+        try:
+            ride = RideStatus.objects.get(id=ride_id)
+            if self.request.user not in [ride.client, ride.provider]:
+                raise PermissionDenied("You are not part of this ride.")
+            return ride.rating
+        except RideStatus.DoesNotExist:
+            raise Http404("Ride not found")
+        except Rating.DoesNotExist:
+            raise Http404("Rating not found")

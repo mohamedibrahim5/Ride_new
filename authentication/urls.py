@@ -28,6 +28,11 @@ from authentication.views import (
     NearbyRideRequestsView,
     DriverLocationUpdateView,
     ClientCancelRideView,
+    NotificationListView,
+    NotificationMarkAsReadView,
+    UnreadNotificationCountView,
+    RateRideView,
+    RideRatingView
 )
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
@@ -70,6 +75,15 @@ urlpatterns = [
     path("provider/nearby-rides/", NearbyRideRequestsView.as_view(), name="nearby-rides"),
     path("provider/update-location/", DriverLocationUpdateView.as_view(), name="provider_update_location"),
     path("cancel-ride/", ClientCancelRideView.as_view(), name="cancel-ride"),  # New URL
+
+
+    path('notifications/', NotificationListView.as_view(), name='notification-list'),
+    path('notifications/<int:pk>/mark-as-read/', NotificationMarkAsReadView.as_view(), name='notification-mark-read'),
+    path('notifications/unread-count/', UnreadNotificationCountView.as_view(), name='unread-notification-count'),
+
+    path('rides/<int:ride_id>/rate/', RateRideView.as_view(), name='rate-ride'),
+    path('rides/<int:ride_id>/rating/', RideRatingView.as_view(), name='ride-rating'),
+
 
 
 

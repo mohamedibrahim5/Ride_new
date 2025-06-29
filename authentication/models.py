@@ -7,6 +7,7 @@ from location_field.models.plain import PlainLocationField
 from django.utils.translation import gettext_lazy as _
 from django.utils import timezone
 from django.contrib.postgres.fields import JSONField
+from django.core.validators import MinValueValidator, MaxValueValidator
 
 
 class User(AbstractUser):
@@ -17,6 +18,13 @@ class User(AbstractUser):
     location = PlainLocationField(based_fields=["cairo"], verbose_name=_("Location"))
     location2_lat = models.FloatField(null=True, blank=True, verbose_name=_("Location2 Latitude"))
     location2_lng = models.FloatField(null=True, blank=True, verbose_name=_("Location2 Longitude"))
+    average_rating = models.DecimalField(
+        _("Average Rating"),
+        max_digits=3,
+        decimal_places=2,
+        null=True,
+        blank=True,
+    )
 
     fcm_registration_id = models.CharField(
         max_length=255, null=True, blank=True, verbose_name=_("FCM Registration ID")
@@ -211,6 +219,16 @@ class RideStatus(models.Model):
     drop_lng = models.FloatField(_("Drop Longitude"), null=True, blank=True)
 
     created_at = models.DateTimeField(_("Created At"), auto_now_add=True)
+
+    def can_be_rated_by(self, user):
+        """Check if the user can rate this ride"""
+        if not self.status == 'finished':
+            return False
+        if user == self.client:
+            return not self.rating.customer_rating if hasattr(self, 'rating') else True
+        if user == self.provider:
+            return not self.rating.driver_rating if hasattr(self, 'rating') else True
+        return False
 
     def __str__(self):
         return f"{_('Ride')} #{self.pk} - {self.get_status_display()}"
@@ -426,3 +444,73 @@ class ProductImage(models.Model):
         verbose_name_plural = _("Product Images")
 
 
+class Notification(models.Model):
+    NOTIFICATION_TYPES = [
+        ('ride_request', _('Ride Request')),
+        ('ride_accepted', _('Ride Accepted')),
+        ('ride_status', _('Ride Status Update')),
+        ('car_rental', _('Car Rental Update')),
+        ('product_order', _('Product Order Update')),
+        ('general', _('General Notification')),
+    ]
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='notifications',
+        verbose_name=_("User")
+    )
+    title = models.CharField(_("Title"), max_length=255)
+    message = models.TextField(_("Message"))
+    notification_type = models.CharField(
+        _("Notification Type"),
+        max_length=20,
+        choices=NOTIFICATION_TYPES,
+        default='general'
+    )
+    data = models.JSONField(_("Additional Data"), default=dict, blank=True)
+    is_read = models.BooleanField(_("Is Read"), default=False)
+    created_at = models.DateTimeField(_("Created At"), auto_now_add=True)
+
+    class Meta:
+        verbose_name = _("Notification")
+        verbose_name_plural = _("Notifications")
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.title} - {self.user.name}"
+
+    def mark_as_read(self):
+        self.is_read = True
+        self.save()
+
+class Rating(models.Model):
+    ride = models.OneToOneField(
+        RideStatus,
+        on_delete=models.CASCADE,
+        related_name='rating',
+        verbose_name=_("Ride")
+    )
+    driver_rating = models.PositiveSmallIntegerField(
+        _("Driver Rating"),
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(1), MaxValueValidator(5)]
+    )
+    customer_rating = models.PositiveSmallIntegerField(
+        _("Customer Rating"),
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(1), MaxValueValidator(5)]
+    )
+    driver_comment = models.TextField(_("Driver Comment"), blank=True)
+    customer_comment = models.TextField(_("Customer Comment"), blank=True)
+    created_at = models.DateTimeField(_("Created At"), auto_now_add=True)
+    updated_at = models.DateTimeField(_("Updated At"), auto_now=True)
+
+    class Meta:
+        verbose_name = _("Rating")
+        verbose_name_plural = _("Ratings")
+
+    def __str__(self):
+        return f"Rating for Ride #{self.ride.id}"        
