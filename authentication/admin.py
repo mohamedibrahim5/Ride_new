@@ -23,6 +23,7 @@ from authentication.models import (
 )
 from django import forms
 from rest_framework.authtoken.models import Token
+import dal.autocomplete
 
 admin.site.unregister(Group)
 
@@ -273,20 +274,18 @@ class ProviderAdmin(admin.ModelAdmin):
             readonly_fields.append('sub_service')
         return readonly_fields
 
+class ProviderServicePricingForm(forms.ModelForm):
+    class Meta:
+        model = ProviderServicePricing
+        fields = '__all__'
+        widgets = {
+            'provider': dal.autocomplete.ModelSelect2(url='provider-autocomplete'),
+            'service': dal.autocomplete.ModelSelect2(url='service-autocomplete', forward=['provider']),
+        }
+
+# In your admin
+from django.contrib import admin
+
+@admin.register(ProviderServicePricing)
 class ProviderServicePricingAdmin(admin.ModelAdmin):
-    list_display = ("provider", "service", "sub_service", "application_fee", "service_price", "delivery_fee_per_km")
-    search_fields = ("provider__user__name", "service__name", "sub_service")
-    list_filter = ("service", "sub_service")
-
-    def formfield_for_foreignkey(self, db_field, request, **kwargs):
-        if db_field.name == "service":
-            allowed_services = [
-                "maintenance service",
-                "delivery service",
-                "car request",
-                "food delivery"
-            ]
-            kwargs["queryset"] = Service.objects.filter(name__in=allowed_services)
-        return super().formfield_for_foreignkey(db_field, request, **kwargs)
-
-admin.site.register(ProviderServicePricing, ProviderServicePricingAdmin)
+    form = ProviderServicePricingForm
