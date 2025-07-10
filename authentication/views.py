@@ -793,6 +793,7 @@ class ProviderRideResponseView(APIView):
                 {
                     "type": "send_acceptance",
                     "data": {
+                        "ride_id": ride.id, 
                         "provider_id": request.user.id,
                         "accepted": accepted,
                     }
