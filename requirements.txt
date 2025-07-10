@@ -87,3 +87,4 @@ websockets==15.0.1
 django-simpleui==2025.5.26
 # GDAL==2.4.0
 daphne==4.1.0
+django-autocomplete-light>=3.9.7
