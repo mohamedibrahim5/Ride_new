@@ -68,6 +68,42 @@ class ApplyConsumer(AsyncWebsocketConsumer):
                     return "send_cancel"
         except RideStatus.DoesNotExist:
             return None
+    @database_sync_to_async
+    def get_service_price_info(self, ride_id):
+        try:
+            ride = RideStatus.objects.select_related('provider', 'service').get(id=ride_id)
+
+            provider_obj = getattr(ride.provider, 'provider', None)
+            sub_service = provider_obj.sub_service if provider_obj else None
+
+            if provider_obj and ride.service:
+                pricing = ProviderServicePricing.objects.filter(
+                    provider=provider_obj,
+                    service=ride.service,
+                    sub_service=sub_service
+                ).first()
+
+                if pricing:
+                    application_fee = float(pricing.application_fee or 0)
+                    service_price = float(pricing.service_price or 0)
+                    delivery_fee_per_km = float(pricing.delivery_fee_per_km or 0)
+                    distance_km = float(getattr(ride, "distance_km", 0))
+                    delivery_fee_total = delivery_fee_per_km * distance_km
+
+                    total_price = round(application_fee + service_price + delivery_fee_total, 2)
+
+                    return {
+                        "application_fee": application_fee,
+                        "service_price": service_price,
+                        "delivery_fee_per_km": delivery_fee_per_km,
+                        "distance_km": distance_km,
+                        "delivery_fee_total": round(delivery_fee_total, 2),
+                        "total_price": total_price,
+                    }
+            return None
+        except Exception as e:
+            print(f"[get_service_price_info] Error: {e}")
+            return None
 
     # Generic JSON sender
     async def send_json(self, event):
