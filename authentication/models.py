@@ -514,3 +514,49 @@ class Rating(models.Model):
 
     def __str__(self):
         return f"Rating for Ride #{self.ride.id}"        
+
+class ProviderServicePricing(models.Model):
+    provider = models.ForeignKey(Provider, on_delete=models.CASCADE, related_name="service_pricings")
+    service = models.ForeignKey(Service, on_delete=models.CASCADE, related_name="provider_pricings")
+    sub_service = models.CharField(_("Sub Service"), max_length=50, blank=True, null=True)
+    application_fee = models.DecimalField(_("Application Fee"), max_digits=10, decimal_places=2, default=0)
+    service_price = models.DecimalField(_("Service Price"), max_digits=10, decimal_places=2, default=0)
+    delivery_fee_per_km = models.DecimalField(_("Delivery Fee per KM"), max_digits=10, decimal_places=2, default=0)
+
+    class Meta:
+        unique_together = ('provider', 'service', 'sub_service')
+        verbose_name = _("Provider Service Pricing")
+        verbose_name_plural = _("Provider Service Pricings")
+
+    def __str__(self):
+        return f"{self.provider.user.name} - {self.service.name} - {self.sub_service or ''}"
+
+    def clean(self):
+        allowed_services = [
+            "maintenance service",
+            "delivery service",
+            "car request",
+            "food delivery"
+        ]
+        if self.service.name.lower() not in allowed_services:
+            from django.core.exceptions import ValidationError
+            raise ValidationError({
+                'service': _(f"Pricing can only be set for maintenance service, delivery service, car request, or food delivery.")
+            })
+        # If service is maintenance, sub_service is required
+        if self.service.name.lower() == "maintenance service" and not self.sub_service:
+            from django.core.exceptions import ValidationError
+            raise ValidationError({
+                'sub_service': _(f"Sub Service is required for maintenance service pricing.")
+            })
+        # If service is not maintenance, sub_service must be blank
+        if self.service.name.lower() != "maintenance service" and self.sub_service:
+            from django.core.exceptions import ValidationError
+            raise ValidationError({
+                'sub_service': _(f"Sub Service should only be set for maintenance service pricing.")
+            })
+        super().clean()
+
+    def save(self, *args, **kwargs):
+        self.clean()
+        super().save(*args, **kwargs) 

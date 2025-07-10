@@ -19,6 +19,7 @@ from authentication.models import (
     DriverCar,
     Notification,
     Rating,
+    ProviderServicePricing,
 )
 from authentication.utils import send_sms, extract_user_data, update_user_data
 from django.utils.translation import gettext_lazy as _
@@ -724,6 +725,46 @@ class CarRentalSerializer(serializers.ModelSerializer):
         validated_data['customer'] = self.context['request'].user.customer
         rental = CarRental.objects.create(**validated_data)
         return rental
+
+class ProviderServicePricingSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProviderServicePricing
+        fields = [
+            "id",
+            "provider",
+            "service",
+            "sub_service",
+            "application_fee",
+            "service_price",
+            "delivery_fee_per_km"
+        ]
+
+    def validate_service(self, value):
+        allowed_services = [
+            "maintenance service",
+            "delivery service",
+            "car request",
+            "food delivery"
+        ]
+        if value.name.lower() not in allowed_services:
+            raise serializers.ValidationError(
+                _("Pricing can only be set for maintenance service, delivery service, car request, or food delivery.")
+            )
+        return value
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        service = attrs.get('service')
+        sub_service = attrs.get('sub_service')
+        if service and service.name.lower() == "maintenance service" and not sub_service:
+            raise serializers.ValidationError({
+                'sub_service': _("Sub Service is required for maintenance service pricing.")
+            })
+        if service and service.name.lower() != "maintenance service" and sub_service:
+            raise serializers.ValidationError({
+                'sub_service': _("Sub Service should only be set for maintenance service pricing.")
+            })
+        return attrs
 
 class ProviderDriverRegisterSerializer(serializers.ModelSerializer):
     user = UserSerializer(write_only=True)

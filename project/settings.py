@@ -356,6 +356,11 @@ SIMPLEUI_CONFIG = {
                     'name': _('Services'),
                     'icon': 'fas fa-concierge-bell',
                     'url': 'authentication/service/'
+                },
+                {
+                    'name': _('Service Pricings'),
+                    'icon': 'fas fa-money-bill',
+                    'url': 'authentication/providerservicepricing/'
                 }
             ]
         },

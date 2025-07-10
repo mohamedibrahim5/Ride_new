@@ -32,7 +32,8 @@ from authentication.views import (
     NotificationMarkAsReadView,
     UnreadNotificationCountView,
     RateRideView,
-    RideRatingView
+    RideRatingView,
+    ProviderServicePricingViewSet,
 )
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
@@ -50,6 +51,7 @@ router.register(r'cars', CarAgencyViewSet)
 router.register(r'availability', CarAvailabilityViewSet)
 router.register(r'rentals', CarRentalViewSet)
 router.register("driver-profiles", DriverProfileViewSet, basename="driver-profiles")
+router.register("service-pricing", ProviderServicePricingViewSet, basename="service-pricing")
 
 
 urlpatterns = [

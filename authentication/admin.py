@@ -18,7 +18,8 @@ from authentication.models import (
     CarAvailability,
     CarRental,
     DriverProfile,
-    ProductImage
+    ProductImage,
+    ProviderServicePricing
 )
 from django import forms
 from rest_framework.authtoken.models import Token
@@ -271,3 +272,21 @@ class ProviderAdmin(admin.ModelAdmin):
         if obj and not obj.has_maintenance_service():
             readonly_fields.append('sub_service')
         return readonly_fields
+
+class ProviderServicePricingAdmin(admin.ModelAdmin):
+    list_display = ("provider", "service", "sub_service", "application_fee", "service_price", "delivery_fee_per_km")
+    search_fields = ("provider__user__name", "service__name", "sub_service")
+    list_filter = ("service", "sub_service")
+
+    def formfield_for_foreignkey(self, db_field, request, **kwargs):
+        if db_field.name == "service":
+            allowed_services = [
+                "maintenance service",
+                "delivery service",
+                "car request",
+                "food delivery"
+            ]
+            kwargs["queryset"] = Service.objects.filter(name__in=allowed_services)
+        return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
+admin.site.register(ProviderServicePricing, ProviderServicePricingAdmin)

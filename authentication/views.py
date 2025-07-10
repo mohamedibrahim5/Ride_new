@@ -13,7 +13,8 @@ from authentication.models import (
     CarAvailability, 
     CarRental,
     Notification,
-    Rating
+    Rating,
+    ProviderServicePricing
 )
 from authentication.serializers import (
     UserSerializer,
@@ -40,7 +41,8 @@ from authentication.serializers import (
     ProductImageSerializer,
     ProviderDriverRegisterSerializer,
     NotificationSerializer,
-    RatingSerializer
+    RatingSerializer,
+    ProviderServicePricingSerializer
 )
 from authentication.choices import ROLE_CUSTOMER, ROLE_PROVIDER
 from authentication.permissions import IsAdminOrReadOnly, IsCustomer, IsCustomerOrAdmin, IsAdminOrCarAgency, IsStoreProvider, IsAdminOrOwnCarAgency, ProductImagePermission
@@ -512,6 +514,8 @@ class StartRideRequestView(APIView):
 
         # Filter providers within 5 km using Haversine and only those available
         nearby_providers = []
+        from authentication.models import Service
+        service = Service.objects.get(id=service_id)
         for provider in providers:
             # Exclude providers whose driver_profile.status is not 'available'
             if hasattr(provider, 'driver_profile') and provider.driver_profile.status != 'available':
@@ -521,7 +525,18 @@ class StartRideRequestView(APIView):
             if plat is not None and plng is not None:
                 distance = haversine(lat, lng, plat, plng)
                 if distance <= 5:
+                    # Get pricing for this provider/service
+                    pricing = get_provider_service_pricing(provider, service)
+                    if pricing:
+                        total_price = (
+                            pricing.application_fee +
+                            pricing.service_price +
+                            (pricing.delivery_fee_per_km * distance)
+                        )
+                    else:
+                        total_price = None
                     provider.distance = distance
+                    provider.total_price = total_price
                     nearby_providers.append(provider)
         nearby_providers.sort(key=lambda p: p.distance)
 
@@ -536,9 +551,28 @@ class StartRideRequestView(APIView):
             "lng": lng
         }
 
-        for provider in nearby_providers:
-            channel_layer = get_channel_layer()
+        provider_price_map = {}
 
+        for provider in nearby_providers:
+            # Calculate price for this provider
+            pricing = get_provider_service_pricing(provider, service)
+            if pricing:
+                total_price = (
+                    pricing.application_fee +
+                    pricing.service_price +
+                    (pricing.delivery_fee_per_km * provider.distance)
+                )
+            else:
+                total_price = None
+            provider_price_map[provider.id] = {
+                "provider_id": provider.id,
+                "provider_name": provider.user.name,
+                "distance_km": round(provider.distance, 2),
+                "total_price": float(total_price) if total_price is not None else None
+            }
+
+            # Send WebSocket notification
+            channel_layer = get_channel_layer()
             async_to_sync(channel_layer.group_send)(
                 f"user_{provider.user.id}",
                 {
@@ -550,16 +584,23 @@ class StartRideRequestView(APIView):
                 }
             )
 
-            # Wait for 10 seconds to get a response (this is simulated; actual handling is done via WebSocket)
-            for _ in range(10):
-                from authentication.models import RideStatus
-                if RideStatus.objects.filter(client_id=request.user.id, accepted=True).exists():
-                    # Set customer.in_ride = True
-                    if hasattr(request.user, 'customer'):
-                        request.user.customer.in_ride = True
-                        request.user.customer.save()
-                    return Response({"status": "Accepted by provider"})
-                sleep(1)
+        # Wait for 10 seconds to get a response (this is simulated; actual handling is done via WebSocket)
+        for _ in range(10):
+            from authentication.models import RideStatus
+            accepted_ride = RideStatus.objects.filter(client_id=request.user.id, accepted=True).first()
+            if accepted_ride:
+                # Set customer.in_ride = True
+                if hasattr(request.user, 'customer'):
+                    request.user.customer.in_ride = True
+                    request.user.customer.save()
+                # Find the provider who accepted
+                provider_id = accepted_ride.provider.id
+                price_info = provider_price_map.get(provider_id, {})
+                return Response({
+                    "status": "Accepted by provider",
+                    **price_info
+                })
+            sleep(1)
 
         return Response({"status": "No providers accepted the ride"})    
         
@@ -1666,3 +1707,22 @@ class RideRatingView(generics.RetrieveAPIView):
             raise Http404("Ride not found")
         except Rating.DoesNotExist:
             raise Http404("Rating not found")
+
+class ProviderServicePricingViewSet(viewsets.ModelViewSet):
+    queryset = ProviderServicePricing.objects.all()
+    serializer_class = ProviderServicePricingSerializer
+    permission_classes = [IsAuthenticated]
+
+# Utility function for business logic
+
+def get_provider_service_pricing(provider, service):
+    try:
+        return ProviderServicePricing.objects.get(provider=provider, service=service)
+    except ProviderServicePricing.DoesNotExist:
+        return None
+
+# Example usage in your business logic:
+# pricing = get_provider_service_pricing(provider, service)
+# if not pricing:
+#     # Handle missing pricing (e.g., error or default)
+# total = pricing.application_fee + pricing.service_price + (pricing.delivery_fee_per_km * distance_km)
