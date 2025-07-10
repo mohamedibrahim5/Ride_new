@@ -3,8 +3,26 @@ from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 from django.db import transaction
 from authentication.models import User, RideStatus, ProviderServicePricing
+import math
 
 
+def haversine_distance(lat1, lon1, lat2, lon2):
+        """
+        Calculate the great-circle distance in kilometers between two points
+        on the Earth specified by latitude and longitude.
+        """
+        R = 6371.0  # Radius of Earth in kilometers
+        phi1 = math.radians(lat1)
+        phi2 = math.radians(lat2)
+        d_phi = math.radians(lat2 - lat1)
+        d_lambda = math.radians(lon2 - lon1)
+
+        a = math.sin(d_phi / 2)**2 + math.cos(phi1) * math.cos(phi2) * math.sin(d_lambda / 2)**2
+        c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+        return round(R * c, 2)
+    
+    
 class ApplyConsumer(AsyncWebsocketConsumer):
     connected_users = set()
 
@@ -68,6 +86,8 @@ class ApplyConsumer(AsyncWebsocketConsumer):
                     return "send_cancel"
         except RideStatus.DoesNotExist:
             return None
+        
+
     @database_sync_to_async
     def get_service_price_info(self, ride_id):
         try:
@@ -84,10 +104,17 @@ class ApplyConsumer(AsyncWebsocketConsumer):
                 ).first()
 
                 if pricing:
+                    # Calculate distance in KM using pickup and drop coordinates
+                    if all([ride.pickup_lat, ride.pickup_lng, ride.drop_lat, ride.drop_lng]):
+                        distance_km = haversine_distance(
+                            ride.pickup_lat, ride.pickup_lng, ride.drop_lat, ride.drop_lng
+                        )
+                    else:
+                        distance_km = 0
+
                     application_fee = float(pricing.application_fee or 0)
                     service_price = float(pricing.service_price or 0)
                     delivery_fee_per_km = float(pricing.delivery_fee_per_km or 0)
-                    distance_km = float(getattr(ride, "distance_km", 0))
                     delivery_fee_total = delivery_fee_per_km * distance_km
 
                     total_price = round(application_fee + service_price + delivery_fee_total, 2)
@@ -104,6 +131,7 @@ class ApplyConsumer(AsyncWebsocketConsumer):
         except Exception as e:
             print(f"[get_service_price_info] Error: {e}")
             return None
+
 
     # Generic JSON sender
     async def send_json(self, event):
@@ -224,6 +252,7 @@ class ApplyConsumer(AsyncWebsocketConsumer):
                         {
                             "type": event_type,
                             "data": {
+                                "ride_id": ride.id,  
                                 "provider_id": self.scope['user'].id,
                                 "accepted": accepted
                             }
