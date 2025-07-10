@@ -4,7 +4,7 @@ import logging
 
 
 from authentication.models import Provider, Customer
-from .models import Notification
+from .models import Notification, RideStatus, ProviderServicePricing
 
 
 
@@ -108,3 +108,32 @@ def create_notification(user, title, message, notification_type='general', data=
         data=data or {}
     )
     return notification
+
+
+
+def get_service_price_info(self, ride_id):
+    try:
+        ride = RideStatus.objects.select_related('provider', 'service').get(id=ride_id)
+        provider_obj = getattr(ride.provider, 'provider', None)
+        sub_service = provider_obj.sub_service if provider_obj else None
+
+        if provider_obj and ride.service:
+            pricing = ProviderServicePricing.objects.filter(
+                provider=provider_obj,
+                service=ride.service,
+                sub_service=sub_service
+            ).first()
+            if pricing:
+                delivery_fee = float(pricing.delivery_fee_per_km) * float(getattr(ride, "distance_km", 0))
+                total = float(pricing.application_fee) + float(pricing.service_price) + delivery_fee
+                return {
+                    "application_fee": float(pricing.application_fee),
+                    "service_price": float(pricing.service_price),
+                    "delivery_fee_per_km": float(pricing.delivery_fee_per_km),
+                    "distance_km": float(getattr(ride, "distance_km", 0)),
+                    "total_price": round(total, 2)
+                }
+        return None
+    except Exception as e:
+        print(f"[get_service_price_info] Error: {e}")
+        return None
