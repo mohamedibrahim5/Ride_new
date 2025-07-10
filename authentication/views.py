@@ -1726,3 +1726,24 @@ def get_provider_service_pricing(provider, service):
 # if not pricing:
 #     # Handle missing pricing (e.g., error or default)
 # total = pricing.application_fee + pricing.service_price + (pricing.delivery_fee_per_km * distance_km)
+
+
+from dal import autocomplete
+class ProviderAutocomplete(autocomplete.Select2QuerySetView):
+    def get_queryset(self):
+        qs = Provider.objects.all()
+        if self.q:
+            qs = qs.filter(user__name__icontains=self.q)
+        return qs
+
+class ServiceAutocomplete(autocomplete.Select2QuerySetView):
+    def get_queryset(self):
+        qs = Service.objects.all()
+        provider_id = self.forwarded.get('provider', None)
+        if provider_id:
+            try:
+                provider = Provider.objects.get(pk=provider_id)
+                qs = provider.services.all()
+            except Provider.DoesNotExist:
+                qs = Service.objects.none()
+        return qs

@@ -34,6 +34,8 @@ from authentication.views import (
     RateRideView,
     RideRatingView,
     ProviderServicePricingViewSet,
+    ProviderAutocomplete,
+    ServiceAutocomplete,
 )
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
@@ -85,6 +87,8 @@ urlpatterns = [
 
     path('rides/<int:ride_id>/rate/', RateRideView.as_view(), name='rate-ride'),
     path('rides/<int:ride_id>/rating/', RideRatingView.as_view(), name='ride-rating'),
+    path('provider-autocomplete/', ProviderAutocomplete.as_view(), name='provider-autocomplete'),
+    path('service-autocomplete/', ServiceAutocomplete.as_view(), name='service-autocomplete'),
 
 
 

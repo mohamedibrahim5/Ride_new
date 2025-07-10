@@ -24,6 +24,7 @@ from authentication.models import (
 from django import forms
 from rest_framework.authtoken.models import Token
 import dal.autocomplete
+from dal import autocomplete
 
 admin.site.unregister(Group)
 
@@ -274,14 +275,17 @@ class ProviderAdmin(admin.ModelAdmin):
             readonly_fields.append('sub_service')
         return readonly_fields
 
+from dal import autocomplete
+
 class ProviderServicePricingForm(forms.ModelForm):
     class Meta:
         model = ProviderServicePricing
         fields = '__all__'
         widgets = {
-            'provider': dal.autocomplete.ModelSelect2(url='provider-autocomplete'),
-            'service': dal.autocomplete.ModelSelect2(url='service-autocomplete', forward=['provider']),
+            'provider': autocomplete.ModelSelect2(url='provider-autocomplete'),
+            'service': autocomplete.ModelSelect2(url='service-autocomplete', forward=['provider']),
         }
+
 
 # In your admin
 from django.contrib import admin

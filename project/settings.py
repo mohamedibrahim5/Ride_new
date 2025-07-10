@@ -36,6 +36,8 @@ INSTALLED_APPS = [
     "fcm_django",
     "django_filters",
     "channels",
+    'dal',
+    'dal_select2',
     "core",
     #"django.contrib.gis"
 ]
