@@ -247,6 +247,9 @@ class ApplyConsumer(AsyncWebsocketConsumer):
 
                 if event_type:
                     print(f"[PROVIDER_RESPONSE] Sending {event_type} to user_{client_id}")
+                    ride = await database_sync_to_async(
+                        lambda: RideStatus.objects.filter(client_id=client_id).order_by('-created_at').first()
+                    )()
                     await self.channel_layer.group_send(
                         f"user_{client_id}",
                         {
