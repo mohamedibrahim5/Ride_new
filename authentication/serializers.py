@@ -494,6 +494,7 @@ class RideStatusSerializer(serializers.ModelSerializer):
     client = UserSerializer()
     provider = UserSerializer()
     service = ServiceSerializer()
+    service_price_info = serializers.SerializerMethodField()
 
     class Meta:
         model = RideStatus
@@ -508,7 +509,25 @@ class RideStatusSerializer(serializers.ModelSerializer):
             "drop_lat",
             "drop_lng",
             "created_at",
+            "service_price_info",  # <-- Add this
         ]
+
+    def get_service_price_info(self, obj):
+        if not obj.provider or not obj.service:
+            return None
+        try:
+            pricing = ProviderServicePricing.objects.get(
+                provider=obj.provider.provider,
+                service=obj.service,
+                sub_service=obj.provider.provider.sub_service if obj.provider.provider.sub_service else None
+            )
+            return {
+                "application_fee": pricing.application_fee,
+                "service_price": pricing.service_price,
+                "delivery_fee_per_km": pricing.delivery_fee_per_km,
+            }
+        except ProviderServicePricing.DoesNotExist:
+            return None
 
 
 class UserPointsSerializer(serializers.ModelSerializer):

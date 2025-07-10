@@ -2,7 +2,7 @@ import json
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 from django.db import transaction
-from authentication.models import User, RideStatus
+from authentication.models import User, RideStatus, ProviderServicePricing
 
 
 class ApplyConsumer(AsyncWebsocketConsumer):
@@ -18,6 +18,29 @@ class ApplyConsumer(AsyncWebsocketConsumer):
             user_sender = User.objects.get(phone=user)
             data["sender_image"] = user_sender.image
         return data
+
+    @database_sync_to_async
+    def get_service_price_info(self, ride_id):
+        try:
+            ride = RideStatus.objects.select_related('provider', 'service').get(id=ride_id)
+            provider_obj = getattr(ride.provider, 'provider', None)
+            sub_service = provider_obj.sub_service if provider_obj else None
+            if provider_obj and ride.service:
+                pricing = ProviderServicePricing.objects.filter(
+                    provider=provider_obj,
+                    service=ride.service,
+                    sub_service=sub_service
+                ).first()
+                if pricing:
+                    return {
+                        "application_fee": float(pricing.application_fee),
+                        "service_price": float(pricing.service_price),
+                        "delivery_fee_per_km": float(pricing.delivery_fee_per_km),
+                    }
+            return None
+        except Exception as e:
+            print(f"[get_service_price_info] Error: {e}")
+            return None
 
     async def connect(self):
         user_id = self.scope['user'].id
@@ -70,6 +93,14 @@ class ApplyConsumer(AsyncWebsocketConsumer):
 
     # Generic JSON sender
     async def send_json(self, event):
+        # If the event contains a ride_id, try to add service_price_info
+        data = event.get("data", {})
+        ride_id = data.get("ride_id") or data.get("id")
+        if ride_id:
+            price_info = await self.get_service_price_info(ride_id)
+            if price_info is not None:
+                data["service_price_info"] = price_info
+            event["data"] = data
         await self.send(text_data=json.dumps({
             "type": event["type"],
             "data": event["data"]

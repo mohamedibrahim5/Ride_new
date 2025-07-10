@@ -39,7 +39,7 @@ admin.site.register(CustomerPlace)
 class RideStatusAdmin(admin.ModelAdmin):
     list_display = (
         'id', 'client_name', 'provider_name', 'status_display',
-        'service_name', 'pickup_coords', 'drop_coords', 'created_at'
+        'service_name', 'pickup_coords', 'drop_coords', 'created_at', 'service_price_info'
     )
     list_filter = ('status', 'service')
     search_fields = ('client__name', 'provider__name')
@@ -82,6 +82,20 @@ class RideStatusAdmin(admin.ModelAdmin):
         color = color_map.get(obj.status, "black")
         return format_html('<span style="color: {};">●</span> {}', color, obj.get_status_display())
     status_display.short_description = _('Status')
+
+    def service_price_info(self, obj):
+        if not obj.provider or not obj.service:
+            return "-"
+        try:
+            pricing = ProviderServicePricing.objects.get(
+                provider=obj.provider.provider,
+                service=obj.service,
+                sub_service=obj.provider.provider.sub_service if obj.provider.provider.sub_service else None
+            )
+            return f"App Fee: {pricing.application_fee}, Price: {pricing.service_price}, Delivery/km: {pricing.delivery_fee_per_km}"
+        except ProviderServicePricing.DoesNotExist:
+            return "-"
+    service_price_info.short_description = "Service Price Info"
 
 # --- Other existing admin registrations ---
 
