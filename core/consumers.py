@@ -89,6 +89,18 @@ class ApplyConsumer(AsyncWebsocketConsumer):
         
 
     @database_sync_to_async
+    def get_provider_name(self, ride_id):
+        """Get provider name for a ride"""
+        try:
+            ride = RideStatus.objects.select_related('provider').get(id=ride_id)
+            if ride.provider:
+                return ride.provider.name
+            return None
+        except Exception as e:
+            print(f"[get_provider_name] Error: {e}")
+            return None
+
+    @database_sync_to_async
     def get_service_price_info(self, ride_id):
         try:
             ride = RideStatus.objects.select_related('provider', 'service').get(id=ride_id)
@@ -135,18 +147,27 @@ class ApplyConsumer(AsyncWebsocketConsumer):
 
     # Generic JSON sender
     async def send_json(self, event):
-        # If the event contains a ride_id, try to add service_price_info
+        # If the event contains a ride_id, try to add service_price_info and provider name
         data = event.get("data", {})
         ride_id = data.get("ride_id") or data.get("id")
+        
         if event.get("type") in [
             "send_acceptance",
             "send_new_ride",
             "send_cash",
             "ride_status_update",
         ] and ride_id:
+            # Get pricing info
             price_info = await self.get_service_price_info(ride_id)
             if price_info is not None:
                 data["service_price_info"] = price_info
+            
+            # Get provider name for status updates
+            if event.get("type") == "ride_status_update":
+                provider_name = await self.get_provider_name(ride_id)
+                if provider_name:
+                    data["provider_name"] = provider_name
+            
             event["data"] = data
 
         await self.send(text_data=json.dumps({
@@ -250,6 +271,10 @@ class ApplyConsumer(AsyncWebsocketConsumer):
                     ride = await database_sync_to_async(
                         lambda: RideStatus.objects.filter(client_id=client_id).order_by('-created_at').first()
                     )()
+                    
+                    # Get provider name
+                    provider_name = await self.get_provider_name(ride.id)
+                    
                     await self.channel_layer.group_send(
                         f"user_{client_id}",
                         {
@@ -257,6 +282,7 @@ class ApplyConsumer(AsyncWebsocketConsumer):
                             "data": {
                                 "ride_id": ride.id,  
                                 "provider_id": self.scope['user'].id,
+                                "provider_name": provider_name,
                                 "accepted": accepted
                             }
                         }
