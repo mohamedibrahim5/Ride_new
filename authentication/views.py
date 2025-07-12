@@ -56,6 +56,7 @@ from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
 from django.db import models
 from .pagination import SimplePagination
+from django.core.cache import cache
 import math
 import random
 import string
@@ -64,7 +65,6 @@ from django.shortcuts import get_object_or_404
 from django.utils.dateparse import parse_datetime
 from rest_framework import serializers
 from django.http import Http404
-from django.db import models
 from django.db.models import Avg
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
@@ -72,6 +72,7 @@ from collections import defaultdict
 import json
 from authentication.signals import set_request_data
 from .utils import send_fcm_notification
+from django.core.cache import cache
 
 def flatten_form_data(data):
     from collections import defaultdict
@@ -728,7 +729,7 @@ class BroadcastRideRequestView(APIView):
                     }
                 )
 
-        RideStatus.objects.create(
+        ride = RideStatus.objects.create(
             client=user,
             provider=None,  # not selected yet
             status="pending",
@@ -743,7 +744,17 @@ class BroadcastRideRequestView(APIView):
             user.customer.in_ride = True
             user.customer.save()
 
-        return Response({"status": f"Broadcasted ride request to {len(nearby_providers)} nearby providers"})        
+        # Clear cache for both client and potential providers
+        self._clear_user_statistics_cache(user.id)
+        for provider in nearby_providers:
+            self._clear_user_statistics_cache(provider.user.id)
+
+        return Response({"status": f"Broadcasted ride request to {len(nearby_providers)} nearby providers"})
+
+    def _clear_user_statistics_cache(self, user_id):
+        """Clear cached statistics for a user when rides are updated"""
+        cache_key = f"ride_stats_user_{user_id}"
+        cache.delete(cache_key)        
     
 
 
@@ -976,6 +987,11 @@ class UpdateRideStatusView(APIView):
                 }
             )
 
+        # Clear cache for both client and provider when ride status changes
+        self._clear_user_statistics_cache(ride.client.id)
+        if ride.provider:
+            self._clear_user_statistics_cache(ride.provider.id)
+
         # Prepare response with ride_id
         response_data = {
             "status": f"Ride updated to {status}.",
@@ -983,6 +999,11 @@ class UpdateRideStatusView(APIView):
         }
 
         return Response(response_data)
+
+    def _clear_user_statistics_cache(self, user_id):
+        """Clear cached statistics for a user when rides are updated"""
+        cache_key = f"ride_stats_user_{user_id}"
+        cache.delete(cache_key)
     
 
 
@@ -1833,24 +1854,56 @@ class RideHistoryView(generics.ListAPIView):
 
     def list(self, request, *args, **kwargs):
         """
-        Get ride history with additional statistics.
+        Get ride history with optimized statistics (cached and only on first page).
         """
         queryset = self.get_queryset()
         page = self.paginate_queryset(queryset)
         
+        # Get current page number
+        page_number = request.query_params.get('page', 1)
+        try:
+            page_number = int(page_number)
+        except (ValueError, TypeError):
+            page_number = 1
+        
         if page is not None:
             serializer = self.get_serializer(page, many=True)
             response_data = self.get_paginated_response(serializer.data)
-            # Add statistics to paginated response
-            response_data.data['statistics'] = self._calculate_ride_statistics(queryset)
+            
+            # Only include statistics on first page (optimized performance)
+            if page_number == 1:
+                response_data.data['statistics'] = self._get_cached_statistics(queryset)
+            
             return response_data
         else:
             serializer = self.get_serializer(queryset, many=True)
             response_data = {
                 'results': serializer.data,
-                'statistics': self._calculate_ride_statistics(queryset)
+                'statistics': self._get_cached_statistics(queryset)
             }
             return Response(response_data)
+
+    def _get_cached_statistics(self, queryset):
+        """Get cached statistics or calculate and cache them"""
+        user_id = self.request.user.id
+        cache_key = f"ride_stats_user_{user_id}"
+        
+        # Try to get cached statistics
+        cached_stats = cache.get(cache_key)
+        
+        if cached_stats is None:
+            # Calculate and cache statistics
+            stats = self._calculate_ride_statistics(queryset)
+            # Cache for 5 minutes (300 seconds)
+            cache.set(cache_key, stats, 300)
+            return stats
+        
+        return cached_stats
+
+    def _clear_user_statistics_cache(self, user_id):
+        """Clear cached statistics for a user when rides are updated"""
+        cache_key = f"ride_stats_user_{user_id}"
+        cache.delete(cache_key)
 
     def _calculate_ride_statistics(self, queryset):
         """Calculate essential ride statistics for the user"""
