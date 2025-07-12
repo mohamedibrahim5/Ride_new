@@ -44,7 +44,7 @@ from authentication.serializers import (
     RatingSerializer,
     ProviderServicePricingSerializer,
     ProfileUpdateSerializer,
-
+    RideHistorySerializer,
 )
 from authentication.choices import ROLE_CUSTOMER, ROLE_PROVIDER
 from authentication.permissions import IsAdminOrReadOnly, IsCustomer, IsCustomerOrAdmin, IsAdminOrCarAgency, IsStoreProvider, IsAdminOrOwnCarAgency, ProductImagePermission
@@ -54,6 +54,7 @@ from rest_framework.response import Response
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
+from django.db import models
 import math
 import random
 import string
@@ -1779,3 +1780,162 @@ class ProfileUpdateView(generics.UpdateAPIView):
         Returns updated user profile data.
         """
         return super().patch(request, *args, **kwargs)
+
+class RideHistoryView(generics.ListAPIView):
+    """
+    View for getting ride history for both drivers and customers.
+    Returns rides where the authenticated user is either the client or provider.
+    """
+    permission_classes = [IsAuthenticated]
+    serializer_class = RideHistorySerializer
+    pagination_class = SimplePagination
+
+    def get_queryset(self):
+        user = self.request.user
+        
+        # Get rides where user is either client or provider
+        queryset = RideStatus.objects.filter(
+            models.Q(client=user) | models.Q(provider=user)
+        ).select_related(
+            'client', 'provider', 'service'
+        ).prefetch_related(
+            'rating'
+        ).order_by('-created_at')
+        
+        # Filter by status if provided
+        status = self.request.query_params.get('status')
+        if status:
+            queryset = queryset.filter(status=status)
+        
+        # Filter by date range if provided
+        start_date = self.request.query_params.get('start_date')
+        end_date = self.request.query_params.get('end_date')
+        
+        if start_date:
+            queryset = queryset.filter(created_at__gte=start_date)
+        if end_date:
+            queryset = queryset.filter(created_at__lte=end_date)
+        
+        # Filter by ride type (customer/driver rides)
+        ride_type = self.request.query_params.get('ride_type')
+        if ride_type == 'customer':
+            queryset = queryset.filter(client=user)
+        elif ride_type == 'driver':
+            queryset = queryset.filter(provider=user)
+        
+        return queryset
+
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['request'] = self.request
+        return context
+
+    def list(self, request, *args, **kwargs):
+        """
+        Get ride history with additional statistics.
+        """
+        queryset = self.get_queryset()
+        page = self.paginate_queryset(queryset)
+        
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            response_data = self.get_paginated_response(serializer.data)
+        else:
+            serializer = self.get_serializer(queryset, many=True)
+            response_data = serializer.data
+        
+        # Add statistics
+        stats = self._calculate_ride_statistics(queryset)
+        
+        if isinstance(response_data, dict):
+            response_data['statistics'] = stats
+        else:
+            response_data = {
+                'results': response_data,
+                'statistics': stats
+            }
+        
+        return Response(response_data)
+
+    def _calculate_ride_statistics(self, queryset):
+        """Calculate essential ride statistics for the user"""
+        user = self.request.user
+        
+        total_rides = queryset.count()
+        completed_rides = queryset.filter(status='finished').count()
+        
+        # Calculate total earnings/spent
+        total_amount = 0
+        if hasattr(user, 'provider'):
+            # For drivers: calculate earnings
+            driver_rides = queryset.filter(provider=user, status='finished')
+            for ride in driver_rides:
+                # Calculate price for each completed ride
+                if ride.provider and ride.service:
+                    provider_obj = getattr(ride.provider, 'provider', None)
+                    if provider_obj:
+                        pricing = ProviderServicePricing.objects.filter(
+                            provider=provider_obj,
+                            service=ride.service
+                        ).first()
+                        if pricing:
+                            if all([ride.pickup_lat, ride.pickup_lng, ride.drop_lat, ride.drop_lng]):
+                                distance_km = self._calculate_distance(
+                                    ride.pickup_lat, ride.pickup_lng, ride.drop_lat, ride.drop_lng
+                                )
+                            else:
+                                distance_km = 0
+                            application_fee = float(pricing.application_fee or 0)
+                            service_price = float(pricing.service_price or 0)
+                            delivery_fee_per_km = float(pricing.delivery_fee_per_km or 0)
+                            delivery_fee_total = delivery_fee_per_km * distance_km
+                            total_amount += round(application_fee + service_price + delivery_fee_total, 2)
+        
+        elif hasattr(user, 'customer'):
+            # For customers: calculate total spent
+            customer_rides = queryset.filter(client=user, status='finished')
+            for ride in customer_rides:
+                # Calculate price for each completed ride
+                if ride.provider and ride.service:
+                    provider_obj = getattr(ride.provider, 'provider', None)
+                    if provider_obj:
+                        pricing = ProviderServicePricing.objects.filter(
+                            provider=provider_obj,
+                            service=ride.service
+                        ).first()
+                        if pricing:
+                            if all([ride.pickup_lat, ride.pickup_lng, ride.drop_lat, ride.drop_lng]):
+                                distance_km = self._calculate_distance(
+                                    ride.pickup_lat, ride.pickup_lng, ride.drop_lat, ride.drop_lng
+                                )
+                            else:
+                                distance_km = 0
+                            application_fee = float(pricing.application_fee or 0)
+                            service_price = float(pricing.service_price or 0)
+                            delivery_fee_per_km = float(pricing.delivery_fee_per_km or 0)
+                            delivery_fee_total = delivery_fee_per_km * distance_km
+                            total_amount += round(application_fee + service_price + delivery_fee_total, 2)
+        
+        return {
+            'total_rides': total_rides,
+            'completed_rides': completed_rides,
+            'total_amount': round(total_amount, 2),
+            'completion_rate': round((completed_rides / total_rides * 100) if total_rides > 0 else 0, 2)
+        }
+
+    def _calculate_distance(self, lat1, lon1, lat2, lon2):
+        """
+        Calculate the great-circle distance in kilometers between two points
+        on the Earth specified by latitude and longitude.
+        """
+        import math
+        R = 6371.0  # Radius of Earth in kilometers
+        phi1 = math.radians(lat1)
+        phi2 = math.radians(lat2)
+        d_phi = math.radians(lat2 - lat1)
+        d_lambda = math.radians(lon2 - lon1)
+
+        a = math.sin(d_phi / 2)**2 + math.cos(phi1) * math.cos(phi2) * math.sin(d_lambda / 2)**2
+        c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+        return round(R * c, 2)

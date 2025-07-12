@@ -6,6 +6,8 @@ from authentication.views import (
     ResetPasswordView,
     ChangePasswordView,
     ProfileUserView,
+    ProfileUpdateView,
+    RideHistoryView,
     FcmDeviceView,
     LogoutView,
     DeleteUserView,
@@ -36,7 +38,6 @@ from authentication.views import (
     ProviderServicePricingViewSet,
     ProviderAutocomplete,
     ServiceAutocomplete,
-    ProfileUpdateView
 )
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
@@ -66,7 +67,7 @@ urlpatterns = [
     path("change-password/", ChangePasswordView.as_view(), name="change-password"),
     path("profile/", ProfileUserView.as_view(), name="profile"),
     path("profile/update/", ProfileUpdateView.as_view(), name="profile-update"),
-
+    path("rides/history/", RideHistoryView.as_view(), name="ride-history"),
     path("fcm-device/", FcmDeviceView.as_view(), name="fcm-device"),
     path("logout/", LogoutView.as_view(), name="logout"),
     path("delete/", DeleteUserView.as_view(), name="delete-user"),

@@ -30,6 +30,7 @@ from fcm_django.models import FCMDevice
 from django.contrib.gis.geos import Point
 from django.db.models import Avg
 from .models import CarAgency, CarAvailability, CarRental, ProductImage
+import math
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -906,3 +907,102 @@ class ProfileUpdateSerializer(serializers.ModelSerializer):
             setattr(instance, attr, value)
         instance.save()
         return instance
+
+
+class RideHistorySerializer(serializers.ModelSerializer):
+    """
+    Serializer for ride history with essential information only.
+    """
+    client_name = serializers.CharField(source='client.name', read_only=True)
+    provider_name = serializers.CharField(source='provider.name', read_only=True)
+    service_name = serializers.CharField(source='service.name', read_only=True)
+    total_price = serializers.SerializerMethodField()
+    rating = serializers.SerializerMethodField()
+    ride_type = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = RideStatus
+        fields = [
+            "id",
+            "client_name",
+            "provider_name", 
+            "service_name",
+            "status",
+            "created_at",
+            "total_price",
+            "rating",
+            "ride_type"
+        ]
+        read_only_fields = fields
+
+    def get_total_price(self, obj):
+        """Get total price for the ride"""
+        try:
+            if obj.provider and obj.service:
+                provider_obj = getattr(obj.provider, 'provider', None)
+                if provider_obj:
+                    pricing = ProviderServicePricing.objects.filter(
+                        provider=provider_obj,
+                        service=obj.service
+                    ).first()
+                    
+                    if pricing:
+                        # Calculate distance
+                        if all([obj.pickup_lat, obj.pickup_lng, obj.drop_lat, obj.drop_lng]):
+                            distance_km = self._calculate_distance(
+                                obj.pickup_lat, obj.pickup_lng, obj.drop_lat, obj.drop_lng
+                            )
+                        else:
+                            distance_km = 0
+
+                        application_fee = float(pricing.application_fee or 0)
+                        service_price = float(pricing.service_price or 0)
+                        delivery_fee_per_km = float(pricing.delivery_fee_per_km or 0)
+                        delivery_fee_total = delivery_fee_per_km * distance_km
+                        total_price = round(application_fee + service_price + delivery_fee_total, 2)
+
+                        return total_price
+        except Exception as e:
+            print(f"Error calculating price: {e}")
+        return 0
+
+    def get_rating(self, obj):
+        """Get rating for the ride (based on user role)"""
+        try:
+            if hasattr(obj, 'rating') and obj.rating:
+                rating = obj.rating
+                request = self.context.get('request')
+                if request and request.user:
+                    if obj.client == request.user:
+                        return rating.customer_rating
+                    elif obj.provider == request.user:
+                        return rating.driver_rating
+        except Exception as e:
+            print(f"Error getting rating: {e}")
+        return None
+
+    def get_ride_type(self, obj):
+        """Determine if the current user is the client or provider in this ride"""
+        request = self.context.get('request')
+        if request and request.user:
+            if obj.client == request.user:
+                return "customer"
+            elif obj.provider == request.user:
+                return "driver"
+        return "unknown"
+
+    def _calculate_distance(self, lat1, lon1, lat2, lon2):
+        """
+        Calculate the great-circle distance in kilometers between two points
+        on the Earth specified by latitude and longitude.
+        """
+        R = 6371.0  # Radius of Earth in kilometers
+        phi1 = math.radians(lat1)
+        phi2 = math.radians(lat2)
+        d_phi = math.radians(lat2 - lat1)
+        d_lambda = math.radians(lon2 - lon1)
+
+        a = math.sin(d_phi / 2)**2 + math.cos(phi1) * math.cos(phi2) * math.sin(d_lambda / 2)**2
+        c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+        return round(R * c, 2)
