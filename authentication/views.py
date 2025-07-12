@@ -55,6 +55,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
 from django.db import models
+from .pagination import SimplePagination
 import math
 import random
 import string
@@ -1840,22 +1841,16 @@ class RideHistoryView(generics.ListAPIView):
         if page is not None:
             serializer = self.get_serializer(page, many=True)
             response_data = self.get_paginated_response(serializer.data)
+            # Add statistics to paginated response
+            response_data.data['statistics'] = self._calculate_ride_statistics(queryset)
+            return response_data
         else:
             serializer = self.get_serializer(queryset, many=True)
-            response_data = serializer.data
-        
-        # Add statistics
-        stats = self._calculate_ride_statistics(queryset)
-        
-        if isinstance(response_data, dict):
-            response_data['statistics'] = stats
-        else:
             response_data = {
-                'results': response_data,
-                'statistics': stats
+                'results': serializer.data,
+                'statistics': self._calculate_ride_statistics(queryset)
             }
-        
-        return Response(response_data)
+            return Response(response_data)
 
     def _calculate_ride_statistics(self, queryset):
         """Calculate essential ride statistics for the user"""
