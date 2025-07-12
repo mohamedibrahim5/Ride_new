@@ -173,7 +173,7 @@ class ApplyConsumer(AsyncWebsocketConsumer):
         await self.send(text_data=json.dumps({
             "type": event["type"],
             "data": event["data"]
-        }))
+        }, ensure_ascii=False))
 
     # Event-specific senders
     async def send_apply(self, event): await self.send_json(event)
@@ -200,7 +200,7 @@ class ApplyConsumer(AsyncWebsocketConsumer):
                 "location": event["location"],
                 "heading": event["heading"]
             }
-        }))
+        }, ensure_ascii=False))
 
     async def receive(self, text_data):
         try:

@@ -810,6 +810,7 @@ class ProviderRideResponseView(APIView):
                     "data": {
                         "ride_id": ride.id, 
                         "provider_id": request.user.id,
+                        "provider_name": request.user.name,
                         "accepted": accepted,
                     }
                 }
