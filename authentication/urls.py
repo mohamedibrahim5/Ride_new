@@ -36,6 +36,7 @@ from authentication.views import (
     ProviderServicePricingViewSet,
     ProviderAutocomplete,
     ServiceAutocomplete,
+    ProfileUpdateView
 )
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
@@ -64,6 +65,8 @@ urlpatterns = [
     path("reset-password/", ResetPasswordView.as_view(), name="reset-password"),
     path("change-password/", ChangePasswordView.as_view(), name="change-password"),
     path("profile/", ProfileUserView.as_view(), name="profile"),
+    path("profile/update/", ProfileUpdateView.as_view(), name="profile-update"),
+
     path("fcm-device/", FcmDeviceView.as_view(), name="fcm-device"),
     path("logout/", LogoutView.as_view(), name="logout"),
     path("delete/", DeleteUserView.as_view(), name="delete-user"),

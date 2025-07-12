@@ -868,3 +868,41 @@ class RatingSerializer(serializers.ModelSerializer):
             'updated_at'
         ]
         read_only_fields = ['ride', 'created_at', 'updated_at']
+
+class ProfileUpdateSerializer(serializers.ModelSerializer):
+    """
+    Serializer for updating user profile information.
+    Allows users to update their name, email, image, and location.
+    """
+    
+    class Meta:
+        model = User
+        fields = [
+            "name",
+            "email", 
+            "image",
+            "location",
+        ]
+        read_only_fields = ["id", "phone", "role", "average_rating"]
+
+    def validate(self, attrs):
+        location_str = attrs.get("location", "")
+        
+        # Validate location format if provided
+        if location_str:
+            try:
+                lat_val, lng_val = map(float, location_str.split(","))
+                # Update location2_lat and location2_lng to match location
+                attrs["location2_lat"] = lat_val
+                attrs["location2_lng"] = lng_val
+            except Exception:
+                raise serializers.ValidationError(_("Invalid location format. Use 'latitude,longitude'"))
+        
+        return attrs
+
+    def update(self, instance, validated_data):
+        # Update the user instance
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        return instance

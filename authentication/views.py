@@ -42,7 +42,9 @@ from authentication.serializers import (
     ProviderDriverRegisterSerializer,
     NotificationSerializer,
     RatingSerializer,
-    ProviderServicePricingSerializer
+    ProviderServicePricingSerializer,
+    ProfileUpdateSerializer,
+
 )
 from authentication.choices import ROLE_CUSTOMER, ROLE_PROVIDER
 from authentication.permissions import IsAdminOrReadOnly, IsCustomer, IsCustomerOrAdmin, IsAdminOrCarAgency, IsStoreProvider, IsAdminOrOwnCarAgency, ProductImagePermission
@@ -1748,3 +1750,32 @@ class ServiceAutocomplete(autocomplete.Select2QuerySetView):
             except Provider.DoesNotExist:
                 qs = Service.objects.none()
         return qs
+
+
+class ProfileUpdateView(generics.UpdateAPIView):
+    """
+    View for updating user profile information.
+    Supports PATCH requests to update name, email, image, and location.
+    """
+    permission_classes = [IsAuthenticated]
+    serializer_class = ProfileUpdateSerializer
+    http_method_names = ['patch']
+
+    def get_object(self):
+        return self.request.user
+
+    def patch(self, request, *args, **kwargs):
+        """
+        Update user profile information.
+        
+        Accepts:
+        - name: string
+        - email: string  
+        - image: file
+        - location: string (format: "latitude,longitude")
+        - location2_lat: float
+        - location2_lng: float
+        
+        Returns updated user profile data.
+        """
+        return super().patch(request, *args, **kwargs)
