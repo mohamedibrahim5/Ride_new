@@ -665,7 +665,7 @@ class BroadcastRideRequestView(APIView):
             plng = provider.user.location2_lng
             if plat is not None and plng is not None:
                 distance = haversine(lat, lng, plat, plng)
-                if distance <= 5:
+                if distance <= 5000:
                     provider.distance = distance
                     nearby_providers.append(provider)
         nearby_providers.sort(key=lambda p: p.distance)
