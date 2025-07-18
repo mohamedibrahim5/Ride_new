@@ -1031,11 +1031,16 @@ class NearbyRideRequestsView(APIView):
             pickup_lat__isnull=False,
             pickup_lng__isnull=False
         )
+        if pending_rides:
+            print(pending_rides)
+        else:
+            print("Ayad")
 
         nearby_rides = []
         for ride in pending_rides:
             distance = haversine(lat, lng, ride.pickup_lat, ride.pickup_lng)
-            if distance <= 5:
+            print f("dista, Aha:", distance)
+            if distance <= 5000:
                 nearby_rides.append({
                     "ride_id": ride.id,
                     "client_id": ride.client.id,
