@@ -1039,7 +1039,7 @@ class NearbyRideRequestsView(APIView):
         nearby_rides = []
         for ride in pending_rides:
             distance = haversine(lat, lng, ride.pickup_lat, ride.pickup_lng)
-            print f("dista, Aha:", distance)
+            print(f"Distance to ride {ride.id}: {distance} meters")
             if distance <= 5000:
                 nearby_rides.append({
                     "ride_id": ride.id,
