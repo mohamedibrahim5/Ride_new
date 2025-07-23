@@ -111,7 +111,7 @@ if DEBUG:
             'ENGINE': 'django.db.backends.postgresql',
             "NAME": "railway",  # Replace with your actual DB name
             "USER": "postgres",  # Replace with your actual DB user
-            "PASSWORD": "hscKMhKfGhnAqhaLoToyYiaywiDCNEct",  # Replace with your actual DB password
+            "PASSWORD": "XSsTjPnKXFUuSHhlNrizxjVQeizEdhIS",  # Replace with your actual DB password
             "HOST": "postgres.railway.internal",  # Use Railway's host
             "PORT": "5432",  # PostgreSQL default por
         }
@@ -130,7 +130,7 @@ if DEBUG:
     # settings.py or your appropriate config file
 
     REDIS_USER = "default"
-    REDIS_PASSWORD = "kfckXuBMZDDwGNqnmriCUkxqOBpbPrqH"
+    REDIS_PASSWORD = "fJhSKxZwDQpxJWrvLkoLloJsjjSNFbhN"
     REDIS_HOST = "redis.railway.internal"
     REDIS_PORT = 6379
     REDIS_DB = 0
