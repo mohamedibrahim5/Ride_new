@@ -257,7 +257,7 @@ SIMPLEUI_DEFAULT_THEME = 'admin.lte.css'
 
 SIMPLEUI_CONFIG = {
     'system_keep': False,
-    'menu_display': [_('Authentication'), _('Products'), _('Points'), _('Purchases'), _('Car Rentals'),  _('Services')],
+    'menu_display': [_('Authentication'), _('Products'), _('Points'), _('Purchases'), _('Car Rentals'),  _('Services'), _('Configuration')],
     'dynamic': True,
     'menus': [
         {

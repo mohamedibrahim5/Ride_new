@@ -20,7 +20,8 @@ from authentication.models import (
     DriverProfile,
     ProductImage,
     ProviderServicePricing,
-    PricingZone
+    PricingZone,
+    WhatsAppAPISettings
 )
 from django import forms
 from rest_framework.authtoken.models import Token
@@ -359,3 +360,8 @@ class ProviderServicePricingAdmin(admin.ModelAdmin):
     def zone_name(self, obj):
         return obj.zone.name if obj.zone else _('Default Zone')
     zone_name.short_description = _('Zone')
+
+
+@admin.register(WhatsAppAPISettings)
+class WhatsAppAPISettingsAdmin(admin.ModelAdmin):
+    list_display = ['instance_id', 'token']
