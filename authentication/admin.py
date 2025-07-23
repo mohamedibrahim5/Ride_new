@@ -19,7 +19,8 @@ from authentication.models import (
     CarRental,
     DriverProfile,
     ProductImage,
-    ProviderServicePricing
+    ProviderServicePricing,
+    PricingZone
 )
 from django import forms
 from rest_framework.authtoken.models import Token
@@ -34,6 +35,25 @@ admin.site.register(DriverCar)
 admin.site.register(Customer)
 admin.site.register(CustomerPlace)
 
+@admin.register(PricingZone)
+class PricingZoneAdmin(admin.ModelAdmin):
+    list_display = ('name', 'is_active', 'created_at')
+    list_filter = ('is_active', 'created_at')
+    search_fields = ('name', 'description')
+    readonly_fields = ('created_at',)
+    fieldsets = (
+        (_('Basic Information'), {
+            'fields': ('name', 'description', 'is_active')
+        }),
+        (_('Zone Boundaries'), {
+            'fields': ('boundaries',),
+            'description': _('Define zone boundaries as JSON array of coordinates: [{"lat": 30.0444, "lng": 31.2357}, ...]')
+        }),
+        (_('Timestamps'), {
+            'fields': ('created_at',),
+            'classes': ('collapse',)
+        }),
+    )
 # --- Customized RideStatus admin ---
 @admin.register(RideStatus)
 class RideStatusAdmin(admin.ModelAdmin):
@@ -307,3 +327,40 @@ from django.contrib import admin
 @admin.register(ProviderServicePricing)
 class ProviderServicePricingAdmin(admin.ModelAdmin):
     form = ProviderServicePricingForm
+    list_display = ('provider_name', 'service_name', 'sub_service', 'zone_name', 'base_fare', 'price_per_km', 'price_per_minute', 'is_active', 'created_at')
+    list_filter = ('service', 'zone', 'is_active', 'created_at')
+    search_fields = ('provider__user__name', 'service__name', 'sub_service', 'zone__name')
+    readonly_fields = ('created_at', 'updated_at')
+    fieldsets = (
+        (_('Basic Information'), {
+            'fields': ('provider', 'service', 'sub_service', 'zone', 'is_active')
+        }),
+        (_('Legacy Pricing (Backward Compatibility)'), {
+            'fields': ('application_fee', 'service_price', 'delivery_fee_per_km'),
+            'classes': ('collapse',),
+            'description': _('These fields are kept for backward compatibility. Use zone-based pricing for new implementations.')
+        }),
+        (_('Zone-Based Pricing'), {
+            'fields': ('base_fare', 'price_per_km', 'price_per_minute', 'minimum_fare')
+        }),
+        (_('Peak Hour Settings'), {
+            'fields': ('peak_hour_multiplier', 'peak_hours_start', 'peak_hours_end'),
+            'classes': ('collapse',)
+        }),
+        (_('Timestamps'), {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+    
+    def provider_name(self, obj):
+        return obj.provider.user.name
+    provider_name.short_description = _('Provider')
+    
+    def service_name(self, obj):
+        return obj.service.name
+    service_name.short_description = _('Service')
+    
+    def zone_name(self, obj):
+        return obj.zone.name if obj.zone else _('Default Zone')
+    zone_name.short_description = _('Zone')

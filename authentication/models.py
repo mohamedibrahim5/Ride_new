@@ -10,6 +10,49 @@ from django.contrib.postgres.fields import JSONField
 from django.core.validators import MinValueValidator, MaxValueValidator
 
 
+class PricingZone(models.Model):
+    """
+    Defines geographical zones for pricing
+    """
+    name = models.CharField(_("Zone Name"), max_length=100)
+    description = models.TextField(_("Description"), blank=True)
+    # Define zone boundaries using coordinates
+    # Format: [{"lat": 30.0444, "lng": 31.2357}, {"lat": 30.0500, "lng": 31.2400}, ...]
+    boundaries = models.JSONField(_("Zone Boundaries"), help_text=_("Array of coordinate points defining the zone"))
+    is_active = models.BooleanField(_("Is Active"), default=True)
+    created_at = models.DateTimeField(_("Created At"), auto_now_add=True)
+    
+    class Meta:
+        verbose_name = _("Pricing Zone")
+        verbose_name_plural = _("Pricing Zones")
+    
+    def __str__(self):
+        return self.name
+    
+    def contains_point(self, lat, lng):
+        """
+        Check if a point (lat, lng) is within this zone using ray casting algorithm
+        """
+        if not self.boundaries or len(self.boundaries) < 3:
+            return False
+        
+        x, y = lng, lat
+        n = len(self.boundaries)
+        inside = False
+        
+        p1x, p1y = self.boundaries[0]['lng'], self.boundaries[0]['lat']
+        for i in range(1, n + 1):
+            p2x, p2y = self.boundaries[i % n]['lng'], self.boundaries[i % n]['lat']
+            if y > min(p1y, p2y):
+                if y <= max(p1y, p2y):
+                    if x <= max(p1x, p2x):
+                        if p1y != p2y:
+                            xinters = (y - p1y) * (p2x - p1x) / (p2y - p1y) + p1x
+                        if p1x == p2x or x <= xinters:
+                            inside = not inside
+            p1x, p1y = p2x, p2y
+        
+        return inside
 class User(AbstractUser):
     name = models.CharField(_("Name"), max_length=30)
     phone = models.CharField(_("Phone"),max_length=20, unique=True)
@@ -519,17 +562,94 @@ class ProviderServicePricing(models.Model):
     provider = models.ForeignKey(Provider, on_delete=models.CASCADE, related_name="service_pricings")
     service = models.ForeignKey(Service, on_delete=models.CASCADE, related_name="provider_pricings")
     sub_service = models.CharField(_("Sub Service"), max_length=50, blank=True, null=True)
+    zone = models.ForeignKey(PricingZone, on_delete=models.CASCADE, related_name="pricings", verbose_name=_("Pricing Zone"), null=True, blank=True)
+    
+    # Base pricing (legacy fields - kept for backward compatibility)
     application_fee = models.DecimalField(_("Application Fee"), max_digits=10, decimal_places=2, default=0)
     service_price = models.DecimalField(_("Service Price"), max_digits=10, decimal_places=2, default=0)
     delivery_fee_per_km = models.DecimalField(_("Delivery Fee per KM"), max_digits=10, decimal_places=2, default=0)
+    
+    # New zone-based pricing fields
+    base_fare = models.DecimalField(_("Base Fare"), max_digits=10, decimal_places=2, default=0, help_text=_("Fixed starting price"))
+    price_per_km = models.DecimalField(_("Price per KM"), max_digits=10, decimal_places=2, default=0)
+    price_per_minute = models.DecimalField(_("Price per Minute"), max_digits=10, decimal_places=2, default=0)
+    minimum_fare = models.DecimalField(_("Minimum Fare"), max_digits=10, decimal_places=2, default=0, help_text=_("Minimum total price for the ride"))
+    
+    # Time-based multipliers
+    peak_hour_multiplier = models.DecimalField(_("Peak Hour Multiplier"), max_digits=4, decimal_places=2, default=1.0, help_text=_("Multiplier for peak hours (e.g., 1.5 for 50% increase)"))
+    peak_hours_start = models.TimeField(_("Peak Hours Start"), null=True, blank=True)
+    peak_hours_end = models.TimeField(_("Peak Hours End"), null=True, blank=True)
+    
+    # Additional settings
+    is_active = models.BooleanField(_("Is Active"), default=True)
+    created_at = models.DateTimeField(_("Created At"), auto_now_add=True)
+    updated_at = models.DateTimeField(_("Updated At"), auto_now=True)
 
     class Meta:
-        unique_together = ('provider', 'service', 'sub_service')
+        unique_together = ('provider', 'service', 'sub_service', 'zone')
         verbose_name = _("Provider Service Pricing")
         verbose_name_plural = _("Provider Service Pricings")
 
     def __str__(self):
-        return f"{self.provider.user.name} - {self.service.name} - {self.sub_service or ''}"
+        zone_name = f" - {self.zone.name}" if self.zone else ""
+        return f"{self.provider.user.name} - {self.service.name} - {self.sub_service or ''}{zone_name}"
+    
+    def calculate_price(self, distance_km=0, duration_minutes=0, pickup_time=None):
+        """
+        Calculate the total price based on distance, duration, and time
+        """
+        from django.utils import timezone
+        
+        # Use new pricing model if zone is set, otherwise fall back to legacy
+        if self.zone:
+            # Calculate base price
+            total_price = float(self.base_fare)
+            total_price += float(self.price_per_km) * distance_km
+            total_price += float(self.price_per_minute) * duration_minutes
+            
+            # Apply peak hour multiplier if applicable
+            if pickup_time and self.peak_hours_start and self.peak_hours_end:
+                pickup_time_only = pickup_time.time() if hasattr(pickup_time, 'time') else pickup_time
+                if self.peak_hours_start <= pickup_time_only <= self.peak_hours_end:
+                    total_price *= float(self.peak_hour_multiplier)
+            
+            # Ensure minimum fare
+            total_price = max(total_price, float(self.minimum_fare))
+            
+        else:
+            # Legacy pricing calculation
+            total_price = float(self.application_fee or 0)
+            total_price += float(self.service_price or 0)
+            total_price += float(self.delivery_fee_per_km or 0) * distance_km
+        
+        return round(total_price, 2)
+    
+    @classmethod
+    def get_pricing_for_location(cls, provider, service, sub_service, lat, lng):
+        """
+        Get the appropriate pricing based on location
+        """
+        # First try to find zone-based pricing
+        for zone in PricingZone.objects.filter(is_active=True):
+            if zone.contains_point(lat, lng):
+                pricing = cls.objects.filter(
+                    provider=provider,
+                    service=service,
+                    sub_service=sub_service,
+                    zone=zone,
+                    is_active=True
+                ).first()
+                if pricing:
+                    return pricing
+        
+        # Fall back to default pricing (no zone)
+        return cls.objects.filter(
+            provider=provider,
+            service=service,
+            sub_service=sub_service,
+            zone__isnull=True,
+            is_active=True
+        ).first()
 
     def clean(self):
         allowed_services = [
