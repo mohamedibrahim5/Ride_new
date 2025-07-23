@@ -369,6 +369,11 @@ SIMPLEUI_CONFIG = {
                     'name': _('Service Pricings'),
                     'icon': 'fas fa-money-bill',
                     'url': 'authentication/providerservicepricing/'
+                },
+                {
+                    'name': _('Zone Pricings'),
+                    'icon': 'fas fa-money-bill',
+                    'url': 'authentication/pricingzone/'
                 }
             ]
         },
