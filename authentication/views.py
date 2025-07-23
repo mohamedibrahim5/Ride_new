@@ -1803,55 +1803,58 @@ class CalculatePriceView(APIView):
             
             for provider in providers:
                 # Get pricing for pickup location
-                pricing = ProviderServicePricing.get_pricing_for_location(
-                    provider=provider,
-                    service=data['service'],
-                    sub_service=data.get('sub_service'),
-                    lat=data['pickup_lat'],
-                    lng=data['pickup_lng']
-                )
-                
-                if pricing:
-                    # Calculate distance and estimated duration
-                    distance_km = self._calculate_distance(
-                        data['pickup_lat'], data['pickup_lng'],
-                        data['drop_lat'], data['drop_lng']
-                    )
-                    duration_minutes = (distance_km / 30) * 60  # Assuming 30 km/h average speed
-                    
-                    total_price = pricing.calculate_price(
-                        distance_km=distance_km,
-                        duration_minutes=duration_minutes,
-                        pickup_time=data.get('pickup_time')
-                    )
-                    
-                    pricing_options.append({
-                        'provider_id': provider.id,
-                        'provider_name': provider.user.name,
-                        'zone_name': pricing.zone.name if pricing.zone else 'Default',
-                        'total_price': total_price,
-                        'distance_km': round(distance_km, 2),
-                        'estimated_duration_minutes': round(duration_minutes, 2),
-                        'pricing_breakdown': {
-                            'base_fare': float(pricing.base_fare) if pricing.zone else float(pricing.application_fee or 0),
-                            'distance_cost': float(pricing.price_per_km) * distance_km if pricing.zone else float(pricing.delivery_fee_per_km or 0) * distance_km,
-                            'time_cost': float(pricing.price_per_minute) * duration_minutes if pricing.zone else 0,
-                            'service_fee': float(pricing.service_price or 0) if not pricing.zone else 0,
-                            'minimum_fare': float(pricing.minimum_fare) if pricing.zone else 0,
-                            'peak_multiplier': float(pricing.peak_hour_multiplier) if pricing.zone else 1.0,
-                        }
-                    })
-            
-            # Sort by price
-            pricing_options.sort(key=lambda x: x['total_price'])
-            
+        # Get pricing for this service and location
+        pricing = ProviderServicePricing.get_pricing_for_location(
+            service=service,
+            sub_service=sub_service,
+            lat=pickup_lat,
+            lng=pickup_lng
+        )
+        
+        if not pricing:
             return Response({
-                'pricing_options': pricing_options,
-                'cheapest_option': pricing_options[0] if pricing_options else None,
+                'error': 'No pricing available for this service and location'
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        total_price = pricing.calculate_price(
+            distance_km=distance_km,
+            duration_minutes=duration_minutes,
+            pickup_time=pickup_time
+        )
+        
+        # Calculate breakdown
+        base_cost = float(pricing.base_fare)
+        distance_cost = float(pricing.price_per_km) * distance_km
+        time_cost = float(pricing.price_per_minute) * duration_minutes
+        subtotal = base_cost + distance_cost + time_cost
+        
+        # Apply peak hour multiplier
+        peak_multiplier = 1.0
+        if pickup_time and pricing.peak_hours_start and pricing.peak_hours_end:
+            pickup_time_only = pickup_time.time() if hasattr(pickup_time, 'time') else pickup_time
+            if pricing.peak_hours_start <= pickup_time_only <= pricing.peak_hours_end:
+                peak_multiplier = float(pricing.peak_hour_multiplier)
+        booking_fee = float(pricing.booking_fee or 0)
                 'service_name': data['service'].name,
                 'sub_service': data.get('sub_service'),
-            })
-        
+            'zone_name': pricing.zone.name if pricing.zone else 'Default Zone',
+            'total_price': final_total,
+            'distance_km': round(distance_km, 2),
+            'estimated_duration_minutes': round(duration_minutes, 2),
+            'pricing_breakdown': {
+                'base_fare': base_cost,
+                'distance_cost': float(pricing.price_per_km) * distance_km,
+                'time_cost': float(pricing.price_per_minute) * duration_minutes,
+                'subtotal': base_cost + distance_cost + time_cost,
+                'peak_multiplier': peak_multiplier,
+                'subtotal_after_peak': subtotal,
+                'platform_fee': platform_fee,
+                'service_fee': service_fee,
+                'booking_fee': booking_fee,
+                'total_with_fees': total_with_fees,
+                'minimum_fare': float(pricing.minimum_fare),
+                'final_total': final_total
+            }
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
     def _calculate_distance(self, lat1, lon1, lat2, lon2):

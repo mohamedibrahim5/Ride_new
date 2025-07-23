@@ -105,14 +105,16 @@ class ApplyConsumer(AsyncWebsocketConsumer):
         try:
             ride = RideStatus.objects.select_related('provider', 'service').get(id=ride_id)
 
-            provider_obj = getattr(ride.provider, 'provider', None)
-
-            if provider_obj and ride.service:
-                # Use new location-based pricing
+            if ride.service:
+                # Get provider's sub_service if available
+                sub_service = None
+                if ride.provider and hasattr(ride.provider, 'provider'):
+                    sub_service = ride.provider.provider.sub_service
+                
+                # Use location-based pricing
                 pricing = ProviderServicePricing.get_pricing_for_location(
-                    provider=provider_obj,
                     service=ride.service,
-                    sub_service=provider_obj.sub_service,
+                    sub_service=sub_service,
                     lat=ride.pickup_lat,
                     lng=ride.pickup_lng
                 )
@@ -129,7 +131,7 @@ class ApplyConsumer(AsyncWebsocketConsumer):
                         distance_km = 0
                         duration_minutes = 0
 
-                    # Use new pricing calculation method
+                    # Use pricing calculation method
                     total_price = pricing.calculate_price(
                         distance_km=distance_km,
                         duration_minutes=duration_minutes,
@@ -137,16 +139,18 @@ class ApplyConsumer(AsyncWebsocketConsumer):
                     )
 
                     return {
-                        "base_fare": float(pricing.base_fare) if pricing.zone else float(pricing.application_fee or 0),
-                        "price_per_km": float(pricing.price_per_km) if pricing.zone else float(pricing.delivery_fee_per_km or 0),
-                        "price_per_minute": float(pricing.price_per_minute) if pricing.zone else 0,
-                        "service_price": float(pricing.service_price or 0) if not pricing.zone else 0,
+                        "base_fare": float(pricing.base_fare),
+                        "price_per_km": float(pricing.price_per_km),
+                        "price_per_minute": float(pricing.price_per_minute),
+                        "platform_fee": float(pricing.platform_fee or 0),
+                        "service_fee": float(pricing.service_fee or 0),
+                        "booking_fee": float(pricing.booking_fee or 0),
                         "distance_km": distance_km,
                         "duration_minutes": round(duration_minutes, 2),
                         "total_price": total_price,
                         "zone_name": pricing.zone.name if pricing.zone else "Default",
-                        "minimum_fare": float(pricing.minimum_fare) if pricing.zone else 0,
-                        "peak_multiplier": float(pricing.peak_hour_multiplier) if pricing.zone else 1.0,
+                        "minimum_fare": float(pricing.minimum_fare),
+                        "peak_multiplier": float(pricing.peak_hour_multiplier),
                     }
             return None
         except Exception as e:

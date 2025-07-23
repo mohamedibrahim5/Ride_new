@@ -327,18 +327,17 @@ from django.contrib import admin
 @admin.register(ProviderServicePricing)
 class ProviderServicePricingAdmin(admin.ModelAdmin):
     form = ProviderServicePricingForm
-    list_display = ('provider_name', 'service_name', 'sub_service', 'zone_name', 'base_fare', 'price_per_km', 'price_per_minute', 'is_active', 'created_at')
+    list_display = ('service_name', 'sub_service', 'zone_name', 'base_fare', 'price_per_km', 'price_per_minute', 'platform_fee', 'is_active', 'created_at')
     list_filter = ('service', 'zone', 'is_active', 'created_at')
-    search_fields = ('provider__user__name', 'service__name', 'sub_service', 'zone__name')
+    search_fields = ('service__name', 'sub_service', 'zone__name')
     readonly_fields = ('created_at', 'updated_at')
     fieldsets = (
         (_('Basic Information'), {
-            'fields': ('provider', 'service', 'sub_service', 'zone', 'is_active')
+            'fields': ('service', 'sub_service', 'zone', 'is_active')
         }),
-        (_('Legacy Pricing (Backward Compatibility)'), {
-            'fields': ('application_fee', 'service_price', 'delivery_fee_per_km'),
-            'classes': ('collapse',),
-            'description': _('These fields are kept for backward compatibility. Use zone-based pricing for new implementations.')
+        (_('Application Fees'), {
+            'fields': ('platform_fee', 'service_fee', 'booking_fee'),
+            'description': _('Fixed fees charged by the platform and service providers')
         }),
         (_('Zone-Based Pricing'), {
             'fields': ('base_fare', 'price_per_km', 'price_per_minute', 'minimum_fare')
@@ -352,10 +351,6 @@ class ProviderServicePricingAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
     )
-    
-    def provider_name(self, obj):
-        return obj.provider.user.name
-    provider_name.short_description = _('Provider')
     
     def service_name(self, obj):
         return obj.service.name

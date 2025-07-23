@@ -761,16 +761,15 @@ class ProviderServicePricingSerializer(serializers.ModelSerializer):
         model = ProviderServicePricing
         fields = [
             "id",
-            "provider",
             "service",
             "sub_service",
             "zone",
             "zone_name",
-            # Legacy fields
-            "application_fee",
-            "service_price",
-            "delivery_fee_per_km",
-            # New zone-based fields
+            # Application fees
+            "platform_fee",
+            "service_fee", 
+            "booking_fee",
+            # Zone-based fields
             "base_fare",
             "price_per_km",
             "price_per_minute",
