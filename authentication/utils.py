@@ -4,7 +4,7 @@ import logging
 
 
 from authentication.models import Provider, Customer
-from .models import Notification, RideStatus, ProviderServicePricing
+from .models import Notification, RideStatus, ProviderServicePricing, WhatsAppAPISettings
 
 
 
@@ -110,7 +110,8 @@ def create_notification(user, title, message, notification_type='general', data=
     return notification
 
 
-def send_whatsapp_message(to_number):
+####  Whatsapp Buissness   #################
+def send_whatsapp_message_Wb(to_number):
     token = 'EAAPPOWkxN58BPLZA5ZCgzoiNIwZCnVwz2CM7jvPaOwtzhKQtin7PRcijCVmsxYI47ftrvZBBVUPhlUTjM8mWJT0j21WjPaB9HZAgXGquoRs0TA3QZAIrfHjs1wIuBYMKcOTo3tNh4Ovf2AZAvbKEOSssRGXIvtAvIWq98VUJk3PcccML5ZCSfK0tOykIiDOLCE0TepSWqZCBSSIMsPNvl0HhQ3KJZCFzXAZAfluPf2n0Ln2ZCCAATQZDZD'
     phone_number_id = '703448656188733'
     url = f'https://graph.facebook.com/v22.0/{phone_number_id}/messages'
@@ -136,3 +137,34 @@ def send_whatsapp_message(to_number):
     return response.json()
 
 
+###################################################################
+def send_whatsapp_message(phone, message):
+    """
+    Send a WhatsApp message using the UltraMsg API.
+    
+    Args:
+        phone (str): The recipient's phone number (international format, no '+')
+        message (str): The message text to send
+    
+    Returns:
+        dict: The API response or None on failure
+    """
+    try:
+        # Get the only credentials record
+        settings = WhatsAppAPISettings.objects.first()
+        if not settings:
+            print("WhatsApp API settings not found in the database.")
+            return None
+
+        url = f"https://api.ultramsg.com/{settings.instance_id}/messages/chat"
+        payload = f"token={settings.token}&to={phone}&body={message}"
+        payload = payload.encode('utf8').decode('iso-8859-1')
+        headers = {'Content-Type': 'application/x-www-form-urlencoded'}
+
+        response = requests.post(url, data=payload, headers=headers)
+        response.raise_for_status()
+        return response.json()
+
+    except requests.exceptions.RequestException as e:
+        print(f"Error sending WhatsApp message: {e}")
+        return None

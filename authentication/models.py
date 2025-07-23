@@ -10,6 +10,19 @@ from django.contrib.postgres.fields import JSONField
 from django.core.validators import MinValueValidator, MaxValueValidator
 
 
+
+class WhatsAppAPISettings(models.Model):
+    instance_id = models.CharField(_('Instance ID'), max_length=100)
+    token = models.CharField(_('Token'), max_length=255)
+
+    def __str__(self):
+        return f"WhatsApp API Settings"
+    
+    class Meta:
+        verbose_name = _("WhatsApp API Settings")
+        verbose_name_plural = _("WhatsApp API Settings")
+        
+        
 class PricingZone(models.Model):
     """
     Defines geographical zones for pricing
