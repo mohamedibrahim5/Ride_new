@@ -106,14 +106,16 @@ class ApplyConsumer(AsyncWebsocketConsumer):
             ride = RideStatus.objects.select_related('provider', 'service').get(id=ride_id)
 
             provider_obj = getattr(ride.provider, 'provider', None)
-            sub_service = provider_obj.sub_service if provider_obj else None
 
             if provider_obj and ride.service:
-                pricing = ProviderServicePricing.objects.filter(
+                # Use new location-based pricing
+                pricing = ProviderServicePricing.get_pricing_for_location(
                     provider=provider_obj,
                     service=ride.service,
-                    sub_service=sub_service
-                ).first()
+                    sub_service=provider_obj.sub_service,
+                    lat=ride.pickup_lat,
+                    lng=ride.pickup_lng
+                )
 
                 if pricing:
                     # Calculate distance in KM using pickup and drop coordinates
@@ -121,23 +123,30 @@ class ApplyConsumer(AsyncWebsocketConsumer):
                         distance_km = haversine_distance(
                             ride.pickup_lat, ride.pickup_lng, ride.drop_lat, ride.drop_lng
                         )
+                        # Estimate duration (assuming average speed of 30 km/h in city)
+                        duration_minutes = (distance_km / 30) * 60
                     else:
                         distance_km = 0
+                        duration_minutes = 0
 
-                    application_fee = float(pricing.application_fee or 0)
-                    service_price = float(pricing.service_price or 0)
-                    delivery_fee_per_km = float(pricing.delivery_fee_per_km or 0)
-                    delivery_fee_total = delivery_fee_per_km * distance_km
-
-                    total_price = round(application_fee + service_price + delivery_fee_total, 2)
+                    # Use new pricing calculation method
+                    total_price = pricing.calculate_price(
+                        distance_km=distance_km,
+                        duration_minutes=duration_minutes,
+                        pickup_time=ride.created_at
+                    )
 
                     return {
-                        "application_fee": application_fee,
-                        "service_price": service_price,
-                        "delivery_fee_per_km": delivery_fee_per_km,
+                        "base_fare": float(pricing.base_fare) if pricing.zone else float(pricing.application_fee or 0),
+                        "price_per_km": float(pricing.price_per_km) if pricing.zone else float(pricing.delivery_fee_per_km or 0),
+                        "price_per_minute": float(pricing.price_per_minute) if pricing.zone else 0,
+                        "service_price": float(pricing.service_price or 0) if not pricing.zone else 0,
                         "distance_km": distance_km,
-                        "delivery_fee_total": round(delivery_fee_total, 2),
+                        "duration_minutes": round(duration_minutes, 2),
                         "total_price": total_price,
+                        "zone_name": pricing.zone.name if pricing.zone else "Default",
+                        "minimum_fare": float(pricing.minimum_fare) if pricing.zone else 0,
+                        "peak_multiplier": float(pricing.peak_hour_multiplier) if pricing.zone else 1.0,
                     }
             return None
         except Exception as e:

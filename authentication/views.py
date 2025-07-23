@@ -14,7 +14,8 @@ from authentication.models import (
     CarRental,
     Notification,
     Rating,
-    ProviderServicePricing
+    ProviderServicePricing,
+    PricingZone
 )
 from authentication.serializers import (
     UserSerializer,
@@ -44,7 +45,9 @@ from authentication.serializers import (
     RatingSerializer,
     ProviderServicePricingSerializer,
     ProfileUpdateSerializer,
-    RideHistorySerializer,
+    ProviderDriverRegisterSerializer,
+    PricingZoneSerializer,
+    PriceCalculationSerializer
 )
 from authentication.choices import ROLE_CUSTOMER, ROLE_PROVIDER
 from authentication.permissions import IsAdminOrReadOnly, IsCustomer, IsCustomerOrAdmin, IsAdminOrCarAgency, IsStoreProvider, IsAdminOrOwnCarAgency, ProductImagePermission
@@ -1744,8 +1747,8 @@ class ProviderServicePricingViewSet(viewsets.ModelViewSet):
     queryset = ProviderServicePricing.objects.all()
     serializer_class = ProviderServicePricingSerializer
     permission_classes = [IsAuthenticated]
-
-# Utility function for business logic
+    filterset_fields = ['provider', 'service', 'sub_service', 'zone', 'is_active']
+    search_fields = ['provider__user__name', 'service__name', 'sub_service', 'zone__name']
 
 def get_provider_service_pricing(provider, service):
     try:
@@ -1757,8 +1760,113 @@ def get_provider_service_pricing(provider, service):
 # pricing = get_provider_service_pricing(provider, service)
 # if not pricing:
 #     # Handle missing pricing (e.g., error or default)
+class PricingZoneViewSet(viewsets.ModelViewSet):
+    queryset = PricingZone.objects.all()
+    serializer_class = PricingZoneSerializer
+    permission_classes = [IsAuthenticated]
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    filterset_fields = ['is_active']
+    search_fields = ['name', 'description']
+    
+    def get_permissions(self):
+        """
+        Only admin can create/update/delete zones, others can only read
+        """
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            permission_classes = [IsAdminUser]
+        else:
+            permission_classes = [IsAuthenticated]
+        return [permission() for permission in permission_classes]
 # total = pricing.application_fee + pricing.service_price + (pricing.delivery_fee_per_km * distance_km)
 
+class CalculatePriceView(APIView):
+    """
+    Calculate ride price based on pickup/drop locations and service
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def post(self, request):
+        serializer = PriceCalculationSerializer(data=request.data)
+        if serializer.is_valid():
+            data = serializer.validated_data
+            
+            # Find available providers for the service
+            providers = Provider.objects.filter(
+                services=data['service'],
+                is_verified=True
+            )
+            
+            if data.get('sub_service'):
+                providers = providers.filter(sub_service=data['sub_service'])
+            
+            pricing_options = []
+            
+            for provider in providers:
+                # Get pricing for pickup location
+                pricing = ProviderServicePricing.get_pricing_for_location(
+                    provider=provider,
+                    service=data['service'],
+                    sub_service=data.get('sub_service'),
+                    lat=data['pickup_lat'],
+                    lng=data['pickup_lng']
+                )
+                
+                if pricing:
+                    # Calculate distance and estimated duration
+                    distance_km = self._calculate_distance(
+                        data['pickup_lat'], data['pickup_lng'],
+                        data['drop_lat'], data['drop_lng']
+                    )
+                    duration_minutes = (distance_km / 30) * 60  # Assuming 30 km/h average speed
+                    
+                    total_price = pricing.calculate_price(
+                        distance_km=distance_km,
+                        duration_minutes=duration_minutes,
+                        pickup_time=data.get('pickup_time')
+                    )
+                    
+                    pricing_options.append({
+                        'provider_id': provider.id,
+                        'provider_name': provider.user.name,
+                        'zone_name': pricing.zone.name if pricing.zone else 'Default',
+                        'total_price': total_price,
+                        'distance_km': round(distance_km, 2),
+                        'estimated_duration_minutes': round(duration_minutes, 2),
+                        'pricing_breakdown': {
+                            'base_fare': float(pricing.base_fare) if pricing.zone else float(pricing.application_fee or 0),
+                            'distance_cost': float(pricing.price_per_km) * distance_km if pricing.zone else float(pricing.delivery_fee_per_km or 0) * distance_km,
+                            'time_cost': float(pricing.price_per_minute) * duration_minutes if pricing.zone else 0,
+                            'service_fee': float(pricing.service_price or 0) if not pricing.zone else 0,
+                            'minimum_fare': float(pricing.minimum_fare) if pricing.zone else 0,
+                            'peak_multiplier': float(pricing.peak_hour_multiplier) if pricing.zone else 1.0,
+                        }
+                    })
+            
+            # Sort by price
+            pricing_options.sort(key=lambda x: x['total_price'])
+            
+            return Response({
+                'pricing_options': pricing_options,
+                'cheapest_option': pricing_options[0] if pricing_options else None,
+                'service_name': data['service'].name,
+                'sub_service': data.get('sub_service'),
+            })
+        
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    def _calculate_distance(self, lat1, lon1, lat2, lon2):
+        """Calculate distance between two points in kilometers"""
+        import math
+        R = 6371.0  # Radius of Earth in kilometers
+        phi1 = math.radians(lat1)
+        phi2 = math.radians(lat2)
+        d_phi = math.radians(lat2 - lat1)
+        d_lambda = math.radians(lon2 - lon1)
+
+        a = math.sin(d_phi / 2)**2 + math.cos(phi1) * math.cos(phi2) * math.sin(d_lambda / 2)**2
+        c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+        return round(R * c, 2)
 
 from dal import autocomplete
 class ProviderAutocomplete(autocomplete.Select2QuerySetView):
@@ -1878,9 +1986,9 @@ class RideHistoryView(generics.ListAPIView):
             
             # Only include statistics on first page (optimized performance)
             if page_number == 1:
-                response_data.data['statistics'] = self._get_cached_statistics(queryset)
+            return ProviderServicePricing.objects.select_related('provider__user', 'service', 'zone').all()
             
-            return response_data
+            return ProviderServicePricing.objects.select_related('provider__user', 'service', 'zone').filter(provider=self.request.user.provider)
         else:
             serializer = self.get_serializer(queryset, many=True)
             response_data = {

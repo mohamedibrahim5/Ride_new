@@ -20,6 +20,7 @@ from authentication.models import (
     Notification,
     Rating,
     ProviderServicePricing,
+    PricingZone,
 )
 from authentication.utils import send_sms, extract_user_data, update_user_data
 from django.utils.translation import gettext_lazy as _
@@ -31,6 +32,12 @@ from django.contrib.gis.geos import Point
 from django.db.models import Avg
 from .models import CarAgency, CarAvailability, CarRental, ProductImage
 import math
+
+
+class PricingZoneSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PricingZone
+        fields = ['id', 'name', 'description', 'boundaries', 'is_active']
 
 
 class UserSerializer(serializers.ModelSerializer):
@@ -747,6 +754,9 @@ class CarRentalSerializer(serializers.ModelSerializer):
         return rental
 
 class ProviderServicePricingSerializer(serializers.ModelSerializer):
+    zone_name = serializers.CharField(source='zone.name', read_only=True)
+    calculated_price = serializers.SerializerMethodField()
+    
     class Meta:
         model = ProviderServicePricing
         fields = [
@@ -754,10 +764,33 @@ class ProviderServicePricingSerializer(serializers.ModelSerializer):
             "provider",
             "service",
             "sub_service",
+            "zone",
+            "zone_name",
+            # Legacy fields
             "application_fee",
             "service_price",
-            "delivery_fee_per_km"
+            "delivery_fee_per_km",
+            # New zone-based fields
+            "base_fare",
+            "price_per_km",
+            "price_per_minute",
+            "minimum_fare",
+            "peak_hour_multiplier",
+            "peak_hours_start",
+            "peak_hours_end",
+            "is_active",
+            "calculated_price",
+            "created_at",
+            "updated_at"
         ]
+        read_only_fields = ['created_at', 'updated_at']
+    
+    def get_calculated_price(self, obj):
+        """
+        Calculate sample price for display purposes
+        """
+        # Use sample values: 5km distance, 15 minutes duration
+        return obj.calculate_price(distance_km=5, duration_minutes=15)
 
     def validate_service(self, value):
         allowed_services = [
@@ -785,6 +818,30 @@ class ProviderServicePricingSerializer(serializers.ModelSerializer):
                 'sub_service': _("Sub Service should only be set for maintenance service pricing.")
             })
         return attrs
+
+
+class PriceCalculationSerializer(serializers.Serializer):
+    """
+    Serializer for calculating ride prices
+    """
+    pickup_lat = serializers.FloatField()
+    pickup_lng = serializers.FloatField()
+    drop_lat = serializers.FloatField()
+    drop_lng = serializers.FloatField()
+    service_id = serializers.IntegerField()
+    sub_service = serializers.CharField(required=False, allow_blank=True)
+    pickup_time = serializers.DateTimeField(required=False)
+    
+    def validate(self, attrs):
+        # Validate service exists
+        try:
+            service = Service.objects.get(id=attrs['service_id'])
+            attrs['service'] = service
+        except Service.DoesNotExist:
+            raise serializers.ValidationError({'service_id': _('Service not found')})
+        
+        return attrs
+
 
 class ProviderDriverRegisterSerializer(serializers.ModelSerializer):
     user = UserSerializer(write_only=True)
@@ -917,6 +974,7 @@ class RideHistorySerializer(serializers.ModelSerializer):
     provider_name = serializers.CharField(source='provider.name', read_only=True)
     service_name = serializers.CharField(source='service.name', read_only=True)
     total_price = serializers.SerializerMethodField()
+    pricing_details = serializers.SerializerMethodField()
     rating = serializers.SerializerMethodField()
     ride_type = serializers.SerializerMethodField()
     
@@ -930,17 +988,46 @@ class RideHistorySerializer(serializers.ModelSerializer):
             "status",
             "created_at",
             "total_price",
+            "pricing_details",
             "rating",
             "ride_type"
         ]
         read_only_fields = fields
 
     def get_total_price(self, obj):
-        """Get total price for the ride"""
+        """Get total price for the ride using new pricing system"""
         try:
             if obj.provider and obj.service:
                 provider_obj = getattr(obj.provider, 'provider', None)
                 if provider_obj:
+                    # Get pricing based on pickup location
+                    pricing = ProviderServicePricing.get_pricing_for_location(
+                        provider=provider_obj,
+                        service=obj.service,
+                        sub_service=provider_obj.sub_service,
+                        lat=obj.pickup_lat,
+                        lng=obj.pickup_lng
+                    )
+                    
+                    if pricing:
+                        # Calculate distance and estimated duration
+                        if all([obj.pickup_lat, obj.pickup_lng, obj.drop_lat, obj.drop_lng]):
+                            distance_km = self._calculate_distance(
+                                obj.pickup_lat, obj.pickup_lng, obj.drop_lat, obj.drop_lng
+                            )
+                            # Estimate duration (assuming average speed of 30 km/h in city)
+                            duration_minutes = (distance_km / 30) * 60
+                        else:
+                            distance_km = 0
+                            duration_minutes = 0
+                        
+                        return pricing.calculate_price(
+                            distance_km=distance_km,
+                            duration_minutes=duration_minutes,
+                            pickup_time=obj.created_at
+                        )
+                    
+                    # Fallback to legacy calculation
                     pricing = ProviderServicePricing.objects.filter(
                         provider=provider_obj,
                         service=obj.service
@@ -965,6 +1052,45 @@ class RideHistorySerializer(serializers.ModelSerializer):
         except Exception as e:
             print(f"Error calculating price: {e}")
         return 0
+    
+    def get_pricing_details(self, obj):
+        """Get detailed pricing breakdown"""
+        try:
+            if obj.provider and obj.service:
+                provider_obj = getattr(obj.provider, 'provider', None)
+                if provider_obj:
+                    pricing = ProviderServicePricing.get_pricing_for_location(
+                        provider=provider_obj,
+                        service=obj.service,
+                        sub_service=provider_obj.sub_service,
+                        lat=obj.pickup_lat,
+                        lng=obj.pickup_lng
+                    )
+                    
+                    if pricing and pricing.zone:
+                        # Calculate distance and duration
+                        if all([obj.pickup_lat, obj.pickup_lng, obj.drop_lat, obj.drop_lng]):
+                            distance_km = self._calculate_distance(
+                                obj.pickup_lat, obj.pickup_lng, obj.drop_lat, obj.drop_lng
+                            )
+                            duration_minutes = (distance_km / 30) * 60
+                        else:
+                            distance_km = 0
+                            duration_minutes = 0
+                        
+                        return {
+                            "zone_name": pricing.zone.name,
+                            "base_fare": float(pricing.base_fare),
+                            "price_per_km": float(pricing.price_per_km),
+                            "price_per_minute": float(pricing.price_per_minute),
+                            "distance_km": round(distance_km, 2),
+                            "duration_minutes": round(duration_minutes, 2),
+                            "minimum_fare": float(pricing.minimum_fare),
+                            "peak_hour_multiplier": float(pricing.peak_hour_multiplier),
+                        }
+        except Exception as e:
+            print(f"Error getting pricing details: {e}")
+        return None
 
     def get_rating(self, obj):
         """Get rating for the ride (based on user role)"""
