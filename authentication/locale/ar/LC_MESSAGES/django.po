@@ -395,6 +395,106 @@ msgstr "صورة المنتج"
 msgid "Product Images"
 msgstr "صور المنتجات"
 
+#: authentication/models.py:XXX
+msgid "Zone Name"
+msgstr "اسم المنطقة"
+
+#: authentication/models.py:XXX
+msgid "Zone Boundaries"
+msgstr "حدود المنطقة"
+
+#: authentication/models.py:XXX
+msgid "Array of coordinate points defining the zone"
+msgstr "مصفوفة من النقاط الإحداثية التي تحدد المنطقة"
+
+#: authentication/models.py:XXX
+msgid "Pricing Zone"
+msgstr "منطقة التسعير"
+
+#: authentication/models.py:XXX
+msgid "Pricing Zones"
+msgstr "مناطق التسعير"
+
+#: authentication/models.py:XXX
+msgid "Base Fare"
+msgstr "التعرفة الأساسية"
+
+#: authentication/models.py:XXX
+msgid "Fixed starting price"
+msgstr "السعر الثابت للبداية"
+
+#: authentication/models.py:XXX
+msgid "Price per KM"
+msgstr "السعر لكل كيلومتر"
+
+#: authentication/models.py:XXX
+msgid "Price per Minute"
+msgstr "السعر لكل دقيقة"
+
+#: authentication/models.py:XXX
+msgid "Minimum Fare"
+msgstr "الحد الأدنى للتعرفة"
+
+#: authentication/models.py:XXX
+msgid "Minimum total price for the ride"
+msgstr "الحد الأدنى للسعر الإجمالي للرحلة"
+
+#: authentication/models.py:XXX
+msgid "Peak Hour Multiplier"
+msgstr "مضاعف ساعات الذروة"
+
+#: authentication/models.py:XXX
+msgid "Multiplier for peak hours (e.g., 1.5 for 50% increase)"
+msgstr "مضاعف لساعات الذروة (مثل 1.5 لزيادة 50%)"
+
+#: authentication/models.py:XXX
+msgid "Peak Hours Start"
+msgstr "بداية ساعات الذروة"
+
+#: authentication/models.py:XXX
+msgid "Peak Hours End"
+msgstr "نهاية ساعات الذروة"
+
+#: authentication/admin.py:XXX
+msgid "Basic Information"
+msgstr "المعلومات الأساسية"
+
+#: authentication/admin.py:XXX
+msgid "Zone Boundaries"
+msgstr "حدود المنطقة"
+
+#: authentication/admin.py:XXX
+msgid "Define zone boundaries as JSON array of coordinates: [{"lat": 30.0444, "lng": 31.2357}, ...]"
+msgstr "حدد حدود المنطقة كمصفوفة JSON من الإحداثيات: [{"lat": 30.0444, "lng": 31.2357}, ...]"
+
+#: authentication/admin.py:XXX
+msgid "Legacy Pricing (Backward Compatibility)"
+msgstr "التسعير القديم (للتوافق مع الإصدارات السابقة)"
+
+#: authentication/admin.py:XXX
+msgid "These fields are kept for backward compatibility. Use zone-based pricing for new implementations."
+msgstr "هذه الحقول محفوظة للتوافق مع الإصدارات السابقة. استخدم التسعير القائم على المناطق للتطبيقات الجديدة."
+
+#: authentication/admin.py:XXX
+msgid "Zone-Based Pricing"
+msgstr "التسعير القائم على المناطق"
+
+#: authentication/admin.py:XXX
+msgid "Peak Hour Settings"
+msgstr "إعدادات ساعات الذروة"
+
+#: authentication/admin.py:XXX
+msgid "Provider"
+msgstr "مقدم الخدمة"
+
+#: authentication/admin.py:XXX
+msgid "Zone"
+msgstr "المنطقة"
+
+#: authentication/admin.py:XXX
+msgid "Default Zone"
+msgstr "المنطقة الافتراضية"
+
 #: authentication/serializers.py:66
 msgid "Invalid location format."
 msgstr "تنسيق الموقع غير صالح."
