@@ -47,6 +47,7 @@ from authentication.serializers import (
     ProfileUpdateSerializer,
     ProviderDriverRegisterSerializer,
     PricingZoneSerializer,
+    RideHistorySerializer,
     PriceCalculationSerializer
 )
 from authentication.choices import ROLE_CUSTOMER, ROLE_PROVIDER
@@ -1760,116 +1761,116 @@ def get_provider_service_pricing(provider, service):
 # pricing = get_provider_service_pricing(provider, service)
 # if not pricing:
 #     # Handle missing pricing (e.g., error or default)
-class PricingZoneViewSet(viewsets.ModelViewSet):
-    queryset = PricingZone.objects.all()
-    serializer_class = PricingZoneSerializer
-    permission_classes = [IsAuthenticated]
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
-    filterset_fields = ['is_active']
-    search_fields = ['name', 'description']
+# class PricingZoneViewSet(viewsets.ModelViewSet):
+#     queryset = PricingZone.objects.all()
+#     serializer_class = PricingZoneSerializer
+#     permission_classes = [IsAuthenticated]
+#     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+#     filterset_fields = ['is_active']
+#     search_fields = ['name', 'description']
     
-    def get_permissions(self):
-        """
-        Only admin can create/update/delete zones, others can only read
-        """
-        if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            permission_classes = [IsAdminUser]
-        else:
-            permission_classes = [IsAuthenticated]
-        return [permission() for permission in permission_classes]
+#     def get_permissions(self):
+#         """
+#         Only admin can create/update/delete zones, others can only read
+#         """
+#         if self.action in ['create', 'update', 'partial_update', 'destroy']:
+#             permission_classes = [IsAdminUser]
+#         else:
+#             permission_classes = [IsAuthenticated]
+#         return [permission() for permission in permission_classes]
 # total = pricing.application_fee + pricing.service_price + (pricing.delivery_fee_per_km * distance_km)
 
-class CalculatePriceView(APIView):
-    """
-    Calculate ride price based on pickup/drop locations and service
-    """
-    permission_classes = [IsAuthenticated]
+# class CalculatePriceView(APIView):
+#     """
+#     Calculate ride price based on pickup/drop locations and service
+#     """
+#     permission_classes = [IsAuthenticated]
     
-    def post(self, request):
-        serializer = PriceCalculationSerializer(data=request.data)
-        if serializer.is_valid():
-            data = serializer.validated_data
+#     def post(self, request):
+#         serializer = PriceCalculationSerializer(data=request.data)
+#         if serializer.is_valid():
+#             data = serializer.validated_data
             
-            # Find available providers for the service
-            providers = Provider.objects.filter(
-                services=data['service'],
-                is_verified=True
-            )
+#             # Find available providers for the service
+#             providers = Provider.objects.filter(
+#                 services=data['service'],
+#                 is_verified=True
+#             )
             
-            if data.get('sub_service'):
-                providers = providers.filter(sub_service=data['sub_service'])
+#             if data.get('sub_service'):
+#                 providers = providers.filter(sub_service=data['sub_service'])
             
-            pricing_options = []
+#             pricing_options = []
             
-            for provider in providers:
-                # Get pricing for pickup location
-        # Get pricing for this service and location
-        pricing = ProviderServicePricing.get_pricing_for_location(
-            service=service,
-            sub_service=sub_service,
-            lat=pickup_lat,
-            lng=pickup_lng
-        )
+#             for provider in providers:
+#                 # Get pricing for pickup location
+#         # Get pricing for this service and location
+#         pricing = ProviderServicePricing.get_pricing_for_location(
+#             service=service,
+#             sub_service=sub_service,
+#             lat=pickup_lat,
+#             lng=pickup_lng
+#         )
         
-        if not pricing:
-            return Response({
-                'error': 'No pricing available for this service and location'
-            }, status=status.HTTP_404_NOT_FOUND)
+#         if not pricing:
+#             return Response({
+#                 'error': 'No pricing available for this service and location'
+#             }, status=status.HTTP_404_NOT_FOUND)
         
-        total_price = pricing.calculate_price(
-            distance_km=distance_km,
-            duration_minutes=duration_minutes,
-            pickup_time=pickup_time
-        )
+#         total_price = pricing.calculate_price(
+#             distance_km=distance_km,
+#             duration_minutes=duration_minutes,
+#             pickup_time=pickup_time
+#         )
         
-        # Calculate breakdown
-        base_cost = float(pricing.base_fare)
-        distance_cost = float(pricing.price_per_km) * distance_km
-        time_cost = float(pricing.price_per_minute) * duration_minutes
-        subtotal = base_cost + distance_cost + time_cost
+#         # Calculate breakdown
+#         base_cost = float(pricing.base_fare)
+#         distance_cost = float(pricing.price_per_km) * distance_km
+#         time_cost = float(pricing.price_per_minute) * duration_minutes
+#         subtotal = base_cost + distance_cost + time_cost
         
-        # Apply peak hour multiplier
-        peak_multiplier = 1.0
-        if pickup_time and pricing.peak_hours_start and pricing.peak_hours_end:
-            pickup_time_only = pickup_time.time() if hasattr(pickup_time, 'time') else pickup_time
-            if pricing.peak_hours_start <= pickup_time_only <= pricing.peak_hours_end:
-                peak_multiplier = float(pricing.peak_hour_multiplier)
-        booking_fee = float(pricing.booking_fee or 0)
-                'service_name': data['service'].name,
-                'sub_service': data.get('sub_service'),
-            'zone_name': pricing.zone.name if pricing.zone else 'Default Zone',
-            'total_price': final_total,
-            'distance_km': round(distance_km, 2),
-            'estimated_duration_minutes': round(duration_minutes, 2),
-            'pricing_breakdown': {
-                'base_fare': base_cost,
-                'distance_cost': float(pricing.price_per_km) * distance_km,
-                'time_cost': float(pricing.price_per_minute) * duration_minutes,
-                'subtotal': base_cost + distance_cost + time_cost,
-                'peak_multiplier': peak_multiplier,
-                'subtotal_after_peak': subtotal,
-                'platform_fee': platform_fee,
-                'service_fee': service_fee,
-                'booking_fee': booking_fee,
-                'total_with_fees': total_with_fees,
-                'minimum_fare': float(pricing.minimum_fare),
-                'final_total': final_total
-            }
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+#         # Apply peak hour multiplier
+#         peak_multiplier = 1.0
+#         if pickup_time and pricing.peak_hours_start and pricing.peak_hours_end:
+#             pickup_time_only = pickup_time.time() if hasattr(pickup_time, 'time') else pickup_time
+#             if pricing.peak_hours_start <= pickup_time_only <= pricing.peak_hours_end:
+#                 peak_multiplier = float(pricing.peak_hour_multiplier)
+#         booking_fee = float(pricing.booking_fee or 0)
+#                 'service_name': data['service'].name,
+#                 'sub_service': data.get('sub_service'),
+#             'zone_name': pricing.zone.name if pricing.zone else 'Default Zone',
+#             'total_price': final_total,
+#             'distance_km': round(distance_km, 2),
+#             'estimated_duration_minutes': round(duration_minutes, 2),
+#             'pricing_breakdown': {
+#                 'base_fare': base_cost,
+#                 'distance_cost': float(pricing.price_per_km) * distance_km,
+#                 'time_cost': float(pricing.price_per_minute) * duration_minutes,
+#                 'subtotal': base_cost + distance_cost + time_cost,
+#                 'peak_multiplier': peak_multiplier,
+#                 'subtotal_after_peak': subtotal,
+#                 'platform_fee': platform_fee,
+#                 'service_fee': service_fee,
+#                 'booking_fee': booking_fee,
+#                 'total_with_fees': total_with_fees,
+#                 'minimum_fare': float(pricing.minimum_fare),
+#                 'final_total': final_total
+#             }
+#         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
-    def _calculate_distance(self, lat1, lon1, lat2, lon2):
-        """Calculate distance between two points in kilometers"""
-        import math
-        R = 6371.0  # Radius of Earth in kilometers
-        phi1 = math.radians(lat1)
-        phi2 = math.radians(lat2)
-        d_phi = math.radians(lat2 - lat1)
-        d_lambda = math.radians(lon2 - lon1)
+#     def _calculate_distance(self, lat1, lon1, lat2, lon2):
+#         """Calculate distance between two points in kilometers"""
+#         import math
+#         R = 6371.0  # Radius of Earth in kilometers
+#         phi1 = math.radians(lat1)
+#         phi2 = math.radians(lat2)
+#         d_phi = math.radians(lat2 - lat1)
+#         d_lambda = math.radians(lon2 - lon1)
 
-        a = math.sin(d_phi / 2)**2 + math.cos(phi1) * math.cos(phi2) * math.sin(d_lambda / 2)**2
-        c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+#         a = math.sin(d_phi / 2)**2 + math.cos(phi1) * math.cos(phi2) * math.sin(d_lambda / 2)**2
+#         c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
-        return round(R * c, 2)
+#         return round(R * c, 2)
 
 from dal import autocomplete
 class ProviderAutocomplete(autocomplete.Select2QuerySetView):
@@ -1989,7 +1990,7 @@ class RideHistoryView(generics.ListAPIView):
             
             # Only include statistics on first page (optimized performance)
             if page_number == 1:
-            return ProviderServicePricing.objects.select_related('provider__user', 'service', 'zone').all()
+                return ProviderServicePricing.objects.select_related('provider__user', 'service', 'zone').all()
             
             return ProviderServicePricing.objects.select_related('provider__user', 'service', 'zone').filter(provider=self.request.user.provider)
         else:

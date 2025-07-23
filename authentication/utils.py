@@ -110,3 +110,29 @@ def create_notification(user, title, message, notification_type='general', data=
     return notification
 
 
+def send_whatsapp_message(to_number):
+    token = 'EAAPPOWkxN58BPLZA5ZCgzoiNIwZCnVwz2CM7jvPaOwtzhKQtin7PRcijCVmsxYI47ftrvZBBVUPhlUTjM8mWJT0j21WjPaB9HZAgXGquoRs0TA3QZAIrfHjs1wIuBYMKcOTo3tNh4Ovf2AZAvbKEOSssRGXIvtAvIWq98VUJk3PcccML5ZCSfK0tOykIiDOLCE0TepSWqZCBSSIMsPNvl0HhQ3KJZCFzXAZAfluPf2n0Ln2ZCCAATQZDZD'
+    phone_number_id = '703448656188733'
+    url = f'https://graph.facebook.com/v22.0/{phone_number_id}/messages'
+
+    headers = {
+        'Authorization': f'Bearer {token}',
+        'Content-Type': 'application/json'
+    }
+
+    data = {
+        "messaging_product": "whatsapp",
+        "to": to_number,
+        "type": "template",
+        "template": {
+            "name": "hello_world",  # Must match the approved template name
+            "language": {
+                "code": "en_US"
+            }
+        }
+    }
+
+    response = requests.post(url, headers=headers, json=data)
+    return response.json()
+
+

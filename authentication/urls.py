@@ -56,7 +56,7 @@ router.register(r'availability', CarAvailabilityViewSet)
 router.register(r'rentals', CarRentalViewSet)
 router.register("driver-profiles", DriverProfileViewSet, basename="driver-profiles")
 router.register("service-pricing", ProviderServicePricingViewSet, basename="service-pricing")
-router.register("pricing-zones", PricingZoneViewSet, basename="pricing-zones")
+# router.register("pricing-zones", PricingZoneViewSet, basename="pricing-zones")
 
 
 urlpatterns = [
@@ -94,7 +94,7 @@ urlpatterns = [
     path('rides/<int:ride_id>/rating/', RideRatingView.as_view(), name='ride-rating'),
     path('provider-autocomplete/', ProviderAutocomplete.as_view(), name='provider-autocomplete'),
     path('service-autocomplete/', ServiceAutocomplete.as_view(), name='service-autocomplete'),
-    path('calculate-price/', CalculatePriceView.as_view(), name='calculate-price'),
+    # path('calculate-price/', CalculatePriceView.as_view(), name='calculate-price'),
 
 
 
