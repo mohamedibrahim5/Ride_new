@@ -8,7 +8,7 @@ This diagram shows the e-commerce functionality of the platform.
 classDiagram
     class Product {
         +id: BigAutoField
-        +provider: ForeignKey→Provider
+        +provider: ForeignKey to Provider
         +name: CharField[100]
         +description: TextField
         +display_price: PositiveIntegerField
@@ -16,40 +16,40 @@ classDiagram
         +is_active: BooleanField
         +created_at: DateTimeField
         +updated_at: DateTimeField
-        +save(): void
-        +__str__(): str
+        +save()
+        +__str__()
     }
 
     class ProductImage {
         +id: BigAutoField
-        +product: ForeignKey→Product
+        +product: ForeignKey to Product
         +image: ImageField
-        +__str__(): str
+        +__str__()
     }
 
     class Purchase {
         +id: BigAutoField
-        +customer: ForeignKey→Customer
-        +product: ForeignKey→Product
+        +customer: ForeignKey to Customer
+        +product: ForeignKey to Product
         +money_spent: PositiveIntegerField
         +quantity: PositiveIntegerField
-        +status: CharField[20] // e.g., pending, confirmed, in_progress, completed, cancelled
+        +status: CharField[20] (e.g. pending, confirmed, ...)
         +created_at: DateTimeField
-        +__str__(): str
+        +__str__()
     }
 
     class UserPoints {
         +id: BigAutoField
-        +user: OneToOneField→User
+        +user: OneToOneField to User
         +points: PositiveIntegerField
-        +add_points(amount: int): void
-        +deduct_points(amount: int): bool
-        +__str__(): str
+        +add_points(amount)
+        +deduct_points(amount)
+        +__str__()
     }
 
     class CarAgency {
         +id: BigAutoField
-        +provider: ForeignKey→Provider
+        +provider: ForeignKey to Provider
         +model: CharField[50]
         +brand: CharField[50]
         +color: CharField[20]
@@ -57,57 +57,44 @@ classDiagram
         +available: BooleanField
         +image: ImageField
         +created_at: DateTimeField
-        +update_availability(): void
-        +__str__(): str
+        +update_availability()
+        +__str__()
     }
 
     class CarAvailability {
         +id: BigAutoField
-        +car: ForeignKey→CarAgency
+        +car: ForeignKey to CarAgency
         +start_time: DateTimeField
         +end_time: DateTimeField
-        +is_available(): bool
-        +__str__(): str
+        +is_available()
+        +__str__()
     }
 
     class CarRental {
         +id: BigAutoField
-        +customer: ForeignKey→Customer
-        +car: ForeignKey→CarAgency
+        +customer: ForeignKey to Customer
+        +car: ForeignKey to CarAgency
         +start_datetime: DateTimeField
         +end_datetime: DateTimeField
         +total_price: DecimalField[10,2]
-        +status: CharField[20] // e.g., pending, confirmed, in_progress, completed, cancelled
+        +status: CharField[20] (e.g. pending, confirmed, ...)
         +created_at: DateTimeField
-        +calculate_total_price(): void
-        +save(): void
-        +__str__(): str
+        +calculate_total_price()
+        +save()
+        +__str__()
     }
 
     %% Relationships
-    Provider ||--o{ Product : "1:*"
-    Product ||--o{ ProductImage : "1:*"
-    Product ||--o{ Purchase : "1:*"
-    Customer ||--o{ Purchase : "1:*"
-    User ||--|| UserPoints : "1:1"
-    Provider ||--o{ CarAgency : "1:*"
-    CarAgency ||--o{ CarAvailability : "1:*"
-    CarAgency ||--o{ CarRental : "1:*"
-    Customer ||--o{ CarRental : "1:*"
+    Provider --> Product
+    Product --> ProductImage
+    Product --> Purchase
+    Customer --> Purchase
+    User --> UserPoints
+    Provider --> CarAgency
+    CarAgency --> CarAvailability
+    CarAgency --> CarRental
+    Customer --> CarRental
 
-    %% Styling
-    classDef productClass fill:#fff8e1
-    classDef purchaseClass fill:#e8f5e8
-    classDef pointsClass fill:#f3e5f5
-    classDef carClass fill:#e1f5fe
-
-    class Product productClass
-    class ProductImage productClass
-    class Purchase purchaseClass
-    class UserPoints pointsClass
-    class CarAgency carClass
-    class CarAvailability carClass
-    class CarRental carClass
 ```
 
 
