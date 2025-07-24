@@ -36,17 +36,12 @@ classDiagram
         +is_active: BooleanField
         +last_login: DateTimeField
         +date_joined: DateTimeField
-        +create_user()
-        +check_password()
-        +set_password()
     }
 
     class Customer {
         +id: BigAutoField
         +user: OneToOneField
         +in_ride: BooleanField
-        +get_ride_history()
-        +book_ride()
     }
 
     class Provider {
@@ -56,9 +51,6 @@ classDiagram
         +sub_service: CharField
         +is_verified: BooleanField
         +in_ride: BooleanField
-        +has_maintenance_service()
-        +accept_ride()
-        +update_location()
     }
 
     class DriverProfile {
@@ -68,7 +60,6 @@ classDiagram
         +status: CharField
         +is_verified: BooleanField
         +documents: FileField
-        +update_status()
     }
 
     class DriverCar {
@@ -85,7 +76,6 @@ classDiagram
         +id: BigAutoField
         +user: OneToOneField
         +otp: CharField
-        +verify()
     }
 
     User ||--|| Customer : "1:1"
@@ -93,6 +83,12 @@ classDiagram
     User ||--|| UserOtp : "1:1"
     Provider ||--|| DriverProfile : "1:1"
     DriverProfile ||--|| DriverCar : "1:1"
+
+    note for Customer "Methods: get_ride_history, book_ride"
+    note for Provider "Methods: has_maintenance_service, accept_ride, update_location"
+    note for DriverProfile "Methods: update_status"
+    note for UserOtp "Method: verify"
+    note for User "Methods: create_user, check_password, set_password"
 ```
 
 ### 2. Service Management Class Diagram
