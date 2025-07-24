@@ -84,11 +84,6 @@ classDiagram
     Provider ||--|| DriverProfile : "1:1"
     DriverProfile ||--|| DriverCar : "1:1"
 
-    note for Customer "Methods: get_ride_history, book_ride"
-    note for Provider "Methods: has_maintenance_service, accept_ride, update_location"
-    note for DriverProfile "Methods: update_status"
-    note for UserOtp "Method: verify"
-    note for User "Methods: create_user, check_password, set_password"
 ```
 
 ### 2. Service Management Class Diagram
