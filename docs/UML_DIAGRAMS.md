@@ -21,68 +21,68 @@ This document contains comprehensive UML diagrams for the ride-sharing and food 
 ```mermaid
 classDiagram
     class User {
-        +id: BigAutoField
-        +name: CharField
-        +phone: CharField
-        +email: EmailField
-        +image: ImageField
-        +role: CharField
-        +location: PlainLocationField
-        +location2_lat: FloatField
-        +location2_lng: FloatField
-        +average_rating: DecimalField
-        +fcm_registration_id: CharField
-        +device_type: CharField
-        +is_active: BooleanField
-        +last_login: DateTimeField
-        +date_joined: DateTimeField
+        id: BigAutoField
+        name: CharField
+        phone: CharField
+        email: EmailField
+        image: ImageField
+        role: CharField
+        location: PlainLocationField
+        location2_lat: FloatField
+        location2_lng: FloatField
+        average_rating: DecimalField
+        fcm_registration_id: CharField
+        device_type: CharField
+        is_active: BooleanField
+        last_login: DateTimeField
+        date_joined: DateTimeField
     }
 
     class Customer {
-        +id: BigAutoField
-        +user: OneToOneField
-        +in_ride: BooleanField
+        id: BigAutoField
+        user: OneToOneField
+        in_ride: BooleanField
     }
 
     class Provider {
-        +id: BigAutoField
-        +user: OneToOneField
-        +services: ManyToManyField
-        +sub_service: CharField
-        +is_verified: BooleanField
-        +in_ride: BooleanField
+        id: BigAutoField
+        user: OneToOneField
+        services: ManyToManyField
+        sub_service: CharField
+        is_verified: BooleanField
+        in_ride: BooleanField
     }
 
     class DriverProfile {
-        +id: BigAutoField
-        +provider: OneToOneField
-        +license: CharField
-        +status: CharField
-        +is_verified: BooleanField
-        +documents: FileField
+        id: BigAutoField
+        provider: OneToOneField
+        license: CharField
+        status: CharField
+        is_verified: BooleanField
+        documents: FileField
     }
 
     class DriverCar {
-        +id: BigAutoField
-        +driver_profile: OneToOneField
-        +type: CharField
-        +model: CharField
-        +number: CharField
-        +color: CharField
-        +image: ImageField
+        id: BigAutoField
+        driver_profile: OneToOneField
+        type: CharField
+        model: CharField
+        number: CharField
+        color: CharField
+        image: ImageField
     }
 
     class UserOtp {
-        +id: BigAutoField
-        +user: OneToOneField
-        +otp: CharField
+        id: BigAutoField
+        user: OneToOneField
+        otp: CharField
     }
 
-    User ||--|| Customer : "1:1"
-    User ||--|| Provider : "1:1"
-    User ||--|| UserOtp : "1:1"
-    Provider ||--|| DriverProfile : "1:1"
-    DriverProfile ||--|| DriverCar : "1:1"
+    User --> Customer : has 1
+    User --> Provider : has 1
+    User --> UserOtp : has 1
+    Provider --> DriverProfile : has 1
+    DriverProfile --> DriverCar : has 1
 
 ```
 
