@@ -1971,13 +1971,9 @@ class RideHistoryView(generics.ListAPIView):
         return context
 
     def list(self, request, *args, **kwargs):
-        """
-        Get ride history with optimized statistics (cached and only on first page).
-        """
         queryset = self.get_queryset()
         page = self.paginate_queryset(queryset)
         
-        # Get current page number
         page_number = request.query_params.get('page', 1)
         try:
             page_number = int(page_number)
@@ -1987,19 +1983,21 @@ class RideHistoryView(generics.ListAPIView):
         if page is not None:
             serializer = self.get_serializer(page, many=True)
             response_data = self.get_paginated_response(serializer.data)
-            
-            # Only include statistics on first page (optimized performance)
+    
+            # Include statistics only on the first page
             if page_number == 1:
-                return ProviderServicePricing.objects.select_related('provider__user', 'service', 'zone').all()
-            
-            return ProviderServicePricing.objects.select_related('provider__user', 'service', 'zone').filter(provider=self.request.user.provider)
-        else:
-            serializer = self.get_serializer(queryset, many=True)
-            response_data = {
-                'results': serializer.data,
-                'statistics': self._get_cached_statistics(queryset)
-            }
-            return Response(response_data)
+                statistics = self._get_cached_statistics(queryset)
+                response_data.data['statistics'] = statistics
+    
+            return response_data  # ✅ Already a DRF Response
+    
+        # No pagination
+        serializer = self.get_serializer(queryset, many=True)
+        response_data = {
+            'results': serializer.data,
+            'statistics': self._get_cached_statistics(queryset)
+        }
+        return Response(response_data)  # ✅ Wrapped in DRF Response
 
     def _get_cached_statistics(self, queryset):
         """Get cached statistics or calculate and cache them"""
