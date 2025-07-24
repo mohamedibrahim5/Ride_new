@@ -16,7 +16,6 @@ classDiagram
         +is_active: BooleanField
         +created_at: DateTimeField
         +updated_at: DateTimeField
-        --
         +save(): void
         +__str__(): str
     }
@@ -25,7 +24,6 @@ classDiagram
         +id: BigAutoField
         +product: ForeignKey→Product
         +image: ImageField
-        --
         +__str__(): str
     }
 
@@ -35,9 +33,8 @@ classDiagram
         +product: ForeignKey→Product
         +money_spent: PositiveIntegerField
         +quantity: PositiveIntegerField
-        +status: CharField[20] {pending|confirmed|in_progress|completed|cancelled}
+        +status: CharField[20] // e.g., pending, confirmed, in_progress, completed, cancelled
         +created_at: DateTimeField
-        --
         +__str__(): str
     }
 
@@ -45,7 +42,6 @@ classDiagram
         +id: BigAutoField
         +user: OneToOneField→User
         +points: PositiveIntegerField
-        --
         +add_points(amount: int): void
         +deduct_points(amount: int): bool
         +__str__(): str
@@ -61,7 +57,6 @@ classDiagram
         +available: BooleanField
         +image: ImageField
         +created_at: DateTimeField
-        --
         +update_availability(): void
         +__str__(): str
     }
@@ -71,7 +66,6 @@ classDiagram
         +car: ForeignKey→CarAgency
         +start_time: DateTimeField
         +end_time: DateTimeField
-        --
         +is_available(): bool
         +__str__(): str
     }
@@ -83,9 +77,8 @@ classDiagram
         +start_datetime: DateTimeField
         +end_datetime: DateTimeField
         +total_price: DecimalField[10,2]
-        +status: CharField[20] {pending|confirmed|in_progress|completed|cancelled}
+        +status: CharField[20] // e.g., pending, confirmed, in_progress, completed, cancelled
         +created_at: DateTimeField
-        --
         +calculate_total_price(): void
         +save(): void
         +__str__(): str
@@ -116,6 +109,7 @@ classDiagram
     class CarAvailability carClass
     class CarRental carClass
 ```
+
 
 ## Purchase Flow State Machine
 
