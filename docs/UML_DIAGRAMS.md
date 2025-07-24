@@ -91,79 +91,74 @@ classDiagram
 ```mermaid
 classDiagram
     class Service {
-        +id: BigAutoField
-        +name: CharField
-        +created_at: DateTimeField
-        +get_providers()
+        id: BigAutoField
+        name: CharField
+        created_at: DateTimeField
     }
 
     class ServiceImage {
-        +id: BigAutoField
-        +service: ForeignKey
-        +image: ImageField
+        id: BigAutoField
+        service: ForeignKey
+        image: ImageField
     }
 
     class PricingZone {
-        +id: BigAutoField
-        +name: CharField
-        +description: TextField
-        +boundaries: JSONField
-        +is_active: BooleanField
-        +created_at: DateTimeField
-        +contains_point(lat, lng)
+        id: BigAutoField
+        name: CharField
+        description: TextField
+        boundaries: JSONField
+        is_active: BooleanField
+        created_at: DateTimeField
     }
 
     class ProviderServicePricing {
-        +id: BigAutoField
-        +service: ForeignKey
-        +sub_service: CharField
-        +zone: ForeignKey
-        +platform_fee: DecimalField
-        +service_fee: DecimalField
-        +booking_fee: DecimalField
-        +base_fare: DecimalField
-        +price_per_km: DecimalField
-        +price_per_minute: DecimalField
-        +minimum_fare: DecimalField
-        +peak_hour_multiplier: DecimalField
-        +peak_hours_start: TimeField
-        +peak_hours_end: TimeField
-        +is_active: BooleanField
-        +calculate_price(distance, duration, time)
-        +get_pricing_for_location(service, sub_service, lat, lng)
+        id: BigAutoField
+        service: ForeignKey
+        sub_service: CharField
+        zone: ForeignKey
+        platform_fee: DecimalField
+        service_fee: DecimalField
+        booking_fee: DecimalField
+        base_fare: DecimalField
+        price_per_km: DecimalField
+        price_per_minute: DecimalField
+        minimum_fare: DecimalField
+        peak_hour_multiplier: DecimalField
+        peak_hours_start: TimeField
+        peak_hours_end: TimeField
+        is_active: BooleanField
     }
 
     class RideStatus {
-        +id: BigAutoField
-        +client: ForeignKey
-        +provider: ForeignKey
-        +service: ForeignKey
-        +status: CharField
-        +pickup_lat: FloatField
-        +pickup_lng: FloatField
-        +drop_lat: FloatField
-        +drop_lng: FloatField
-        +created_at: DateTimeField
-        +can_be_rated_by(user)
-        +update_status()
+        id: BigAutoField
+        client: ForeignKey
+        provider: ForeignKey
+        service: ForeignKey
+        status: CharField
+        pickup_lat: FloatField
+        pickup_lng: FloatField
+        drop_lat: FloatField
+        drop_lng: FloatField
+        created_at: DateTimeField
     }
 
     class Rating {
-        +id: BigAutoField
-        +ride: OneToOneField
-        +driver_rating: PositiveSmallIntegerField
-        +customer_rating: PositiveSmallIntegerField
-        +driver_comment: TextField
-        +customer_comment: TextField
-        +created_at: DateTimeField
-        +updated_at: DateTimeField
+        id: BigAutoField
+        ride: OneToOneField
+        driver_rating: PositiveSmallIntegerField
+        customer_rating: PositiveSmallIntegerField
+        driver_comment: TextField
+        customer_comment: TextField
+        created_at: DateTimeField
+        updated_at: DateTimeField
     }
 
-    Service ||--o{ ServiceImage : "1:*"
-    Service ||--o{ ProviderServicePricing : "1:*"
-    PricingZone ||--o{ ProviderServicePricing : "1:*"
-    RideStatus ||--|| Rating : "1:1"
-    Service ||--o{ RideStatus : "1:*"
+    Service o-- ServiceImage : has
+    Service o-- ProviderServicePricing : pricing
+    PricingZone o-- ProviderServicePricing : zone
+    RideStatus --> Rating : has 1
+    Service o-- RideStatus : has many
+
 ```
 
 ### 3. E-commerce Class Diagram
