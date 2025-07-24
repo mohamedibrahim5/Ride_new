@@ -838,31 +838,7 @@ stateDiagram-v2
 
 7. **State Diagrams**: Use for modeling entity lifecycles, business rule validation, and status management.
 
-### Maintenance Guidelines
-
-- Update diagrams when system architecture changes
-- Review diagrams during code reviews
-- Use diagrams for onboarding new team members
-- Keep diagrams in version control alongside code
-- Generate diagrams from code when possible
-
 ---
 
-## Tools and Resources
-
-### Recommended Tools
-- **Mermaid**: For version-controlled diagrams
-- **PlantUML**: For complex UML diagrams
-- **Draw.io**: For collaborative diagram creation
-- **Lucidchart**: For professional presentations
-
-### Integration
-- Embed diagrams in documentation
-- Include in API documentation
-- Use in technical specifications
-- Reference in code comments
-
----
-
-*Last Updated: January 2025*
+*Last Updated: July 2025*
 *Version: 1.0*
