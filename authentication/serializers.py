@@ -994,101 +994,96 @@ class RideHistorySerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
     def get_total_price(self, obj):
-        """Get total price for the ride using new pricing system"""
+        """Get total price for the ride using zone/location-based pricing"""
         try:
-            if obj.provider and obj.service:
-                provider_obj = getattr(obj.provider, 'provider', None)
-                if provider_obj:
-                    # Get pricing based on pickup location
-                    pricing = ProviderServicePricing.get_pricing_for_location(
-                        provider=provider_obj,
-                        service=obj.service,
-                        sub_service=provider_obj.sub_service,
-                        lat=obj.pickup_lat,
-                        lng=obj.pickup_lng
-                    )
-                    
-                    if pricing:
-                        # Calculate distance and estimated duration
-                        if all([obj.pickup_lat, obj.pickup_lng, obj.drop_lat, obj.drop_lng]):
-                            distance_km = self._calculate_distance(
-                                obj.pickup_lat, obj.pickup_lng, obj.drop_lat, obj.drop_lng
-                            )
-                            # Estimate duration (assuming average speed of 30 km/h in city)
-                            duration_minutes = (distance_km / 30) * 60
-                        else:
-                            distance_km = 0
-                            duration_minutes = 0
-                        
-                        return pricing.calculate_price(
-                            distance_km=distance_km,
-                            duration_minutes=duration_minutes,
-                            pickup_time=obj.created_at
+            if obj.service:
+                pricing = ProviderServicePricing.get_pricing_for_location(
+                    service=obj.service,
+                    sub_service=None,
+                    lat=obj.pickup_lat,
+                    lng=obj.pickup_lng
+                )
+
+                if pricing:
+                    if all([obj.pickup_lat, obj.pickup_lng, obj.drop_lat, obj.drop_lng]):
+                        distance_km = self._calculate_distance(
+                            obj.pickup_lat, obj.pickup_lng, obj.drop_lat, obj.drop_lng
                         )
-                    
-                    # Fallback to legacy calculation
-                    pricing = ProviderServicePricing.objects.filter(
-                        service=obj.service
-                    ).first()
-                    
-                    if pricing:
-                        # Calculate distance
-                        if all([obj.pickup_lat, obj.pickup_lng, obj.drop_lat, obj.drop_lng]):
-                            distance_km = self._calculate_distance(
-                                obj.pickup_lat, obj.pickup_lng, obj.drop_lat, obj.drop_lng
-                            )
-                        else:
-                            distance_km = 0
+                        duration_minutes = (distance_km / 30) * 60  # estimate
+                    else:
+                        distance_km = 0
+                        duration_minutes = 0
 
-                        application_fee = float(pricing.application_fee or 0)
-                        service_price = float(pricing.service_price or 0)
-                        delivery_fee_per_km = float(pricing.delivery_fee_per_km or 0)
-                        delivery_fee_total = delivery_fee_per_km * distance_km
-                        total_price = round(application_fee + service_price + delivery_fee_total, 2)
+                    return pricing.calculate_price(
+                        distance_km=distance_km,
+                        duration_minutes=duration_minutes,
+                        pickup_time=obj.created_at
+                    )
 
-                        return total_price
+                # Fallback if no zone-based pricing found
+                pricing = ProviderServicePricing.objects.filter(
+                    service=obj.service,
+                    zone__isnull=True,
+                    is_active=True
+                ).first()
+
+                if pricing:
+                    if all([obj.pickup_lat, obj.pickup_lng, obj.drop_lat, obj.drop_lng]):
+                        distance_km = self._calculate_distance(
+                            obj.pickup_lat, obj.pickup_lng, obj.drop_lat, obj.drop_lng
+                        )
+                    else:
+                        distance_km = 0
+
+                    total_price = (
+                        float(pricing.base_fare or 0) +
+                        float(pricing.price_per_km or 0) * distance_km +
+                        float(pricing.platform_fee or 0) +
+                        float(pricing.service_fee or 0) +
+                        float(pricing.booking_fee or 0)
+                    )
+                    return round(max(total_price, float(pricing.minimum_fare or 0)), 2)
+
         except Exception as e:
             print(f"Error calculating price: {e}")
         return 0
+
     
     def get_pricing_details(self, obj):
-        """Get detailed pricing breakdown"""
+        """Get detailed pricing breakdown based on location"""
         try:
-            if obj.provider and obj.service:
-                provider_obj = getattr(obj.provider, 'provider', None)
-                if provider_obj:
-                    pricing = ProviderServicePricing.get_pricing_for_location(
-                        provider=provider_obj,
-                        service=obj.service,
-                        sub_service=provider_obj.sub_service,
-                        lat=obj.pickup_lat,
-                        lng=obj.pickup_lng
-                    )
-                    
-                    if pricing and pricing.zone:
-                        # Calculate distance and duration
-                        if all([obj.pickup_lat, obj.pickup_lng, obj.drop_lat, obj.drop_lng]):
-                            distance_km = self._calculate_distance(
-                                obj.pickup_lat, obj.pickup_lng, obj.drop_lat, obj.drop_lng
-                            )
-                            duration_minutes = (distance_km / 30) * 60
-                        else:
-                            distance_km = 0
-                            duration_minutes = 0
-                        
-                        return {
-                            "zone_name": pricing.zone.name,
-                            "base_fare": float(pricing.base_fare),
-                            "price_per_km": float(pricing.price_per_km),
-                            "price_per_minute": float(pricing.price_per_minute),
-                            "distance_km": round(distance_km, 2),
-                            "duration_minutes": round(duration_minutes, 2),
-                            "minimum_fare": float(pricing.minimum_fare),
-                            "peak_hour_multiplier": float(pricing.peak_hour_multiplier),
-                        }
+            if obj.service:
+                pricing = ProviderServicePricing.get_pricing_for_location(
+                    service=obj.service,
+                    sub_service=None,
+                    lat=obj.pickup_lat,
+                    lng=obj.pickup_lng
+                )
+
+                if pricing:
+                    if all([obj.pickup_lat, obj.pickup_lng, obj.drop_lat, obj.drop_lng]):
+                        distance_km = self._calculate_distance(
+                            obj.pickup_lat, obj.pickup_lng, obj.drop_lat, obj.drop_lng
+                        )
+                        duration_minutes = (distance_km / 30) * 60
+                    else:
+                        distance_km = 0
+                        duration_minutes = 0
+
+                    return {
+                        "zone_name": pricing.zone.name if pricing.zone else "Default",
+                        "base_fare": float(pricing.base_fare),
+                        "price_per_km": float(pricing.price_per_km),
+                        "price_per_minute": float(pricing.price_per_minute),
+                        "distance_km": round(distance_km, 2),
+                        "duration_minutes": round(duration_minutes, 2),
+                        "minimum_fare": float(pricing.minimum_fare),
+                        "peak_hour_multiplier": float(pricing.peak_hour_multiplier),
+                    }
         except Exception as e:
             print(f"Error getting pricing details: {e}")
         return None
+
 
     def get_rating(self, obj):
         """Get rating for the ride (based on user role)"""
