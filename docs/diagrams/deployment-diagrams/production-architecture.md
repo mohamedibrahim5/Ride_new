@@ -142,107 +142,108 @@ graph TB
 ```mermaid
 graph TB
     subgraph "Kubernetes Cluster"
-        subgraph "Ingress"
-            Ingress[Nginx Ingress Controller]
+        subgraph "Ingress Layer"
+            IngressController[Nginx Ingress Controller]
         end
-        
+
         subgraph "Application Namespace"
             subgraph "Django Deployment"
                 DjangoPod1[Django Pod 1<br/>App + WebSocket]
                 DjangoPod2[Django Pod 2<br/>App + WebSocket]
                 DjangoPod3[Django Pod 3<br/>App + WebSocket]
             end
-            
+
             subgraph "Worker Deployment"
                 WorkerPod1[Celery Worker Pod 1]
                 WorkerPod2[Celery Worker Pod 2]
                 BeatPod[Celery Beat Pod]
                 FlowerPod[Flower Pod]
             end
-            
+
             subgraph "Services"
                 DjangoService[Django Service<br/>ClusterIP]
                 WorkerService[Worker Service<br/>ClusterIP]
                 FlowerService[Flower Service<br/>LoadBalancer]
             end
         end
-        
+
         subgraph "Database Namespace"
             subgraph "PostgreSQL StatefulSet"
                 PGPod1[PostgreSQL Master Pod]
                 PGPod2[PostgreSQL Slave Pod 1]
                 PGPod3[PostgreSQL Slave Pod 2]
             end
-            
+
             subgraph "Redis StatefulSet"
                 RedisPod1[Redis Master Pod]
                 RedisPod2[Redis Slave Pod 1]
                 RedisPod3[Redis Slave Pod 2]
             end
-            
+
             subgraph "Database Services"
                 PGService[PostgreSQL Service]
                 RedisService[Redis Service]
             end
-            
+
             subgraph "Persistent Storage"
                 PGVolume[PostgreSQL PVC]
                 RedisVolume[Redis PVC]
             end
         end
-        
+
         subgraph "Monitoring Namespace"
             PrometheusDeployment[Prometheus Deployment]
             GrafanaDeployment[Grafana Deployment]
             AlertManagerDeployment[AlertManager Deployment]
         end
-        
+
         subgraph "ConfigMaps & Secrets"
             AppConfig[Application ConfigMap]
             DBSecret[Database Secrets]
             APISecret[API Keys Secret]
         end
     end
-    
+
     subgraph "External Load Balancer"
         CloudLB[Cloud Load Balancer]
     end
-    
+
     %% External connections
-    CloudLB --> Ingress
-    Ingress --> DjangoService
-    
+    CloudLB --> IngressController
+    IngressController --> DjangoService
+
     %% Service connections
     DjangoService --> DjangoPod1
     DjangoService --> DjangoPod2
     DjangoService --> DjangoPod3
-    
+
     WorkerService --> WorkerPod1
     WorkerService --> WorkerPod2
     WorkerService --> BeatPod
-    
+    FlowerService --> FlowerPod
+
     %% Database connections
     DjangoPod1 --> PGService
     DjangoPod2 --> PGService
     DjangoPod3 --> PGService
     WorkerPod1 --> PGService
     WorkerPod2 --> PGService
-    
+
     PGService --> PGPod1
     PGService --> PGPod2
     PGService --> PGPod3
-    
+
     %% Redis connections
     DjangoPod1 --> RedisService
     DjangoPod2 --> RedisService
     DjangoPod3 --> RedisService
     WorkerPod1 --> RedisService
     WorkerPod2 --> RedisService
-    
+
     RedisService --> RedisPod1
     RedisService --> RedisPod2
     RedisService --> RedisPod3
-    
+
     %% Storage connections
     PGPod1 --> PGVolume
     PGPod2 --> PGVolume
@@ -250,11 +251,12 @@ graph TB
     RedisPod1 --> RedisVolume
     RedisPod2 --> RedisVolume
     RedisPod3 --> RedisVolume
-    
+
     %% Config connections
     DjangoPod1 --> AppConfig
     DjangoPod1 --> DBSecret
     DjangoPod1 --> APISecret
+
 ```
 
 ## Docker Compose Development Environment
