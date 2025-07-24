@@ -517,26 +517,44 @@ class RideStatusSerializer(serializers.ModelSerializer):
             "drop_lat",
             "drop_lng",
             "created_at",
-            "service_price_info",  # <-- Add this
+            "service_price_info",
         ]
 
     def get_service_price_info(self, obj):
-        if not obj.provider or not obj.service:
-            return None
-        try:
-            pricing = ProviderServicePricing.objects.get(
-                provider=obj.provider.provider,
-                service=obj.service,
-                sub_service=obj.provider.provider.sub_service if obj.provider.provider.sub_service else None
-            )
-            return {
-                "application_fee": pricing.application_fee,
-                "service_price": pricing.service_price,
-                "delivery_fee_per_km": pricing.delivery_fee_per_km,
-            }
-        except ProviderServicePricing.DoesNotExist:
+        if not obj.service:
             return None
 
+        # Handle sub_service only for maintenance service
+        sub_service = None
+        try:
+            if obj.service.name.lower() == "maintenance service":
+                sub_service = obj.provider.provider.sub_service
+        except AttributeError:
+            pass  # Either provider or provider.provider is missing
+
+        try:
+            pricing = ProviderServicePricing.get_pricing_for_location(
+                service=obj.service,
+                sub_service=sub_service,
+                lat=obj.pickup_lat,
+                lng=obj.pickup_lng,
+            )
+            if pricing:
+                return {
+                    "base_fare": float(pricing.base_fare),
+                    "price_per_km": float(pricing.price_per_km),
+                    "price_per_minute": float(pricing.price_per_minute),
+                    "minimum_fare": float(pricing.minimum_fare),
+                    "platform_fee": float(pricing.platform_fee),
+                    "service_fee": float(pricing.service_fee),
+                    "booking_fee": float(pricing.booking_fee),
+                    "peak_hour_multiplier": float(pricing.peak_hour_multiplier),
+                    "zone": pricing.zone.name if pricing.zone else None,
+                }
+        except Exception as e:
+            print(f"[Service Pricing Error] {e}")
+        
+        return None
 
 class UserPointsSerializer(serializers.ModelSerializer):
     class Meta:
