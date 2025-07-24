@@ -7,22 +7,22 @@ This diagram shows the core user management structure of the ride-sharing platfo
 ```mermaid
 classDiagram
     class User {
-        +id: BigAutoField
-        +name: CharField
-        +phone: CharField
-        +email: EmailField
-        +image: ImageField
-        +role: CharField
-        +location: PlainLocationField
-        +location2_lat: FloatField
-        +location2_lng: FloatField
-        +average_rating: DecimalField
-        +fcm_registration_id: CharField
-        +device_type: CharField
-        +is_active: BooleanField
-        +last_login: DateTimeField
-        +date_joined: DateTimeField
-        +password: CharField
+        +BigAutoField id
+        +CharField name
+        +CharField phone
+        +EmailField email
+        +ImageField image
+        +CharField role
+        +PlainLocationField location
+        +FloatField location2_lat
+        +FloatField location2_lng
+        +DecimalField average_rating
+        +CharField fcm_registration_id
+        +CharField device_type
+        +BooleanField is_active
+        +DateTimeField last_login
+        +DateTimeField date_joined
+        +CharField password
         +create_user()
         +create_superuser()
         +check_password()
@@ -31,56 +31,55 @@ classDiagram
     }
 
     class Customer {
-        +id: BigAutoField
-        +in_ride: BooleanField
+        +BigAutoField id
+        +BooleanField in_ride
         +__str__()
     }
 
     class Provider {
-        +id: BigAutoField
-        +services: ManyToManyField
-        +sub_service: CharField
-        +is_verified: BooleanField
-        +in_ride: BooleanField
+        +BigAutoField id
+        +CharField sub_service
+        +BooleanField is_verified
+        +BooleanField in_ride
         +has_maintenance_service()
         +clean()
         +__str__()
     }
 
     class DriverProfile {
-        +id: BigAutoField
-        +license: CharField
-        +status: CharField
-        +is_verified: BooleanField
-        +documents: FileField
+        +BigAutoField id
+        +CharField license
+        +CharField status
+        +BooleanField is_verified
+        +FileField documents
         +__str__()
     }
 
     class DriverCar {
-        +id: BigAutoField
-        +type: CharField
-        +model: CharField
-        +number: CharField
-        +color: CharField
-        +image: ImageField
+        +BigAutoField id
+        +CharField type
+        +CharField model
+        +CharField number
+        +CharField color
+        +ImageField image
         +__str__()
     }
 
     class UserOtp {
-        +id: BigAutoField
-        +otp: CharField
+        +BigAutoField id
+        +CharField otp
         +__str__()
     }
 
     class UserPoints {
-        +id: BigAutoField
-        +points: PositiveIntegerField
+        +BigAutoField id
+        +PositiveIntegerField points
         +__str__()
     }
 
     class CustomerPlace {
-        +id: BigAutoField
-        +location: PlainLocationField
+        +BigAutoField id
+        +PlainLocationField location
         +__str__()
     }
 
@@ -91,16 +90,8 @@ classDiagram
     User "1" -- "1" UserPoints : has
     User "1" -- "many" CustomerPlace : owns
     Provider "1" -- "1" DriverProfile : has
-    DriverProfile "1" -- "1" DriverCar : has
+    DriverProfile "1" -- "1" DriverCar : owns
 
-    %% Styling (Optional)
-    classDef userClass fill:#e1f5fe
-    classDef profileClass fill:#f3e5f5
-    classDef utilityClass fill:#e8f5e8
-
-    class User userClass
-    class Customer,Provider,DriverProfile,DriverCar profileClass
-    class UserOtp,UserPoints,CustomerPlace utilityClass
 
 ```
 
