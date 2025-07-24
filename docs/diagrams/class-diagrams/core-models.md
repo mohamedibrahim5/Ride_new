@@ -7,121 +7,101 @@ This diagram shows the core user management structure of the ride-sharing platfo
 ```mermaid
 classDiagram
     class User {
-        <<AbstractUser>>
         +id: BigAutoField
-        +name: CharField[30]
-        +phone: CharField[20] {unique}
+        +name: CharField
+        +phone: CharField
         +email: EmailField
         +image: ImageField
-        +role: CharField[2] {CU|PR|AD}
+        +role: CharField
         +location: PlainLocationField
         +location2_lat: FloatField
         +location2_lng: FloatField
-        +average_rating: DecimalField[3,2]
-        +fcm_registration_id: CharField[255]
-        +device_type: CharField[10] {android|ios}
+        +average_rating: DecimalField
+        +fcm_registration_id: CharField
+        +device_type: CharField
         +is_active: BooleanField
         +last_login: DateTimeField
         +date_joined: DateTimeField
-        +password: CharField[128]
-        --
-        +create_user(phone, password, **extra_fields)
-        +create_superuser(phone, password, **extra_fields)
-        +check_password(password): bool
-        +set_password(password): void
-        +__str__(): str
+        +password: CharField
+        +create_user()
+        +create_superuser()
+        +check_password()
+        +set_password()
+        +__str__()
     }
 
     class Customer {
         +id: BigAutoField
-        +user: OneToOneField→User
         +in_ride: BooleanField
-        --
-        +__str__(): str
+        +__str__()
     }
 
     class Provider {
         +id: BigAutoField
-        +user: OneToOneField→User
-        +services: ManyToManyField→Service
-        +sub_service: CharField[50]
+        +services: ManyToManyField
+        +sub_service: CharField
         +is_verified: BooleanField
         +in_ride: BooleanField
-        --
-        +has_maintenance_service(): bool
-        +clean(): void
-        +__str__(): str
+        +has_maintenance_service()
+        +clean()
+        +__str__()
     }
 
     class DriverProfile {
         +id: BigAutoField
-        +provider: OneToOneField→Provider
-        +license: CharField[20] {unique}
-        +status: CharField[20] {available|in_ride}
+        +license: CharField
+        +status: CharField
         +is_verified: BooleanField
         +documents: FileField
-        --
-        +__str__(): str
+        +__str__()
     }
 
     class DriverCar {
         +id: BigAutoField
-        +driver_profile: OneToOneField→DriverProfile
-        +type: CharField[20]
-        +model: CharField[20]
-        +number: CharField[20]
-        +color: CharField[20]
+        +type: CharField
+        +model: CharField
+        +number: CharField
+        +color: CharField
         +image: ImageField
-        --
-        +__str__(): str
+        +__str__()
     }
 
     class UserOtp {
         +id: BigAutoField
-        +user: OneToOneField→User
-        +otp: CharField[20]
-        --
-        +__str__(): str
+        +otp: CharField
+        +__str__()
     }
 
     class UserPoints {
         +id: BigAutoField
-        +user: OneToOneField→User
         +points: PositiveIntegerField
-        --
-        +__str__(): str
+        +__str__()
     }
 
     class CustomerPlace {
         +id: BigAutoField
-        +customer: ForeignKey→User
         +location: PlainLocationField
-        --
-        +__str__(): str
+        +__str__()
     }
 
     %% Relationships
-    User ||--|| Customer : "1:1"
-    User ||--|| Provider : "1:1"
-    User ||--|| UserOtp : "1:1"
-    User ||--|| UserPoints : "1:1"
-    User ||--o{ CustomerPlace : "1:*"
-    Provider ||--|| DriverProfile : "1:1"
-    DriverProfile ||--|| DriverCar : "1:1"
+    User "1" -- "1" Customer : has
+    User "1" -- "1" Provider : has
+    User "1" -- "1" UserOtp : has
+    User "1" -- "1" UserPoints : has
+    User "1" -- "many" CustomerPlace : owns
+    Provider "1" -- "1" DriverProfile : has
+    DriverProfile "1" -- "1" DriverCar : has
 
-    %% Styling
+    %% Styling (Optional)
     classDef userClass fill:#e1f5fe
     classDef profileClass fill:#f3e5f5
     classDef utilityClass fill:#e8f5e8
 
     class User userClass
-    class Customer profileClass
-    class Provider profileClass
-    class DriverProfile profileClass
-    class DriverCar profileClass
-    class UserOtp utilityClass
-    class UserPoints utilityClass
-    class CustomerPlace utilityClass
+    class Customer,Provider,DriverProfile,DriverCar profileClass
+    class UserOtp,UserPoints,CustomerPlace utilityClass
+
 ```
 
 ## Key Relationships
