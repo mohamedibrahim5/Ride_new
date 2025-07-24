@@ -166,48 +166,44 @@ classDiagram
 ```mermaid
 classDiagram
     class Product {
-        +id: BigAutoField
-        +provider: ForeignKey
-        +name: CharField
-        +description: TextField
-        +display_price: PositiveIntegerField
-        +stock: PositiveIntegerField
-        +is_active: BooleanField
-        +created_at: DateTimeField
-        +updated_at: DateTimeField
-        +save()
-        +update_stock()
+        id: BigAutoField
+        provider: ForeignKey
+        name: CharField
+        description: TextField
+        display_price: PositiveIntegerField
+        stock: PositiveIntegerField
+        is_active: BooleanField
+        created_at: DateTimeField
+        updated_at: DateTimeField
     }
 
     class ProductImage {
-        +id: BigAutoField
-        +product: ForeignKey
-        +image: ImageField
+        id: BigAutoField
+        product: ForeignKey
+        image: ImageField
     }
 
     class Purchase {
-        +id: BigAutoField
-        +customer: ForeignKey
-        +product: ForeignKey
-        +money_spent: PositiveIntegerField
-        +quantity: PositiveIntegerField
-        +status: CharField
-        +created_at: DateTimeField
-        +update_status()
+        id: BigAutoField
+        customer: ForeignKey
+        product: ForeignKey
+        money_spent: PositiveIntegerField
+        quantity: PositiveIntegerField
+        status: CharField
+        created_at: DateTimeField
     }
 
     class UserPoints {
-        +id: BigAutoField
-        +user: OneToOneField
-        +points: PositiveIntegerField
-        +add_points(amount)
-        +deduct_points(amount)
+        id: BigAutoField
+        user: OneToOneField
+        points: PositiveIntegerField
     }
 
-    Product ||--o{ ProductImage : "1:*"
-    Product ||--o{ Purchase : "1:*"
-    Customer ||--o{ Purchase : "1:*"
-    User ||--|| UserPoints : "1:1"
+    Product o-- ProductImage : has
+    Product o-- Purchase : purchases
+    Customer o-- Purchase : purchases
+    User --> UserPoints : has 1
+
 ```
 
 ### 4. Car Rental Class Diagram
