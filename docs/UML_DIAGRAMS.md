@@ -211,43 +211,40 @@ classDiagram
 ```mermaid
 classDiagram
     class CarAgency {
-        +id: BigAutoField
-        +provider: ForeignKey
-        +model: CharField
-        +brand: CharField
-        +color: CharField
-        +price_per_hour: DecimalField
-        +available: BooleanField
-        +image: ImageField
-        +created_at: DateTimeField
-        +update_availability()
+        id: BigAutoField
+        provider: ForeignKey
+        model: CharField
+        brand: CharField
+        color: CharField
+        price_per_hour: DecimalField
+        available: BooleanField
+        image: ImageField
+        created_at: DateTimeField
     }
 
     class CarAvailability {
-        +id: BigAutoField
-        +car: ForeignKey
-        +start_time: DateTimeField
-        +end_time: DateTimeField
-        +is_available()
+        id: BigAutoField
+        car: ForeignKey
+        start_time: DateTimeField
+        end_time: DateTimeField
     }
 
     class CarRental {
-        +id: BigAutoField
-        +customer: ForeignKey
-        +car: ForeignKey
-        +start_datetime: DateTimeField
-        +end_datetime: DateTimeField
-        +total_price: DecimalField
-        +status: CharField
-        +created_at: DateTimeField
-        +calculate_total_price()
-        +save()
+        id: BigAutoField
+        customer: ForeignKey
+        car: ForeignKey
+        start_datetime: DateTimeField
+        end_datetime: DateTimeField
+        total_price: DecimalField
+        status: CharField
+        created_at: DateTimeField
     }
 
-    Provider ||--o{ CarAgency : "1:*"
-    CarAgency ||--o{ CarAvailability : "1:*"
-    CarAgency ||--o{ CarRental : "1:*"
-    Customer ||--o{ CarRental : "1:*"
+    Provider o-- CarAgency : owns
+    CarAgency o-- CarAvailability : available at
+    CarAgency o-- CarRental : rented in
+    Customer o-- CarRental : rents
+
 ```
 
 ---
