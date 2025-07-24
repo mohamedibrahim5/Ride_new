@@ -2039,7 +2039,6 @@ class RideHistoryView(generics.ListAPIView):
                     provider_obj = getattr(ride.provider, 'provider', None)
                     if provider_obj:
                         pricing = ProviderServicePricing.objects.filter(
-                            provider=provider_obj,
                             service=ride.service
                         ).first()
                         if pricing:
@@ -2064,7 +2063,6 @@ class RideHistoryView(generics.ListAPIView):
                     provider_obj = getattr(ride.provider, 'provider', None)
                     if provider_obj:
                         pricing = ProviderServicePricing.objects.filter(
-                            provider=provider_obj,
                             service=ride.service
                         ).first()
                         if pricing:

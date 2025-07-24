@@ -1028,7 +1028,6 @@ class RideHistorySerializer(serializers.ModelSerializer):
                     
                     # Fallback to legacy calculation
                     pricing = ProviderServicePricing.objects.filter(
-                        provider=provider_obj,
                         service=obj.service
                     ).first()
                     
