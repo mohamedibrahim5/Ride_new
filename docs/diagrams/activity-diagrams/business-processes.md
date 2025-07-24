@@ -200,65 +200,65 @@ flowchart TD
 
 ```mermaid
 flowchart TD
-    Start([Customer wants to rent car]) --> BrowseCars[Browse available cars]
-    BrowseCars --> FilterCars[Apply filters (brand, price, location)]
-    FilterCars --> SelectCar[Select car]
+    Start(["Customer wants to rent car"]) --> BrowseCars["Browse available cars"]
+    BrowseCars --> FilterCars["Apply filters (brand, price, location)"]
+    FilterCars --> SelectCar["Select car"]
     
-    SelectCar --> ViewCarDetails[View car details and images]
-    ViewCarDetails --> SelectDateTime[Select rental date and time]
+    SelectCar --> ViewCarDetails["View car details and images"]
+    ViewCarDetails --> SelectDateTime["Select rental date and time"]
     
-    SelectDateTime --> CheckAvailability[Check car availability]
-    CheckAvailability --> AvailabilityResult{Car available?}
+    SelectDateTime --> CheckAvailability["Check car availability"]
+    CheckAvailability --> AvailabilityResult{"Car available?"}
     
-    AvailabilityResult -->|No| ShowAlternatives[Show alternative times/cars]
+    AvailabilityResult -->|No| ShowAlternatives["Show alternative times/cars"]
     ShowAlternatives --> SelectDateTime
     
-    AvailabilityResult -->|Yes| CalculatePrice[Calculate rental price]
-    CalculatePrice --> ShowPricing[Show pricing breakdown]
+    AvailabilityResult -->|Yes| CalculatePrice["Calculate rental price"]
+    CalculatePrice --> ShowPricing["Show pricing breakdown"]
     
-    ShowPricing --> ConfirmBooking{Confirm booking?}
+    ShowPricing --> ConfirmBooking{"Confirm booking?"}
     ConfirmBooking -->|No| SelectDateTime
     
-    ConfirmBooking -->|Yes| ValidateBooking[Validate booking details]
-    ValidateBooking --> CheckOverlap[Check for time overlaps]
+    ConfirmBooking -->|Yes| ValidateBooking["Validate booking details"]
+    ValidateBooking --> CheckOverlap["Check for time overlaps"]
     
-    CheckOverlap --> OverlapFound{Overlap detected?}
-    OverlapFound -->|Yes| BookingConflict[Show booking conflict]
+    CheckOverlap --> OverlapFound{"Overlap detected?"}
+    OverlapFound -->|Yes| BookingConflict["Show booking conflict"]
     BookingConflict --> SelectDateTime
     
-    OverlapFound -->|No| CreateRental[Create rental booking]
-    CreateRental --> ProcessPayment[Process payment]
+    OverlapFound -->|No| CreateRental["Create rental booking"]
+    CreateRental --> ProcessPayment["Process payment"]
     
-    ProcessPayment --> PaymentResult{Payment successful?}
-    PaymentResult -->|No| PaymentError[Handle payment error]
+    ProcessPayment --> PaymentResult{"Payment successful?"}
+    PaymentResult -->|No| PaymentError["Handle payment error"]
     PaymentError --> ProcessPayment
     
-    PaymentResult -->|Yes| ConfirmRental[Confirm rental booking]
-    ConfirmRental --> UpdateAvailability[Update car availability]
-    UpdateAvailability --> NotifyProvider[Notify car provider]
+    PaymentResult -->|Yes| ConfirmRental["Confirm rental booking"]
+    ConfirmRental --> UpdateAvailability["Update car availability"]
+    UpdateAvailability --> NotifyProvider["Notify car provider"]
     
-    NotifyProvider --> SendConfirmation[Send booking confirmation]
-    SendConfirmation --> RentalActive[Rental booking active]
+    NotifyProvider --> SendConfirmation["Send booking confirmation"]
+    SendConfirmation --> RentalActive["Rental booking active"]
     
-    RentalActive --> RentalTime{Rental time arrived?}
-    RentalTime -->|No| WaitRentalTime[Wait for rental time]
+    RentalActive --> RentalTime{"Rental time arrived?"}
+    RentalTime -->|No| WaitRentalTime["Wait for rental time"]
     WaitRentalTime --> RentalTime
     
-    RentalTime -->|Yes| StartRental[Start rental period]
-    StartRental --> TrackRental[Track rental status]
+    RentalTime -->|Yes| StartRental["Start rental period"]
+    StartRental --> TrackRental["Track rental status"]
     
-    TrackRental --> RentalEnd{Rental period ended?}
+    TrackRental --> RentalEnd{"Rental period ended?"}
     RentalEnd -->|No| TrackRental
-    RentalEnd -->|Yes| CompleteRental[Complete rental]
+    RentalEnd -->|Yes| CompleteRental["Complete rental"]
     
-    CompleteRental --> ProcessReturn[Process car return]
-    ProcessReturn --> InspectCar[Inspect car condition]
-    InspectCar --> CalculateFinalCost[Calculate final cost]
+    CompleteRental --> ProcessReturn["Process car return"]
+    ProcessReturn --> InspectCar["Inspect car condition"]
+    InspectCar --> CalculateFinalCost["Calculate final cost"]
     
-    CalculateFinalCost --> ProcessFinalPayment[Process any additional charges]
-    ProcessFinalPayment --> RateExperience[Rate rental experience]
-    RateExperience --> UpdateHistory[Update rental history]
-    UpdateHistory --> End([End])
+    CalculateFinalCost --> ProcessFinalPayment["Process any additional charges"]
+    ProcessFinalPayment --> RateExperience["Rate rental experience"]
+    RateExperience --> UpdateHistory["Update rental history"]
+    UpdateHistory --> End(["End"])
     
     style Start fill:#e1f5fe
     style CreateRental fill:#fff3e0
