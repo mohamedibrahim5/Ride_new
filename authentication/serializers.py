@@ -571,11 +571,12 @@ class ProductImageSerializer(serializers.ModelSerializer):
 class ProductSerializer(serializers.ModelSerializer):
     images = ProductImageSerializer(many=True, read_only=True)
     provider_name = serializers.CharField(source='provider.user.name', read_only=True)
+    provider = ProviderSerializer(read_only=True)
 
     class Meta:
         model = Product
         fields = ['id', 'name', 'description', 'display_price', 'stock', 'is_active', 
-                 'created_at', 'updated_at', 'images', 'provider_name']
+                 'created_at', 'updated_at', 'images', 'provider_name', 'provider']
         read_only_fields = ['provider']
 
     def create(self, validated_data):
