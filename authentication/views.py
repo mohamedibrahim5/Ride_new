@@ -1225,6 +1225,8 @@ class ProductViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy', 'upload_image']:
             return [IsAuthenticated(), IsStoreProvider()]
+        elif self.action in ['list', 'retrieve']:
+            return [IsAuthenticated()]
         return [IsCustomer()]
 
     def get_queryset(self):
