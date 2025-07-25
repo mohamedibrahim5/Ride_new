@@ -105,17 +105,45 @@ class RideStatusAdmin(admin.ModelAdmin):
     status_display.short_description = _('Status')
 
     def service_price_info(self, obj):
-        if not obj.provider or not obj.service:
+        if not obj.service or obj.pickup_lat is None or obj.pickup_lng is None:
             return "-"
+
+        # Get sub_service only for maintenance services
+        sub_service = None
         try:
-            pricing = ProviderServicePricing.objects.get(
-                provider=obj.provider.provider,
-                service=obj.service,
-                sub_service=obj.provider.provider.sub_service if obj.provider.provider.sub_service else None
-            )
-            return f"App Fee: {pricing.application_fee}, Price: {pricing.service_price}, Delivery/km: {pricing.delivery_fee_per_km}"
-        except ProviderServicePricing.DoesNotExist:
-            return "-"
+            if obj.service.name.lower() == "maintenance service":
+                sub_service = obj.provider.provider.sub_service
+        except AttributeError:
+            pass  # provider or sub_service might be missing
+
+        # Try to get matching pricing
+        pricing = ProviderServicePricing.get_pricing_for_location(
+            service=obj.service,
+            sub_service=sub_service,
+            lat=obj.pickup_lat,
+            lng=obj.pickup_lng
+        )
+
+        if not pricing:
+            return "No pricing found"
+
+        # Estimate duration: assume 30 km/h average speed
+        distance_km = obj.distance_km if hasattr(obj, "distance_km") and obj.distance_km else 0
+        duration_minutes = (distance_km / 30) * 60 if distance_km > 0 else 0
+
+        # Calculate price using model method
+        price = pricing.calculate_price(
+            distance_km=distance_km,
+            duration_minutes=duration_minutes,
+            pickup_time=obj.created_at
+        )
+
+        return (
+            f"Estimated Price: {price} | Base: {pricing.base_fare}, "
+            f"Per km: {pricing.price_per_km}, Per min: {pricing.price_per_minute}, "
+            f"Min Fare: {pricing.minimum_fare}"
+        )
+
     service_price_info.short_description = "Service Price Info"
 
 # --- Other existing admin registrations ---
