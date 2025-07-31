@@ -507,7 +507,7 @@ class ProviderResource(resources.ModelResource):
 @admin.register(Provider)
 class ProviderAdmin(ExportMixin, admin.ModelAdmin):
     resource_class = ProviderResource
-    list_display = ['user_display', 'is_verified', 'in_ride', 'sub_service', 'services_list', 'date_joined']
+    list_display = ['provider_name', 'provider_phone', 'is_verified', 'in_ride', 'sub_service', 'services_list', 'date_joined']
     list_filter = ['is_verified', 'in_ride', 'sub_service', 'user__date_joined']
     search_fields = ['user__name', 'user__phone', 'sub_service', 'services__name']
     filter_horizontal = ['services']
@@ -520,10 +520,15 @@ class ProviderAdmin(ExportMixin, admin.ModelAdmin):
         }),
     )
 
-    def user_display(self, obj):
-        return f"{obj.user.name} ({obj.user.phone})"
-    user_display.short_description = _('User')
-    user_display.admin_order_field = 'user__name'
+    def provider_name(self, obj):
+        return obj.user.name
+    provider_name.short_description = _('Provider Name')
+    provider_name.admin_order_field = 'user__name'
+
+    def provider_phone(self, obj):
+        return obj.user.phone
+    provider_phone.short_description = _('Phone Number')
+    provider_phone.admin_order_field = 'user__phone'
 
     def services_list(self, obj):
         return ", ".join([s.name for s in obj.services.all()])
