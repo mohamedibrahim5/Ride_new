@@ -28,7 +28,7 @@ from rest_framework.authtoken.models import Token
 import dal.autocomplete
 from dal import autocomplete
 from import_export import resources, fields
-from import_export.admin import ImportExportModelAdmin
+from import_export.admin import ImportExportModelAdmin, ExportMixin
 from django.http import HttpResponse
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
@@ -164,68 +164,67 @@ except admin.sites.NotRegistered:
     pass
 admin.site.register(User, UserAdmin)
 admin.site.register(UserOtp)
-admin.site.register(DriverCar)
 
-@admin.register(Customer)
-class CustomerAdmin(admin.ModelAdmin):
-    list_display = ('user_name', 'user_phone', 'user_email', 'in_ride', 'user_is_active', 'date_joined')
-    list_filter = ('in_ride', 'user__is_active', 'user__role', 'user__date_joined')
-    search_fields = ('user__name', 'user__phone', 'user__email')
-    ordering = ('-user__date_joined',)
-    readonly_fields = ('user',)
+# @admin.register(Customer)
+# class CustomerAdmin(admin.ModelAdmin):
+#     list_display = ('user_name', 'user_phone', 'user_email', 'in_ride', 'user_is_active', 'date_joined')
+#     list_filter = ('in_ride', 'user__is_active', 'user__role', 'user__date_joined')
+#     search_fields = ('user__name', 'user__phone', 'user__email')
+#     ordering = ('-user__date_joined',)
+#     readonly_fields = ('user',)
     
-    def user_name(self, obj):
-        return obj.user.name
-    user_name.short_description = _('Customer Name')
-    user_name.admin_order_field = 'user__name'
+#     def user_name(self, obj):
+#         return obj.user.name
+#     user_name.short_description = _('Customer Name')
+#     user_name.admin_order_field = 'user__name'
     
-    def user_phone(self, obj):
-        return obj.user.phone
-    user_phone.short_description = _('Phone Number')
-    user_phone.admin_order_field = 'user__phone'
+#     def user_phone(self, obj):
+#         return obj.user.phone
+#     user_phone.short_description = _('Phone Number')
+#     user_phone.admin_order_field = 'user__phone'
     
-    def user_email(self, obj):
-        return obj.user.email
-    user_email.short_description = _('Email')
-    user_email.admin_order_field = 'user__email'
+#     def user_email(self, obj):
+#         return obj.user.email
+#     user_email.short_description = _('Email')
+#     user_email.admin_order_field = 'user__email'
     
-    def user_is_active(self, obj):
-        if obj.user.is_active:
-            return format_html('<span style="color: green;">✓</span> Active')
-        else:
-            return format_html('<span style="color: red;">✗</span> Inactive')
-    user_is_active.short_description = _('Status')
-    user_is_active.admin_order_field = 'user__is_active'
+#     def user_is_active(self, obj):
+#         if obj.user.is_active:
+#             return format_html('<span style="color: green;">✓</span> Active')
+#         else:
+#             return format_html('<span style="color: red;">✗</span> Inactive')
+#     user_is_active.short_description = _('Status')
+#     user_is_active.admin_order_field = 'user__is_active'
     
-    def date_joined(self, obj):
-        return obj.user.date_joined.strftime('%Y-%m-%d %H:%M')
-    date_joined.short_description = _('Date Joined')
-    date_joined.admin_order_field = 'user__date_joined'
+#     def date_joined(self, obj):
+#         return obj.user.date_joined.strftime('%Y-%m-%d %H:%M')
+#     date_joined.short_description = _('Date Joined')
+#     date_joined.admin_order_field = 'user__date_joined'
     
-    # Add custom actions
-    actions = ['activate_customers', 'deactivate_customers', 'mark_in_ride', 'mark_not_in_ride']
+#     # Add custom actions
+#     actions = ['activate_customers', 'deactivate_customers', 'mark_in_ride', 'mark_not_in_ride']
     
-    def activate_customers(self, request, queryset):
-        updated = queryset.update(user__is_active=True)
-        self.message_user(request, f'{updated} customers have been activated.')
-    activate_customers.short_description = "Activate selected customers"
+#     def activate_customers(self, request, queryset):
+#         updated = queryset.update(user__is_active=True)
+#         self.message_user(request, f'{updated} customers have been activated.')
+#     activate_customers.short_description = "Activate selected customers"
     
-    def deactivate_customers(self, request, queryset):
-        updated = queryset.update(user__is_active=False)
-        self.message_user(request, f'{updated} customers have been deactivated.')
-    deactivate_customers.short_description = "Deactivate selected customers"
+#     def deactivate_customers(self, request, queryset):
+#         updated = queryset.update(user__is_active=False)
+#         self.message_user(request, f'{updated} customers have been deactivated.')
+#     deactivate_customers.short_description = "Deactivate selected customers"
     
-    def mark_in_ride(self, request, queryset):
-        updated = queryset.update(in_ride=True)
-        self.message_user(request, f'{updated} customers have been marked as in ride.')
-    mark_in_ride.short_description = "Mark selected customers as in ride"
+#     def mark_in_ride(self, request, queryset):
+#         updated = queryset.update(in_ride=True)
+#         self.message_user(request, f'{updated} customers have been marked as in ride.')
+#     mark_in_ride.short_description = "Mark selected customers as in ride"
     
-    def mark_not_in_ride(self, request, queryset):
-        updated = queryset.update(in_ride=False)
-        self.message_user(request, f'{updated} customers have been marked as not in ride.')
-    mark_not_in_ride.short_description = "Mark selected customers as not in ride"
+#     def mark_not_in_ride(self, request, queryset):
+#         updated = queryset.update(in_ride=False)
+#         self.message_user(request, f'{updated} customers have been marked as not in ride.')
+#     mark_not_in_ride.short_description = "Mark selected customers as not in ride"
 
-admin.site.register(CustomerPlace)
+# admin.site.register(CustomerPlace)
 
 @admin.register(PricingZone)
 class PricingZoneAdmin(admin.ModelAdmin):
@@ -472,23 +471,59 @@ class ServiceAdmin(admin.ModelAdmin):
     search_fields = ['name']
     ordering = ['-created_at']
     
+class ProviderResource(resources.ModelResource):
+    provider_name = fields.Field(attribute='user__name', column_name='Provider Name')
+    phone = fields.Field(attribute='user__phone', column_name='Phone Number')
+    email = fields.Field(attribute='user__email', column_name='Email')
+    is_verified = fields.Field(attribute='is_verified', column_name='Verified')
+    in_ride = fields.Field(attribute='in_ride', column_name='In Ride')
+    sub_service = fields.Field(attribute='sub_service', column_name='Sub Service')
+    services = fields.Field(column_name='Services')
+    date_joined = fields.Field(attribute='user__date_joined', column_name='Date Joined')
+
+    def dehydrate_services(self, obj):
+        return ', '.join([s.name for s in obj.services.all()])
+
+    def dehydrate_is_verified(self, obj):
+        return 'Yes' if obj.is_verified else 'No'
+
+    def dehydrate_in_ride(self, obj):
+        return 'Yes' if obj.in_ride else 'No'
+
+    class Meta:
+        model = Provider
+        fields = (
+            'provider_name',
+            'phone',
+            'email',
+            'is_verified',
+            'in_ride',
+            'sub_service',
+            'services',
+            'date_joined',
+        )
+        export_order = fields
+
 @admin.register(Provider)
-class ProviderAdmin(admin.ModelAdmin):
-    list_display = ['user_name', 'user_phone', 'is_verified', 'in_ride', 'sub_service', 'services_list', 'date_joined']
+class ProviderAdmin(ExportMixin, admin.ModelAdmin):
+    resource_class = ProviderResource
+    list_display = ['user_display', 'is_verified', 'in_ride', 'sub_service', 'services_list', 'date_joined']
     list_filter = ['is_verified', 'in_ride', 'sub_service', 'user__date_joined']
     search_fields = ['user__name', 'user__phone', 'sub_service', 'services__name']
     filter_horizontal = ['services']
     ordering = ['-user__date_joined']
+    actions = ['export_as_pdf']
+    readonly_fields = ('user_display',)
+    fieldsets = (
+        (None, {
+            'fields': ('user_display', 'is_verified', 'in_ride', 'sub_service', 'services')
+        }),
+    )
 
-    def user_name(self, obj):
-        return obj.user.name
-    user_name.short_description = _('Provider Name')
-    user_name.admin_order_field = 'user__name'
-
-    def user_phone(self, obj):
-        return obj.user.phone
-    user_phone.short_description = _('Phone Number')
-    user_phone.admin_order_field = 'user__phone'
+    def user_display(self, obj):
+        return f"{obj.user.name} ({obj.user.phone})"
+    user_display.short_description = _('User')
+    user_display.admin_order_field = 'user__name'
 
     def services_list(self, obj):
         return ", ".join([s.name for s in obj.services.all()])
@@ -498,6 +533,56 @@ class ProviderAdmin(admin.ModelAdmin):
         return obj.user.date_joined.strftime('%Y-%m-%d %H:%M')
     date_joined.short_description = _('Date Joined')
     date_joined.admin_order_field = 'user__date_joined'
+
+    def get_readonly_fields(self, request, obj=None):
+        return self.readonly_fields + ('user',)
+    
+    def export_as_pdf(self, request, queryset):
+        buffer = io.BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=30, leftMargin=30, topMargin=30, bottomMargin=18)
+        elements = []
+        styles = getSampleStyleSheet()
+        title = Paragraph('Providers Export', styles['Title'])
+        elements.append(title)
+        elements.append(Spacer(1, 12))
+        data = [[
+            'Provider Name', 'Phone Number', 'Email', 'Verified', 'In Ride', 'Sub Service', 'Services', 'Date Joined'
+        ]]
+        for obj in queryset:
+            data.append([
+                obj.user.name,
+                obj.user.phone,
+                obj.user.email,
+                'Yes' if obj.is_verified else 'No',
+                'Yes' if obj.in_ride else 'No',
+                obj.sub_service or '',
+                ', '.join([s.name for s in obj.services.all()]),
+                obj.user.date_joined.strftime('%Y-%m-%d %H:%M'),
+            ])
+        table = Table(data, repeatRows=1)
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#003366')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 12),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.whitesmoke),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+        ]))
+        for i in range(1, len(data)):
+            if i % 2 == 0:
+                table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, i), (-1, i), colors.HexColor('#e6f2ff')),
+                ]))
+        elements.append(table)
+        doc.build(elements)
+        buffer.seek(0)
+        response = HttpResponse(buffer, content_type='application/pdf')
+        response['Content-Disposition'] = 'attachment; filename=providers.pdf'
+        return response
+    export_as_pdf.short_description = 'Export selected providers as PDF'
+
 
 class DriverProfileResource(resources.ModelResource):
     driver_name = fields.Field(attribute='provider__user__name', column_name='Driver Name')
@@ -525,13 +610,14 @@ class DriverProfileResource(resources.ModelResource):
         export_order = fields
 
 @admin.register(DriverProfile)
-class DriverProfileAdmin(ImportExportModelAdmin):
+class DriverProfileAdmin(ExportMixin, admin.ModelAdmin):
     resource_class = DriverProfileResource
     list_display = ('user_name', 'user_phone', 'license', 'status', 'provider_verified', 'documents_link')
     list_filter = ('status', 'provider__is_verified')
     search_fields = ('provider__user__name', 'provider__user__phone', 'license')
     ordering = ('-provider__user__date_joined',)
     actions = ['export_as_pdf']
+    readonly_fields = ('is_verified',)
 
     def user_name(self, obj):
         return obj.provider.user.name
@@ -701,3 +787,213 @@ class ProviderServicePricingAdmin(admin.ModelAdmin):
 @admin.register(WhatsAppAPISettings)
 class WhatsAppAPISettingsAdmin(admin.ModelAdmin):
     list_display = ['instance_id', 'token']
+
+from import_export import resources, fields
+from import_export.admin import ImportExportModelAdmin
+
+class DriverCarResource(resources.ModelResource):
+    driver_name = fields.Field(attribute='driver_profile__provider__user__name', column_name='Driver Name')
+    driver_phone = fields.Field(attribute='driver_profile__provider__user__phone', column_name='Driver Phone')
+    type = fields.Field(attribute='type', column_name='Car Type')
+    model = fields.Field(attribute='model', column_name='Car Model')
+    number = fields.Field(attribute='number', column_name='Car Number')
+    color = fields.Field(attribute='color', column_name='Car Color')
+    created_at = fields.Field(attribute='created_at', column_name='Created At')
+
+    class Meta:
+        model = DriverCar
+        fields = (
+            'driver_name',
+            'driver_phone',
+            'type',
+            'model',
+            'number',
+            'color',
+            'created_at',
+        )
+        export_order = fields
+
+@admin.register(DriverCar)
+class DriverCarAdmin(ExportMixin, admin.ModelAdmin):
+    resource_class = DriverCarResource
+    list_display = ('driver_name', 'driver_phone', 'type', 'model', 'number', 'color')
+    search_fields = ('driver_profile__provider__user__name', 'driver_profile__provider__user__phone', 'type', 'model', 'number', 'color')
+    actions = ['export_as_pdf']
+
+    def driver_name(self, obj):
+        return obj.driver_profile.provider.user.name
+    driver_name.short_description = _('Driver Name')
+    driver_name.admin_order_field = 'driver_profile__provider__user__name'
+
+    def driver_phone(self, obj):
+        return obj.driver_profile.provider.user.phone
+    driver_phone.short_description = _('Driver Phone')
+    driver_phone.admin_order_field = 'driver_profile__provider__user__phone'
+
+    def export_as_pdf(self, request, queryset):
+        buffer = io.BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=30, leftMargin=30, topMargin=30, bottomMargin=18)
+        elements = []
+        styles = getSampleStyleSheet()
+        title = Paragraph('Driver Cars Export', styles['Title'])
+        elements.append(title)
+        elements.append(Spacer(1, 12))
+        data = [[
+            'Driver Name', 'Driver Phone', 'Car Type', 'Car Model', 'Car Number', 'Car Color', 'Created At'
+        ]]
+        for obj in queryset:
+            data.append([
+                obj.driver_profile.provider.user.name,
+                obj.driver_profile.provider.user.phone,
+                obj.type,
+                obj.model,
+                obj.number,
+                obj.color,
+                obj.created_at.strftime('%Y-%m-%d %H:%M'),
+            ])
+        table = Table(data, repeatRows=1)
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#003366')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 12),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.whitesmoke),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+        ]))
+        for i in range(1, len(data)):
+            if i % 2 == 0:
+                table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, i), (-1, i), colors.HexColor('#e6f2ff')),
+                ]))
+        elements.append(table)
+        doc.build(elements)
+        buffer.seek(0)
+        response = HttpResponse(buffer, content_type='application/pdf')
+        response['Content-Disposition'] = 'attachment; filename=driver_cars.pdf'
+        return response
+    export_as_pdf.short_description = 'Export selected driver cars as PDF'
+
+class CustomerResource(resources.ModelResource):
+    customer_name = fields.Field(attribute='user__name', column_name='Customer Name')
+    phone = fields.Field(attribute='user__phone', column_name='Phone Number')
+    email = fields.Field(attribute='user__email', column_name='Email')
+    in_ride = fields.Field(attribute='in_ride', column_name='In Ride')
+    date_joined = fields.Field(attribute='user__date_joined', column_name='Date Joined')
+
+    def dehydrate_in_ride(self, obj):
+        return 'Yes' if obj.in_ride else 'No'
+
+    class Meta:
+        model = Customer
+        fields = (
+            'customer_name',
+            'phone',
+            'email',
+            'in_ride',
+            'date_joined',
+        )
+        export_order = fields
+
+@admin.register(Customer)
+class CustomerAdmin(ExportMixin, admin.ModelAdmin):
+    resource_class = CustomerResource
+    list_display = ('customer_name', 'phone', 'email', 'in_ride', 'user_is_active', 'date_joined')
+    list_filter = ('in_ride', 'user__is_active', 'user__role', 'user__date_joined')
+    search_fields = ('user__name', 'user__phone', 'user__email')
+    ordering = ('-user__date_joined',)
+    readonly_fields = ('user',)
+    actions = ['export_as_pdf', 'activate_customers', 'deactivate_customers', 'mark_in_ride', 'mark_not_in_ride']
+
+    def customer_name(self, obj):
+        return obj.user.name
+    customer_name.short_description = _('Customer Name')
+    customer_name.admin_order_field = 'user__name'
+    
+    def user_is_active(self, obj):
+        if obj.user.is_active:
+            return format_html('<span style="color: green;">✓</span> Active')
+        else:
+            return format_html('<span style="color: red;">✗</span> Inactive')
+    user_is_active.short_description = _('Status')
+    user_is_active.admin_order_field = 'user__is_active'
+
+    def phone(self, obj):
+        return obj.user.phone
+    phone.short_description = _('Phone Number')
+    phone.admin_order_field = 'user__phone'
+
+    def email(self, obj):
+        return obj.user.email
+    email.short_description = _('Email')
+    email.admin_order_field = 'user__email'
+
+    def date_joined(self, obj):
+        return obj.user.date_joined.strftime('%Y-%m-%d %H:%M')
+    date_joined.short_description = _('Date Joined')
+    date_joined.admin_order_field = 'user__date_joined'
+
+    def export_as_pdf(self, request, queryset):
+        buffer = io.BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=30, leftMargin=30, topMargin=30, bottomMargin=18)
+        elements = []
+        styles = getSampleStyleSheet()
+        title = Paragraph('Customers Export', styles['Title'])
+        elements.append(title)
+        elements.append(Spacer(1, 12))
+        data = [[
+            'Customer Name', 'Phone Number', 'Email', 'In Ride', 'Date Joined'
+        ]]
+        for obj in queryset:
+            data.append([
+                obj.user.name,
+                obj.user.phone,
+                obj.user.email,
+                'Yes' if obj.in_ride else 'No',
+                obj.user.date_joined.strftime('%Y-%m-%d %H:%M'),
+            ])
+        table = Table(data, repeatRows=1)
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#003366')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 12),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.whitesmoke),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+        ]))
+        for i in range(1, len(data)):
+            if i % 2 == 0:
+                table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, i), (-1, i), colors.HexColor('#e6f2ff')),
+                ]))
+        elements.append(table)
+        doc.build(elements)
+        buffer.seek(0)
+        response = HttpResponse(buffer, content_type='application/pdf')
+        response['Content-Disposition'] = 'attachment; filename=customers.pdf'
+        return response
+    export_as_pdf.short_description = 'Export selected customers as PDF'
+    
+    def activate_customers(self, request, queryset):
+        updated = queryset.update(user__is_active=True)
+        self.message_user(request, f'{updated} customers have been activated.')
+    activate_customers.short_description = "Activate selected customers"
+    
+    def deactivate_customers(self, request, queryset):
+        updated = queryset.update(user__is_active=False)
+        self.message_user(request, f'{updated} customers have been deactivated.')
+    deactivate_customers.short_description = "Deactivate selected customers"
+    
+    def mark_in_ride(self, request, queryset):
+        updated = queryset.update(in_ride=True)
+        self.message_user(request, f'{updated} customers have been marked as in ride.')
+    mark_in_ride.short_description = "Mark selected customers as in ride"
+    
+    def mark_not_in_ride(self, request, queryset):
+        updated = queryset.update(in_ride=False)
+        self.message_user(request, f'{updated} customers have been marked as not in ride.')
+    mark_not_in_ride.short_description = "Mark selected customers as not in ride"
+

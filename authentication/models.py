@@ -101,7 +101,7 @@ class User(AbstractUser):
     USERNAME_FIELD = "phone"
 
     def __str__(self):
-        return str(self.phone)
+        return f"{self.name} -> {self.phone}"
     
     class Meta:
         verbose_name = _("User")
