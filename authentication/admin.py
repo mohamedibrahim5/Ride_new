@@ -31,15 +31,33 @@ from dal import autocomplete
 admin.site.unregister(Group)
 
 class UserAdminForm(forms.ModelForm):
+    password = forms.CharField(
+        widget=forms.PasswordInput(),
+        required=False,
+        help_text=_("Leave empty to keep current password. Enter new password to change it.")
+    )
+    
     class Meta:
         model = User
         fields = '__all__'
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Make image and location optional for admins
+        if self.instance and self.instance.role == 'AD':
+            self.fields['image'].required = False
+            self.fields['location'].required = False
+        elif self.instance and self.instance.pk is None:
+            # For new users, make fields optional initially
+            self.fields['image'].required = False
+            self.fields['location'].required = False
 
     def clean(self):
         cleaned_data = super().clean()
         role = cleaned_data.get('role')
         image = cleaned_data.get('image')
         location = cleaned_data.get('location')
+        
         # Only require image and location if not admin
         if role != 'AD':
             if not image:
@@ -47,12 +65,88 @@ class UserAdminForm(forms.ModelForm):
             if not location:
                 self.add_error('location', 'This field is required for non-admin users.')
         return cleaned_data
+    
+    def save(self, commit=True):
+        user = super().save(commit=False)
+        
+        # Handle password hashing
+        password = self.cleaned_data.get('password')
+        if password:
+            user.set_password(password)
+        
+        if commit:
+            user.save()
+        return user
 
 class UserAdmin(admin.ModelAdmin):
     form = UserAdminForm
-    list_display = ('name', 'phone', 'role', 'is_staff', 'is_superuser')
-    list_filter = ('role', 'is_staff', 'is_superuser')
+    list_display = ('name', 'phone', 'role', 'is_staff', 'is_superuser', 'is_active')
+    list_filter = ('role', 'is_staff', 'is_superuser', 'is_active')
     search_fields = ('name', 'phone', 'role')
+    ordering = ('-date_joined',)
+    
+    # Organize fields into logical groups
+    fieldsets = (
+        (_('Basic Information'), {
+            'fields': ('name', 'phone', 'email', 'role'),
+            'classes': ('wide',)
+        }),
+        (_('Authentication'), {
+            'fields': ('password', 'is_active', 'is_staff', 'is_superuser'),
+            'classes': ('wide',)
+        }),
+        (_('Profile Information'), {
+            'fields': ('image', 'location', 'location2_lat', 'location2_lng'),
+            'classes': ('wide',),
+            'description': _('Image and location are optional for admin users.')
+        }),
+        (_('System Information'), {
+            'fields': ('date_joined', 'last_login', 'average_rating', 'fcm_registration_id', 'device_type'),
+            'classes': ('collapse',),
+            'description': _('System-generated information.')
+        }),
+    )
+    
+    # Make certain fields read-only
+    readonly_fields = ('date_joined', 'last_login', 'average_rating')
+    
+    # Add custom actions
+    actions = ['activate_users', 'deactivate_users', 'make_staff', 'remove_staff']
+    
+    def activate_users(self, request, queryset):
+        updated = queryset.update(is_active=True)
+        self.message_user(request, f'{updated} users have been activated.')
+    activate_users.short_description = "Activate selected users"
+    
+    def deactivate_users(self, request, queryset):
+        updated = queryset.update(is_active=False)
+        self.message_user(request, f'{updated} users have been deactivated.')
+    deactivate_users.short_description = "Deactivate selected users"
+    
+    def make_staff(self, request, queryset):
+        updated = queryset.update(is_staff=True)
+        self.message_user(request, f'{updated} users have been made staff.')
+    make_staff.short_description = "Make selected users staff"
+    
+    def remove_staff(self, request, queryset):
+        updated = queryset.update(is_staff=False)
+        self.message_user(request, f'{updated} users have been removed from staff.')
+    remove_staff.short_description = "Remove staff status from selected users"
+    
+    def get_fieldsets(self, request, obj=None):
+        """Dynamically adjust fieldsets based on user role"""
+        fieldsets = list(super().get_fieldsets(request, obj))
+        
+        # If editing an existing user and they're not admin, make image/location required
+        if obj and obj.role != 'AD':
+            # Update the description for Profile Information
+            for i, (title, fieldset) in enumerate(fieldsets):
+                if title == _('Profile Information'):
+                    fieldset['description'] = _('Image and location are required for non-admin users.')
+                    fieldsets[i] = (title, fieldset)
+                    break
+        
+        return fieldsets
 
 # Unregister the default User admin if registered, then register the custom one
 try:
