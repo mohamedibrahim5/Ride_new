@@ -36,6 +36,9 @@ import io
 from reportlab.lib import colors
 from reportlab.platypus import Table, TableStyle, SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+import os
 
 admin.site.unregister(Group)
 
@@ -538,13 +541,20 @@ class ProviderAdmin(ExportMixin, admin.ModelAdmin):
     date_joined.short_description = _('Date Joined')
     date_joined.admin_order_field = 'user__date_joined'
 
-    
     def export_as_pdf(self, request, queryset):
+        # Register DejaVu Sans font for Arabic/Unicode support
+        font_path = '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'
+        if not os.path.exists(font_path):
+            font_path = '/usr/local/share/fonts/DejaVuSans.ttf'  # fallback
+        pdfmetrics.registerFont(TTFont('DejaVu', font_path))
+
         buffer = io.BytesIO()
         doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=30, leftMargin=30, topMargin=30, bottomMargin=18)
         elements = []
         styles = getSampleStyleSheet()
-        title = Paragraph('Providers Export', styles['Title'])
+        title_style = styles['Title'].clone('ProviderTitle')
+        title_style.fontName = 'DejaVu'
+        title = Paragraph('Providers Export', title_style)
         elements.append(title)
         elements.append(Spacer(1, 12))
         data = [[
@@ -561,12 +571,18 @@ class ProviderAdmin(ExportMixin, admin.ModelAdmin):
                 ', '.join([s.name for s in obj.services.all()]),
                 obj.user.date_joined.strftime('%Y-%m-%d %H:%M'),
             ])
-        table = Table(data, repeatRows=1)
+        # Calculate column widths to fit page width
+        col_count = len(data[0])
+        page_width = letter[0] - 60  # total width minus margins
+        col_width = page_width / col_count
+        col_widths = [col_width] * col_count
+        table = Table(data, repeatRows=1, colWidths=col_widths)
         table.setStyle(TableStyle([
+            ('FONTNAME', (0, 0), (-1, -1), 'DejaVu'),
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#003366')),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTNAME', (0, 0), (-1, 0), 'DejaVu'),
             ('FONTSIZE', (0, 0), (-1, 0), 12),
             ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
             ('BACKGROUND', (0, 1), (-1, -1), colors.whitesmoke),
@@ -643,11 +659,17 @@ class DriverProfileAdmin(ExportMixin, admin.ModelAdmin):
     documents_link.short_description = _('Documents')
 
     def export_as_pdf(self, request, queryset):
+        font_path = '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'
+        if not os.path.exists(font_path):
+            font_path = '/usr/local/share/fonts/DejaVuSans.ttf'
+        pdfmetrics.registerFont(TTFont('DejaVu', font_path))
         buffer = io.BytesIO()
         doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=30, leftMargin=30, topMargin=30, bottomMargin=18)
         elements = []
         styles = getSampleStyleSheet()
-        title = Paragraph('Driver Profiles Export', styles['Title'])
+        title_style = styles['Title'].clone('DriverProfileTitle')
+        title_style.fontName = 'DejaVu'
+        title = Paragraph('Driver Profiles Export', title_style)
         elements.append(title)
         elements.append(Spacer(1, 12))
         data = [[
@@ -663,18 +685,22 @@ class DriverProfileAdmin(ExportMixin, admin.ModelAdmin):
                 obj.provider.user.email,
                 obj.provider.user.date_joined.strftime('%Y-%m-%d %H:%M'),
             ])
-        table = Table(data, repeatRows=1)
+        col_count = len(data[0])
+        page_width = letter[0] - 60
+        col_width = page_width / col_count
+        col_widths = [col_width] * col_count
+        table = Table(data, repeatRows=1, colWidths=col_widths)
         table.setStyle(TableStyle([
+            ('FONTNAME', (0, 0), (-1, -1), 'DejaVu'),
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#003366')),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTNAME', (0, 0), (-1, 0), 'DejaVu'),
             ('FONTSIZE', (0, 0), (-1, 0), 12),
             ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
             ('BACKGROUND', (0, 1), (-1, -1), colors.whitesmoke),
             ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
         ]))
-        # Alternating row colors
         for i in range(1, len(data)):
             if i % 2 == 0:
                 table.setStyle(TableStyle([
@@ -800,7 +826,6 @@ class DriverCarResource(resources.ModelResource):
     model = fields.Field(attribute='model', column_name='Car Model')
     number = fields.Field(attribute='number', column_name='Car Number')
     color = fields.Field(attribute='color', column_name='Car Color')
-    created_at = fields.Field(attribute='created_at', column_name='Created At')
 
     class Meta:
         model = DriverCar
@@ -811,7 +836,6 @@ class DriverCarResource(resources.ModelResource):
             'model',
             'number',
             'color',
-            'created_at',
         )
         export_order = fields
 
@@ -833,15 +857,21 @@ class DriverCarAdmin(ExportMixin, admin.ModelAdmin):
     driver_phone.admin_order_field = 'driver_profile__provider__user__phone'
 
     def export_as_pdf(self, request, queryset):
+        font_path = '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'
+        if not os.path.exists(font_path):
+            font_path = '/usr/local/share/fonts/DejaVuSans.ttf'
+        pdfmetrics.registerFont(TTFont('DejaVu', font_path))
         buffer = io.BytesIO()
         doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=30, leftMargin=30, topMargin=30, bottomMargin=18)
         elements = []
         styles = getSampleStyleSheet()
-        title = Paragraph('Driver Cars Export', styles['Title'])
+        title_style = styles['Title'].clone('DriverCarTitle')
+        title_style.fontName = 'DejaVu'
+        title = Paragraph('Driver Cars Export', title_style)
         elements.append(title)
         elements.append(Spacer(1, 12))
         data = [[
-            'Driver Name', 'Driver Phone', 'Car Type', 'Car Model', 'Car Number', 'Car Color', 'Created At'
+            'Driver Name', 'Driver Phone', 'Car Type', 'Car Model', 'Car Number', 'Car Color'
         ]]
         for obj in queryset:
             data.append([
@@ -851,14 +881,18 @@ class DriverCarAdmin(ExportMixin, admin.ModelAdmin):
                 obj.model,
                 obj.number,
                 obj.color,
-                obj.created_at.strftime('%Y-%m-%d %H:%M'),
             ])
-        table = Table(data, repeatRows=1)
+        col_count = len(data[0])
+        page_width = letter[0] - 60
+        col_width = page_width / col_count
+        col_widths = [col_width] * col_count
+        table = Table(data, repeatRows=1, colWidths=col_widths)
         table.setStyle(TableStyle([
+            ('FONTNAME', (0, 0), (-1, -1), 'DejaVu'),
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#003366')),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTNAME', (0, 0), (-1, 0), 'DejaVu'),
             ('FONTSIZE', (0, 0), (-1, 0), 12),
             ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
             ('BACKGROUND', (0, 1), (-1, -1), colors.whitesmoke),
@@ -937,11 +971,17 @@ class CustomerAdmin(ExportMixin, admin.ModelAdmin):
     date_joined.admin_order_field = 'user__date_joined'
 
     def export_as_pdf(self, request, queryset):
+        font_path = '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'
+        if not os.path.exists(font_path):
+            font_path = '/usr/local/share/fonts/DejaVuSans.ttf'
+        pdfmetrics.registerFont(TTFont('DejaVu', font_path))
         buffer = io.BytesIO()
         doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=30, leftMargin=30, topMargin=30, bottomMargin=18)
         elements = []
         styles = getSampleStyleSheet()
-        title = Paragraph('Customers Export', styles['Title'])
+        title_style = styles['Title'].clone('CustomerTitle')
+        title_style.fontName = 'DejaVu'
+        title = Paragraph('Customers Export', title_style)
         elements.append(title)
         elements.append(Spacer(1, 12))
         data = [[
@@ -955,12 +995,17 @@ class CustomerAdmin(ExportMixin, admin.ModelAdmin):
                 'Yes' if obj.in_ride else 'No',
                 obj.user.date_joined.strftime('%Y-%m-%d %H:%M'),
             ])
-        table = Table(data, repeatRows=1)
+        col_count = len(data[0])
+        page_width = letter[0] - 60
+        col_width = page_width / col_count
+        col_widths = [col_width] * col_count
+        table = Table(data, repeatRows=1, colWidths=col_widths)
         table.setStyle(TableStyle([
+            ('FONTNAME', (0, 0), (-1, -1), 'DejaVu'),
             ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#003366')),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTNAME', (0, 0), (-1, 0), 'DejaVu'),
             ('FONTSIZE', (0, 0), (-1, 0), 12),
             ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
             ('BACKGROUND', (0, 1), (-1, -1), colors.whitesmoke),
