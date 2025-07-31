@@ -513,10 +513,9 @@ class ProviderAdmin(ExportMixin, admin.ModelAdmin):
     filter_horizontal = ['services']
     ordering = ['-user__date_joined']
     actions = ['export_as_pdf']
-    readonly_fields = ('user_display',)
     fieldsets = (
         (None, {
-            'fields': ('user_display', 'is_verified', 'in_ride', 'sub_service', 'services')
+            'fields': ('user', 'services', 'sub_service', 'is_verified', 'in_ride')
         }),
     )
 
@@ -539,8 +538,6 @@ class ProviderAdmin(ExportMixin, admin.ModelAdmin):
     date_joined.short_description = _('Date Joined')
     date_joined.admin_order_field = 'user__date_joined'
 
-    def get_readonly_fields(self, request, obj=None):
-        return self.readonly_fields + ('user',)
     
     def export_as_pdf(self, request, queryset):
         buffer = io.BytesIO()
