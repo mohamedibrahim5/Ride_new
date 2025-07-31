@@ -19,5 +19,10 @@ ENV PATH="/opt/venv/bin:$PATH"
 RUN pip install --upgrade pip
 RUN pip install -r requirements.txt
 
+# Copy entrypoint and make it executable
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
 EXPOSE 8000
-CMD ["daphne", "-b", "0.0.0.0", "-p", "8000", "project.asgi:application"]
+
+ENTRYPOINT ["/entrypoint.sh"]

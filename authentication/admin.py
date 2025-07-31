@@ -30,7 +30,36 @@ from dal import autocomplete
 
 admin.site.unregister(Group)
 
-admin.site.register(User)
+class UserAdminForm(forms.ModelForm):
+    class Meta:
+        model = User
+        fields = '__all__'
+
+    def clean(self):
+        cleaned_data = super().clean()
+        role = cleaned_data.get('role')
+        image = cleaned_data.get('image')
+        location = cleaned_data.get('location')
+        # Only require image and location if not admin
+        if role != 'AD':
+            if not image:
+                self.add_error('image', 'This field is required for non-admin users.')
+            if not location:
+                self.add_error('location', 'This field is required for non-admin users.')
+        return cleaned_data
+
+class UserAdmin(admin.ModelAdmin):
+    form = UserAdminForm
+    list_display = ('name', 'phone', 'role', 'is_staff', 'is_superuser')
+    list_filter = ('role', 'is_staff', 'is_superuser')
+    search_fields = ('name', 'phone', 'role')
+
+# Unregister the default User admin if registered, then register the custom one
+try:
+    admin.site.unregister(User)
+except admin.sites.NotRegistered:
+    pass
+admin.site.register(User, UserAdmin)
 admin.site.register(UserOtp)
 admin.site.register(DriverCar)
 admin.site.register(Customer)

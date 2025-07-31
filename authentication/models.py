@@ -8,6 +8,7 @@ from django.utils.translation import gettext_lazy as _
 from django.utils import timezone
 from django.contrib.postgres.fields import JSONField
 from django.core.validators import MinValueValidator, MaxValueValidator
+from rest_framework.exceptions import ValidationError
 
 
 
@@ -69,9 +70,9 @@ class PricingZone(models.Model):
 class User(AbstractUser):
     name = models.CharField(_("Name"), max_length=30)
     phone = models.CharField(_("Phone"),max_length=20, unique=True)
-    image = models.ImageField(_("Image"),upload_to="user/images/")
+    image = models.ImageField(_("Image"),upload_to="user/images/", null=True, blank=True)
     role = models.CharField(_("Role"), max_length=2, choices=ROLE_CHOICES)
-    location = PlainLocationField(based_fields=["cairo"], verbose_name=_("Location"))
+    location = PlainLocationField(based_fields=["cairo"], verbose_name=_("Location"), null=True, blank=True)
     location2_lat = models.FloatField(null=True, blank=True, verbose_name=_("Location2 Latitude"))
     location2_lng = models.FloatField(null=True, blank=True, verbose_name=_("Location2 Longitude"))
     average_rating = models.DecimalField(
@@ -103,6 +104,15 @@ class User(AbstractUser):
 
     def __str__(self):
         return str(self.phone)
+    
+    def clean(self):
+        """Custom validation for user model"""
+        super().clean()
+        # Only require image and location for non-admin users
+        if self.role != 'AD':
+            if not self.location:
+                raise ValidationError({'location': _('Location is required for non-admin users.')})
+    
     
     class Meta:
         verbose_name = _("User")
