@@ -27,6 +27,12 @@ from django import forms
 from rest_framework.authtoken.models import Token
 import dal.autocomplete
 from dal import autocomplete
+from import_export import resources, fields
+from import_export.admin import ImportExportModelAdmin
+from django.http import HttpResponse
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
+import io
 
 admin.site.unregister(Group)
 
@@ -463,62 +469,162 @@ class ServiceAdmin(admin.ModelAdmin):
     search_fields = ['name']
     ordering = ['-created_at']
     
+@admin.register(Provider)
+class ProviderAdmin(admin.ModelAdmin):
+    list_display = ['user_name', 'user_phone', 'is_verified', 'in_ride', 'sub_service', 'services_list', 'date_joined']
+    list_filter = ['is_verified', 'in_ride', 'sub_service', 'user__date_joined']
+    search_fields = ['user__name', 'user__phone', 'sub_service', 'services__name']
+    filter_horizontal = ['services']
+    ordering = ['-user__date_joined']
+
+    def user_name(self, obj):
+        return obj.user.name
+    user_name.short_description = _('Provider Name')
+    user_name.admin_order_field = 'user__name'
+
+    def user_phone(self, obj):
+        return obj.user.phone
+    user_phone.short_description = _('Phone Number')
+    user_phone.admin_order_field = 'user__phone'
+
+    def services_list(self, obj):
+        return ", ".join([s.name for s in obj.services.all()])
+    services_list.short_description = _('Services')
+
+    def date_joined(self, obj):
+        return obj.user.date_joined.strftime('%Y-%m-%d %H:%M')
+    date_joined.short_description = _('Date Joined')
+    date_joined.admin_order_field = 'user__date_joined'
+
+class DriverProfileResource(resources.ModelResource):
+    driver_name = fields.Field(attribute='provider__user__name', column_name='Driver Name')
+    phone = fields.Field(attribute='provider__user__phone', column_name='Phone Number')
+    license = fields.Field(attribute='license', column_name='License Number')
+    status = fields.Field(attribute='status', column_name='Status')
+    is_verified = fields.Field(attribute='is_verified', column_name='Verified')
+    email = fields.Field(attribute='provider__user__email', column_name='Email')
+    date_joined = fields.Field(attribute='provider__user__date_joined', column_name='Date Joined')
+
+    class Meta:
+        model = DriverProfile
+        fields = (
+            'driver_name',
+            'phone',
+            'license',
+            'status',
+            'is_verified',
+            'email',
+            'date_joined',
+        )
+        export_order = fields
+
+@admin.register(DriverProfile)
+class DriverProfileAdmin(ImportExportModelAdmin):
+    resource_class = DriverProfileResource
+    list_display = ('user_name', 'user_phone', 'license', 'status', 'is_verified', 'documents_link')
+    list_filter = ('status', 'is_verified')
+    search_fields = ('provider__user__name', 'provider__user__phone', 'license')
+    ordering = ('-provider__user__date_joined',)
+    actions = ['export_as_pdf']
+
+    def user_name(self, obj):
+        return obj.provider.user.name
+    user_name.short_description = _('Driver Name')
+    user_name.admin_order_field = 'provider__user__name'
+
+    def user_phone(self, obj):
+        return obj.provider.user.phone
+    user_phone.short_description = _('Phone Number')
+    user_phone.admin_order_field = 'provider__user__phone'
+
+    def documents_link(self, obj):
+        if obj.documents:
+            return format_html('<a href="{}" target="_blank">Download</a>', obj.documents.url)
+        return '-'
+    documents_link.short_description = _('Documents')
+
+    def export_as_pdf(self, request, queryset):
+        buffer = io.BytesIO()
+        p = canvas.Canvas(buffer, pagesize=letter)
+        width, height = letter
+        y = height - 40
+        p.setFont('Helvetica-Bold', 14)
+        p.drawString(40, y, 'Driver Profiles Export')
+        y -= 30
+        p.setFont('Helvetica', 10)
+        headers = ['Driver Name', 'Phone Number', 'License Number', 'Status', 'Verified', 'Email', 'Date Joined']
+        for i, header in enumerate(headers):
+            p.drawString(40 + i*90, y, header)
+        y -= 20
+        p.setFont('Helvetica', 9)
+        for obj in queryset:
+            row = [
+                obj.provider.user.name,
+                obj.provider.user.phone,
+                obj.license,
+                obj.status,
+                'Yes' if obj.is_verified else 'No',
+                obj.provider.user.email,
+                obj.provider.user.date_joined.strftime('%Y-%m-%d %H:%M'),
+            ]
+            for i, value in enumerate(row):
+                p.drawString(40 + i*90, y, str(value))
+            y -= 18
+            if y < 50:
+                p.showPage()
+                y = height - 40
+        p.save()
+        buffer.seek(0)
+        response = HttpResponse(buffer, content_type='application/pdf')
+        response['Content-Disposition'] = 'attachment; filename=driver_profiles.pdf'
+        return response
+    export_as_pdf.short_description = 'Export selected drivers as PDF'
+
 @admin.register(CarAgency)
 class CarAgencyAdmin(admin.ModelAdmin):
-    list_display = ("provider", "brand", "model", "color", "price_per_hour", "available", "created_at")
+    list_display = ("provider_name", "brand", "model", "color", "price_per_hour", "available", "created_at")
     list_filter = ("provider", "brand", "color", "available", "created_at")
     list_editable = ("available",)
     search_fields = ("provider__user__name", "brand", "model", "color")
     readonly_fields = ("created_at",)
     ordering = ("-created_at",)
 
+    def provider_name(self, obj):
+        return obj.provider.user.name if obj.provider else '-'
+    provider_name.short_description = _('Provider Name')
+    provider_name.admin_order_field = 'provider__user__name'
+
 @admin.register(CarAvailability)
 class CarAvailabilityAdmin(admin.ModelAdmin):
-    list_display = ("car", "start_time", "end_time")
+    list_display = ("car", "car_brand", "car_model", "start_time", "end_time")
     list_filter = ("car__brand", "car__model", "start_time", "end_time")
     search_fields = ("car__brand", "car__model")
     ordering = ("-start_time",)
 
+    def car_brand(self, obj):
+        return obj.car.brand
+    car_brand.short_description = _('Brand')
+    def car_model(self, obj):
+        return obj.car.model
+    car_model.short_description = _('Model')
+
 @admin.register(CarRental)
 class CarRentalAdmin(admin.ModelAdmin):
-    list_display = ("customer", "car", "start_datetime", "end_datetime", "total_price", "status", "created_at")
+    list_display = ("customer_name", "car_brand", "car_model", "start_datetime", "end_datetime", "total_price", "status", "created_at")
     list_filter = ("car__brand", "car__model", "start_datetime", "end_datetime", "status")
     search_fields = ("customer__user__name", "car__brand", "car__model")
     readonly_fields = ("total_price", "created_at")
     ordering = ("-created_at",)
 
-@admin.register(DriverProfile)
-class DriverProfileAdmin(admin.ModelAdmin):
-    list_display = ('user_name', 'user_phone')
-    search_fields = ('provider__user__name', 'provider__user__phone')
-    
-    def user_name(self, obj):
-        return obj.provider.user.name
-    user_name.short_description = _('User Name')
-    
-    def user_phone(self, obj):
-        return obj.provider.user.phone
-    user_phone.short_description = _('Phone Number')
-
-@admin.register(Provider)
-class ProviderAdmin(admin.ModelAdmin):
-    list_display = ['user', 'is_verified', 'in_ride', 'sub_service']
-    list_filter = ['is_verified', 'in_ride', 'sub_service']
-    search_fields = ['user__name', 'user__phone', 'sub_service']
-    filter_horizontal = ['services']
-    
-    def get_fields(self, request, obj=None):
-        fields = list(super().get_fields(request, obj))
-        if obj and not obj.has_maintenance_service():
-            if 'sub_service' in fields:
-                fields.remove('sub_service')
-        return fields
-    
-    def get_readonly_fields(self, request, obj=None):
-        readonly_fields = list(super().get_readonly_fields(request, obj))
-        if obj and not obj.has_maintenance_service():
-            readonly_fields.append('sub_service')
-        return readonly_fields
+    def customer_name(self, obj):
+        return obj.customer.user.name
+    customer_name.short_description = _('Customer Name')
+    def car_brand(self, obj):
+        return obj.car.brand
+    car_brand.short_description = _('Brand')
+    def car_model(self, obj):
+        return obj.car.model
+    car_model.short_description = _('Model')
 
 from dal import autocomplete
 

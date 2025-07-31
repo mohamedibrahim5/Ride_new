@@ -88,3 +88,6 @@ django-simpleui==2025.5.26
 # GDAL==2.4.0
 daphne==4.1.0
 django-autocomplete-light>=3.9.7
+reportlab>=4.0.0
+django-import-export>=3.3.8
+
