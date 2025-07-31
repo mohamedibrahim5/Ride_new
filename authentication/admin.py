@@ -39,6 +39,7 @@ from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 import os
+from utils.pdf_export import export_pdf
 
 admin.site.unregister(Group)
 
@@ -516,11 +517,6 @@ class ProviderAdmin(ExportMixin, admin.ModelAdmin):
     filter_horizontal = ['services']
     ordering = ['-user__date_joined']
     actions = ['export_as_pdf']
-    fieldsets = (
-        (None, {
-            'fields': ('user', 'services', 'sub_service', 'is_verified', 'in_ride')
-        }),
-    )
 
     def provider_name(self, obj):
         return obj.user.name
@@ -542,26 +538,14 @@ class ProviderAdmin(ExportMixin, admin.ModelAdmin):
     date_joined.admin_order_field = 'user__date_joined'
 
     def export_as_pdf(self, request, queryset):
-        font_path = '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'
-        if not os.path.exists(font_path):
-            font_path = '/usr/local/share/fonts/DejaVuSans.ttf'
-        pdfmetrics.registerFont(TTFont('DejaVu', font_path))
-
-        buffer = io.BytesIO()
-        doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=30, leftMargin=30, topMargin=30, bottomMargin=18)
-        elements = []
-        styles = getSampleStyleSheet()
-        title_style = styles['Title'].clone('ProviderTitle')
-        title_style.fontName = 'DejaVu'
-        title = Paragraph('Providers Export', title_style)
-        elements.append(title)
-        elements.append(Spacer(1, 12))
-
-        headers = ['Provider Name', 'Phone Number', 'Email', 'Verified', 'In Ride', 'Sub Service', 'Services', 'Date Joined']
-        data = [headers]
-
+        headers = [
+            "Provider Name", "Phone Number", "Email", "Verified", "In Ride",
+            "Sub Service", "Services", "Date Joined"
+        ]
+        title = "Providers Export"
+        rows = []
         for obj in queryset:
-            data.append([
+            rows.append([
                 obj.user.name,
                 obj.user.phone,
                 obj.user.email,
@@ -571,43 +555,14 @@ class ProviderAdmin(ExportMixin, admin.ModelAdmin):
                 ', '.join([s.name for s in obj.services.all()]),
                 obj.user.date_joined.strftime('%Y-%m-%d %H:%M'),
             ])
-
-        # Calculate column widths dynamically based on max string length in each column
-        def calc_width(col_data, padding=10):
-            max_len = max([len(str(d)) for d in col_data] + [len(col_data[0])])
-            return max(50, min(max_len * 5 + padding, 120))  # restrict max width
-
-        col_widths = [calc_width([row[i] for row in data]) for i in range(len(headers))]
-
-        table = Table(data, repeatRows=1, colWidths=col_widths)
-        table.setStyle(TableStyle([
-            ('FONTNAME', (0, 0), (-1, -1), 'DejaVu'),
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#003366')),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('FONTSIZE', (0, 0), (-1, 0), 12),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
-            ('BACKGROUND', (0, 1), (-1, -1), colors.whitesmoke),
-            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-        ]))
-
-        # Alternate row colors
-        for i in range(1, len(data)):
-            if i % 2 == 0:
-                table.setStyle(TableStyle([
-                    ('BACKGROUND', (0, i), (-1, i), colors.HexColor('#e6f2ff')),
-                ]))
-
-        elements.append(table)
-        doc.build(elements)
-        buffer.seek(0)
-        response = HttpResponse(buffer, content_type='application/pdf')
-        response['Content-Disposition'] = 'attachment; filename=providers.pdf'
-        return response
-
-    export_as_pdf.short_description = 'Export selected providers as PDF'
-
-
+        buffer = export_pdf(title, headers, rows, filename="providers.pdf", is_arabic=False)
+        return HttpResponse(buffer, content_type='application/pdf', headers={
+            'Content-Disposition': 'attachment; filename=providers.pdf'
+        })
+    export_as_pdf.short_description = _('Export selected providers as PDF')
+    
+    
+# DriverProfileResource and Admin
 class DriverProfileResource(resources.ModelResource):
     driver_name = fields.Field(attribute='provider__user__name', column_name='Driver Name')
     phone = fields.Field(attribute='provider__user__phone', column_name='Phone Number')
@@ -665,26 +620,11 @@ class DriverProfileAdmin(ExportMixin, admin.ModelAdmin):
     documents_link.short_description = _('Documents')
 
     def export_as_pdf(self, request, queryset):
-        font_path = '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'
-        if not os.path.exists(font_path):
-            font_path = '/usr/local/share/fonts/DejaVuSans.ttf'
-        pdfmetrics.registerFont(TTFont('DejaVu', font_path))
-        
-        buffer = io.BytesIO()
-        doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=30, leftMargin=30, topMargin=30, bottomMargin=18)
-        elements = []
-        styles = getSampleStyleSheet()
-        title_style = styles['Title'].clone('DriverProfileTitle')
-        title_style.fontName = 'DejaVu'
-        title = Paragraph('Driver Profiles Export', title_style)
-        elements.append(title)
-        elements.append(Spacer(1, 12))
-
         headers = ['Driver Name', 'Phone Number', 'License Number', 'Status', 'Verified', 'Email', 'Date Joined']
-        data = [headers]
-
+        title = "Driver Profiles Export"
+        rows = []
         for obj in queryset:
-            data.append([
+            rows.append([
                 obj.provider.user.name,
                 obj.provider.user.phone,
                 obj.license,
@@ -693,38 +633,10 @@ class DriverProfileAdmin(ExportMixin, admin.ModelAdmin):
                 obj.provider.user.email,
                 obj.provider.user.date_joined.strftime('%Y-%m-%d %H:%M'),
             ])
-
-        def calc_width(col_data, padding=10):
-            max_len = max([len(str(d)) for d in col_data] + [len(col_data[0])])
-            return max(50, min(max_len * 5 + padding, 120))
-
-        col_widths = [calc_width([row[i] for row in data]) for i in range(len(headers))]
-
-        table = Table(data, repeatRows=1, colWidths=col_widths)
-        table.setStyle(TableStyle([
-            ('FONTNAME', (0, 0), (-1, -1), 'DejaVu'),
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#003366')),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('FONTSIZE', (0, 0), (-1, 0), 12),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
-            ('BACKGROUND', (0, 1), (-1, -1), colors.whitesmoke),
-            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-        ]))
-
-        for i in range(1, len(data)):
-            if i % 2 == 0:
-                table.setStyle(TableStyle([
-                    ('BACKGROUND', (0, i), (-1, i), colors.HexColor('#e6f2ff')),
-                ]))
-
-        elements.append(table)
-        doc.build(elements)
-        buffer.seek(0)
+        buffer = export_pdf(title, headers, rows, filename="driver_profiles.pdf", is_arabic=False)
         return HttpResponse(buffer, content_type='application/pdf', headers={
             'Content-Disposition': 'attachment; filename=driver_profiles.pdf'
         })
-
     export_as_pdf.short_description = 'Export selected drivers as PDF'
 
 @admin.register(CarAgency)
@@ -832,6 +744,7 @@ class WhatsAppAPISettingsAdmin(admin.ModelAdmin):
 from import_export import resources, fields
 from import_export.admin import ImportExportModelAdmin
 
+# DriverCarResource and Admin
 class DriverCarResource(resources.ModelResource):
     driver_name = fields.Field(attribute='driver_profile__provider__user__name', column_name='Driver Name')
     driver_phone = fields.Field(attribute='driver_profile__provider__user__phone', column_name='Driver Phone')
@@ -870,26 +783,11 @@ class DriverCarAdmin(ExportMixin, admin.ModelAdmin):
     driver_phone.admin_order_field = 'driver_profile__provider__user__phone'
 
     def export_as_pdf(self, request, queryset):
-        font_path = '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'
-        if not os.path.exists(font_path):
-            font_path = '/usr/local/share/fonts/DejaVuSans.ttf'
-        pdfmetrics.registerFont(TTFont('DejaVu', font_path))
-        
-        buffer = io.BytesIO()
-        doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=30, leftMargin=30, topMargin=30, bottomMargin=18)
-        elements = []
-        styles = getSampleStyleSheet()
-        title_style = styles['Title'].clone('DriverCarTitle')
-        title_style.fontName = 'DejaVu'
-        title = Paragraph('Driver Cars Export', title_style)
-        elements.append(title)
-        elements.append(Spacer(1, 12))
-
         headers = ['Driver Name', 'Driver Phone', 'Car Type', 'Car Model', 'Car Number', 'Car Color']
-        data = [headers]
-
+        title = "Driver Cars Export"
+        rows = []
         for obj in queryset:
-            data.append([
+            rows.append([
                 obj.driver_profile.provider.user.name,
                 obj.driver_profile.provider.user.phone,
                 obj.type,
@@ -897,40 +795,14 @@ class DriverCarAdmin(ExportMixin, admin.ModelAdmin):
                 obj.number,
                 obj.color,
             ])
-
-        def calc_width(col_data, padding=10):
-            max_len = max([len(str(d)) for d in col_data] + [len(col_data[0])])
-            return max(50, min(max_len * 5 + padding, 120))
-
-        col_widths = [calc_width([row[i] for row in data]) for i in range(len(headers))]
-
-        table = Table(data, repeatRows=1, colWidths=col_widths)
-        table.setStyle(TableStyle([
-            ('FONTNAME', (0, 0), (-1, -1), 'DejaVu'),
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#003366')),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('FONTSIZE', (0, 0), (-1, 0), 12),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
-            ('BACKGROUND', (0, 1), (-1, -1), colors.whitesmoke),
-            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-        ]))
-
-        for i in range(1, len(data)):
-            if i % 2 == 0:
-                table.setStyle(TableStyle([
-                    ('BACKGROUND', (0, i), (-1, i), colors.HexColor('#e6f2ff')),
-                ]))
-
-        elements.append(table)
-        doc.build(elements)
-        buffer.seek(0)
+        buffer = export_pdf(title, headers, rows, filename="driver_cars.pdf", is_arabic=False)
         return HttpResponse(buffer, content_type='application/pdf', headers={
             'Content-Disposition': 'attachment; filename=driver_cars.pdf'
         })
-
     export_as_pdf.short_description = 'Export selected driver cars as PDF'
 
+
+# CustomerResource and Admin
 class CustomerResource(resources.ModelResource):
     customer_name = fields.Field(attribute='user__name', column_name='Customer Name')
     phone = fields.Field(attribute='user__phone', column_name='Phone Number')
@@ -991,64 +863,21 @@ class CustomerAdmin(ExportMixin, admin.ModelAdmin):
     date_joined.admin_order_field = 'user__date_joined'
 
     def export_as_pdf(self, request, queryset):
-        font_path = '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf'
-        if not os.path.exists(font_path):
-            font_path = '/usr/local/share/fonts/DejaVuSans.ttf'
-        pdfmetrics.registerFont(TTFont('DejaVu', font_path))
-        
-        buffer = io.BytesIO()
-        doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=30, leftMargin=30, topMargin=30, bottomMargin=18)
-        elements = []
-        styles = getSampleStyleSheet()
-        title_style = styles['Title'].clone('CustomerTitle')
-        title_style.fontName = 'DejaVu'
-        title = Paragraph('Customers Export', title_style)
-        elements.append(title)
-        elements.append(Spacer(1, 12))
-
         headers = ['Customer Name', 'Phone Number', 'Email', 'In Ride', 'Date Joined']
-        data = [headers]
-
+        title = "Customers Export"
+        rows = []
         for obj in queryset:
-            data.append([
+            rows.append([
                 obj.user.name,
                 obj.user.phone,
                 obj.user.email,
                 'Yes' if obj.in_ride else 'No',
                 obj.user.date_joined.strftime('%Y-%m-%d %H:%M'),
             ])
-
-        def calc_width(col_data, padding=10):
-            max_len = max([len(str(d)) for d in col_data] + [len(col_data[0])])
-            return max(50, min(max_len * 5 + padding, 120))
-
-        col_widths = [calc_width([row[i] for row in data]) for i in range(len(headers))]
-
-        table = Table(data, repeatRows=1, colWidths=col_widths)
-        table.setStyle(TableStyle([
-            ('FONTNAME', (0, 0), (-1, -1), 'DejaVu'),
-            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#003366')),
-            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
-            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('FONTSIZE', (0, 0), (-1, 0), 12),
-            ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
-            ('BACKGROUND', (0, 1), (-1, -1), colors.whitesmoke),
-            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-        ]))
-
-        for i in range(1, len(data)):
-            if i % 2 == 0:
-                table.setStyle(TableStyle([
-                    ('BACKGROUND', (0, i), (-1, i), colors.HexColor('#e6f2ff')),
-                ]))
-
-        elements.append(table)
-        doc.build(elements)
-        buffer.seek(0)
+        buffer = export_pdf(title, headers, rows, filename="customers.pdf", is_arabic=False)
         return HttpResponse(buffer, content_type='application/pdf', headers={
             'Content-Disposition': 'attachment; filename=customers.pdf'
         })
-
     export_as_pdf.short_description = 'Export selected customers as PDF'
     
     def activate_customers(self, request, queryset):

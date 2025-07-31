@@ -168,3 +168,4 @@ def send_whatsapp_message(phone, message):
     except requests.exceptions.RequestException as e:
         print(f"Error sending WhatsApp message: {e}")
         return None
+    
