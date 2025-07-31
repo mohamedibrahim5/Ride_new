@@ -36,6 +36,7 @@ INSTALLED_APPS = [
     "fcm_django",
     "django_filters",
     "channels",
+    'import_export',
     'dal',
     'dal_select2',
     "core",
