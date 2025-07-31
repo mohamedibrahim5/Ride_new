@@ -156,7 +156,66 @@ except admin.sites.NotRegistered:
 admin.site.register(User, UserAdmin)
 admin.site.register(UserOtp)
 admin.site.register(DriverCar)
-admin.site.register(Customer)
+
+@admin.register(Customer)
+class CustomerAdmin(admin.ModelAdmin):
+    list_display = ('user_name', 'user_phone', 'user_email', 'in_ride', 'user_is_active', 'date_joined')
+    list_filter = ('in_ride', 'user__is_active', 'user__role', 'user__date_joined')
+    search_fields = ('user__name', 'user__phone', 'user__email')
+    ordering = ('-user__date_joined',)
+    readonly_fields = ('user',)
+    
+    def user_name(self, obj):
+        return obj.user.name
+    user_name.short_description = _('Customer Name')
+    user_name.admin_order_field = 'user__name'
+    
+    def user_phone(self, obj):
+        return obj.user.phone
+    user_phone.short_description = _('Phone Number')
+    user_phone.admin_order_field = 'user__phone'
+    
+    def user_email(self, obj):
+        return obj.user.email
+    user_email.short_description = _('Email')
+    user_email.admin_order_field = 'user__email'
+    
+    def user_is_active(self, obj):
+        if obj.user.is_active:
+            return format_html('<span style="color: green;">✓</span> Active')
+        else:
+            return format_html('<span style="color: red;">✗</span> Inactive')
+    user_is_active.short_description = _('Status')
+    user_is_active.admin_order_field = 'user__is_active'
+    
+    def date_joined(self, obj):
+        return obj.user.date_joined.strftime('%Y-%m-%d %H:%M')
+    date_joined.short_description = _('Date Joined')
+    date_joined.admin_order_field = 'user__date_joined'
+    
+    # Add custom actions
+    actions = ['activate_customers', 'deactivate_customers', 'mark_in_ride', 'mark_not_in_ride']
+    
+    def activate_customers(self, request, queryset):
+        updated = queryset.update(user__is_active=True)
+        self.message_user(request, f'{updated} customers have been activated.')
+    activate_customers.short_description = "Activate selected customers"
+    
+    def deactivate_customers(self, request, queryset):
+        updated = queryset.update(user__is_active=False)
+        self.message_user(request, f'{updated} customers have been deactivated.')
+    deactivate_customers.short_description = "Deactivate selected customers"
+    
+    def mark_in_ride(self, request, queryset):
+        updated = queryset.update(in_ride=True)
+        self.message_user(request, f'{updated} customers have been marked as in ride.')
+    mark_in_ride.short_description = "Mark selected customers as in ride"
+    
+    def mark_not_in_ride(self, request, queryset):
+        updated = queryset.update(in_ride=False)
+        self.message_user(request, f'{updated} customers have been marked as not in ride.')
+    mark_not_in_ride.short_description = "Mark selected customers as not in ride"
+
 admin.site.register(CustomerPlace)
 
 @admin.register(PricingZone)
