@@ -2103,3 +2103,15 @@ class RideHistoryView(generics.ListAPIView):
         c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
         return round(R * c, 2)
+
+
+from django.http import HttpResponse
+from .models import PlatformSettings
+
+def dashboard_logo(request):
+    settings = PlatformSettings.objects.first()
+    if settings and settings.platform_logo:
+        with open(settings.platform_logo.path, 'rb') as f:
+            return HttpResponse(f.read(), content_type="image/png")  # Adjust content type as needed
+    else:
+        return HttpResponse(status=404)

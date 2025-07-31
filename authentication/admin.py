@@ -21,7 +21,8 @@ from authentication.models import (
     ProductImage,
     ProviderServicePricing,
     PricingZone,
-    WhatsAppAPISettings
+    WhatsAppAPISettings,
+    PlatformSettings
 )
 from django import forms
 from rest_framework.authtoken.models import Token
@@ -899,4 +900,11 @@ class CustomerAdmin(ExportMixin, admin.ModelAdmin):
         updated = queryset.update(in_ride=False)
         self.message_user(request, f'{updated} customers have been marked as not in ride.')
     mark_not_in_ride.short_description = "Mark selected customers as not in ride"
+    
+    
+@admin.register(PlatformSettings)
+class DashboardSettingsAdmin(admin.ModelAdmin):
+    def has_add_permission(self, request):
+        return not PlatformSettings.objects.exists()
+
 

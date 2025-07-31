@@ -38,6 +38,7 @@ from authentication.views import (
     ProviderServicePricingViewSet,
     ProviderAutocomplete,
     ServiceAutocomplete,
+    dashboard_logo,
 )
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
@@ -94,6 +95,7 @@ urlpatterns = [
     path('rides/<int:ride_id>/rating/', RideRatingView.as_view(), name='ride-rating'),
     path('provider-autocomplete/', ProviderAutocomplete.as_view(), name='provider-autocomplete'),
     path('service-autocomplete/', ServiceAutocomplete.as_view(), name='service-autocomplete'),
+    path('admin/logo/', dashboard_logo, name='dashboard_logo'),
     # path('calculate-price/', CalculatePriceView.as_view(), name='calculate-price'),
 
 

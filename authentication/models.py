@@ -68,9 +68,9 @@ class PricingZone(models.Model):
 class User(AbstractUser):
     name = models.CharField(_("Name"), max_length=30)
     phone = models.CharField(_("Phone"),max_length=20, unique=True)
-    image = models.ImageField(_("Image"),upload_to="user/images/")
+    image = models.ImageField(_("Image"),upload_to="user/images/", null=True, blank=True)
     role = models.CharField(_("Role"), max_length=2, choices=ROLE_CHOICES)
-    location = PlainLocationField(based_fields=["cairo"], verbose_name=_("Location"))
+    location = PlainLocationField(based_fields=["cairo"], verbose_name=_("Location"), null= True, blank=True)
     location2_lat = models.FloatField(null=True, blank=True, verbose_name=_("Location2 Latitude"))
     location2_lng = models.FloatField(null=True, blank=True, verbose_name=_("Location2 Longitude"))
     average_rating = models.DecimalField(
@@ -687,3 +687,14 @@ class ProviderServicePricing(models.Model):
         self.clean()
         super().save(*args, **kwargs) 
 
+
+class PlatformSettings(models.Model):
+    platform_name = models.CharField(max_length=255, default="Riders Admin")
+    platform_logo = models.ImageField(upload_to='dashboard_logos/', null=True, blank=True)
+
+    def __str__(self):
+        return "Platform Settings"
+
+    class Meta:
+        verbose_name = "Platform Settings"
+        verbose_name_plural = "Platform Settings"

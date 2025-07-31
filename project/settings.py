@@ -3,7 +3,6 @@ from pathlib import Path
 from dotenv import load_dotenv
 import firebase_admin
 from django.utils.translation import gettext_lazy as _
-
 load_dotenv()
 
 
@@ -52,6 +51,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "authentication.middleware.DashboardSettingsMiddleware",
 ]
 
 ROOT_URLCONF = "project.urls"
@@ -59,9 +59,10 @@ ROOT_URLCONF = "project.urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
+        "DIRS": [],  # make sure this exists
         "APP_DIRS": True,
         "OPTIONS": {
+            "debug": True,  # ← Add this line
             "context_processors": [
                 "django.template.context_processors.debug",
                 "django.template.context_processors.request",
@@ -71,6 +72,7 @@ TEMPLATES = [
         },
     },
 ]
+
 
 ASGI_APPLICATION = "project.asgi.application"
 WSGI_APPLICATION = "project.wsgi.application"
@@ -254,7 +256,7 @@ SIMPLEUI_HOME_INFO = False
 SIMPLEUI_ANALYSIS = False
 SIMPLEUI_HOME_QUICK = True
 SIMPLEUI_HOME_ACTION = True
-SIMPLEUI_DEFAULT_THEME = 'admin.lte.css'
+SIMPLEUI_LOGO = '/media/dashboard_logos/logo.png'  # Updated path
 
 SIMPLEUI_CONFIG = {
     'system_keep': False,
@@ -386,6 +388,11 @@ SIMPLEUI_CONFIG = {
                     'name': _('WhatsApp API Settings'),
                     'icon': 'fab fa-whatsapp',
                     'url': 'authentication/whatsappapisettings/'
+                },
+                {
+                    'name': _('Platform Settings'),
+                    'icon': 'fas fa-cogs',
+                    'url': 'authentication/platformsettings/'
                 }
             ]
         }
@@ -393,12 +400,13 @@ SIMPLEUI_CONFIG = {
     ]
 }
 
-# Customize SimpleUI theme colors
-SIMPLEUI_DEFAULT_THEME = 'admin.lte.css'
-SIMPLEUI_LOGO = 'https://your-logo-url.com/logo.png'  # Replace with your logo URL
+# Load dynamic dashboard name/logo
 
-# Customize SimpleUI sidebar
 SIMPLEUI_HOME_TITLE = _('Ride Store Dashboard')
+
+# Customize SimpleUI theme colors
+SIMPLEUI_DEFAULT_THEME = None  # or just remove the line
+ 
 SIMPLEUI_HOME_ICON = 'fa fa-store'
 SIMPLEUI_INDEX = _('Dashboard')
 

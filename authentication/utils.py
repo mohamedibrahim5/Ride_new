@@ -169,3 +169,22 @@ def send_whatsapp_message(phone, message):
         print(f"Error sending WhatsApp message: {e}")
         return None
     
+# your_app/load_platform_settings.py
+from django.core.exceptions import ImproperlyConfigured
+from django.conf import settings
+
+def get_platform_settings():
+    try:
+        from authentication.models import PlatformSettings
+        obj = PlatformSettings.objects.first()
+        if obj:
+            return {
+                "title": obj.platform_name,
+                "logo": obj.platform_logo.url if obj.platform_logo else "https://default-logo.com/logo.png",
+            }
+    except Exception as e:
+        # Fallback if DB not ready
+        return {
+            "title": "Ride Store Dashboard",
+            "logo": "https://default-logo.com/logo.png",
+        }
