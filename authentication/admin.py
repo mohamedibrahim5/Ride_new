@@ -33,6 +33,9 @@ from django.http import HttpResponse
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 import io
+from reportlab.lib import colors
+from reportlab.platypus import Table, TableStyle, SimpleDocTemplate, Paragraph, Spacer
+from reportlab.lib.styles import getSampleStyleSheet
 
 admin.site.unregister(Group)
 
@@ -501,9 +504,12 @@ class DriverProfileResource(resources.ModelResource):
     phone = fields.Field(attribute='provider__user__phone', column_name='Phone Number')
     license = fields.Field(attribute='license', column_name='License Number')
     status = fields.Field(attribute='status', column_name='Status')
-    is_verified = fields.Field(attribute='is_verified', column_name='Verified')
     email = fields.Field(attribute='provider__user__email', column_name='Email')
     date_joined = fields.Field(attribute='provider__user__date_joined', column_name='Date Joined')
+    verified = fields.Field(column_name='Verified')
+
+    def dehydrate_verified(self, obj):
+        return 'Yes' if obj.provider.is_verified else 'No'
 
     class Meta:
         model = DriverProfile
@@ -512,7 +518,7 @@ class DriverProfileResource(resources.ModelResource):
             'phone',
             'license',
             'status',
-            'is_verified',
+            'verified',
             'email',
             'date_joined',
         )
@@ -521,8 +527,8 @@ class DriverProfileResource(resources.ModelResource):
 @admin.register(DriverProfile)
 class DriverProfileAdmin(ImportExportModelAdmin):
     resource_class = DriverProfileResource
-    list_display = ('user_name', 'user_phone', 'license', 'status', 'is_verified', 'documents_link')
-    list_filter = ('status', 'is_verified')
+    list_display = ('user_name', 'user_phone', 'license', 'status', 'provider_verified', 'documents_link')
+    list_filter = ('status', 'provider__is_verified')
     search_fields = ('provider__user__name', 'provider__user__phone', 'license')
     ordering = ('-provider__user__date_joined',)
     actions = ['export_as_pdf']
@@ -537,6 +543,11 @@ class DriverProfileAdmin(ImportExportModelAdmin):
     user_phone.short_description = _('Phone Number')
     user_phone.admin_order_field = 'provider__user__phone'
 
+    def provider_verified(self, obj):
+        return 'Yes' if obj.provider.is_verified else 'No'
+    provider_verified.short_description = _('Verified')
+    provider_verified.admin_order_field = 'provider__is_verified'
+
     def documents_link(self, obj):
         if obj.documents:
             return format_html('<a href="{}" target="_blank">Download</a>', obj.documents.url)
@@ -545,35 +556,44 @@ class DriverProfileAdmin(ImportExportModelAdmin):
 
     def export_as_pdf(self, request, queryset):
         buffer = io.BytesIO()
-        p = canvas.Canvas(buffer, pagesize=letter)
-        width, height = letter
-        y = height - 40
-        p.setFont('Helvetica-Bold', 14)
-        p.drawString(40, y, 'Driver Profiles Export')
-        y -= 30
-        p.setFont('Helvetica', 10)
-        headers = ['Driver Name', 'Phone Number', 'License Number', 'Status', 'Verified', 'Email', 'Date Joined']
-        for i, header in enumerate(headers):
-            p.drawString(40 + i*90, y, header)
-        y -= 20
-        p.setFont('Helvetica', 9)
+        doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=30, leftMargin=30, topMargin=30, bottomMargin=18)
+        elements = []
+        styles = getSampleStyleSheet()
+        title = Paragraph('Driver Profiles Export', styles['Title'])
+        elements.append(title)
+        elements.append(Spacer(1, 12))
+        data = [[
+            'Driver Name', 'Phone Number', 'License Number', 'Status', 'Verified', 'Email', 'Date Joined'
+        ]]
         for obj in queryset:
-            row = [
+            data.append([
                 obj.provider.user.name,
                 obj.provider.user.phone,
                 obj.license,
                 obj.status,
-                'Yes' if obj.is_verified else 'No',
+                'Yes' if obj.provider.is_verified else 'No',
                 obj.provider.user.email,
                 obj.provider.user.date_joined.strftime('%Y-%m-%d %H:%M'),
-            ]
-            for i, value in enumerate(row):
-                p.drawString(40 + i*90, y, str(value))
-            y -= 18
-            if y < 50:
-                p.showPage()
-                y = height - 40
-        p.save()
+            ])
+        table = Table(data, repeatRows=1)
+        table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#003366')),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+            ('FONTSIZE', (0, 0), (-1, 0), 12),
+            ('BOTTOMPADDING', (0, 0), (-1, 0), 10),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.whitesmoke),
+            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+        ]))
+        # Alternating row colors
+        for i in range(1, len(data)):
+            if i % 2 == 0:
+                table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, i), (-1, i), colors.HexColor('#e6f2ff')),
+                ]))
+        elements.append(table)
+        doc.build(elements)
         buffer.seek(0)
         response = HttpResponse(buffer, content_type='application/pdf')
         response['Content-Disposition'] = 'attachment; filename=driver_profiles.pdf'
