@@ -889,20 +889,20 @@ class CustomerResource(resources.ModelResource):
         export_order = fields
 
 
+from datetime import datetime, timedelta
 class CustomDateFilter(admin.SimpleListFilter):
-    title = 'Date Joined'
+    title = _('Date Joined')
     parameter_name = 'date_joined_range'
-    template = 'admin/custom_date_filter.html'
 
     def lookups(self, request, model_admin):
         return (
-            ('today', 'Today'),
-            ('yesterday', 'Yesterday'),
-            ('this_week', 'This week'),
-            ('last_week', 'Last week'),
-            ('this_month', 'This month'),
-            ('last_month', 'Last month'),
-            ('this_year', 'This year'),
+            ('today', _('Today')),
+            ('yesterday', _('Yesterday')),
+            ('this_week', _('This week')),
+            ('last_week', _('Last week')),
+            ('this_month', _('This month')),
+            ('last_month', _('Last month')),
+            ('this_year', _('This year')),
         )
 
     def queryset(self, request, queryset):
@@ -910,34 +910,53 @@ class CustomDateFilter(admin.SimpleListFilter):
         if not value:
             return queryset
 
-        now = timezone.now()
-        
+        now = timezone.localtime()  # ensure local timezone
+        today_start = datetime.combine(now.date(), datetime.min.time(), tzinfo=now.tzinfo)
+        today_end = datetime.combine(now.date(), datetime.max.time(), tzinfo=now.tzinfo)
+
         if value == 'today':
-            return queryset.filter(user__date_joined__date=now.date())
+            return queryset.filter(user__date_joined__range=(today_start, today_end))
+
         elif value == 'yesterday':
-            yesterday = now.date() - timedelta(days=1)
-            return queryset.filter(user__date_joined__date=yesterday)
+            yesterday = now - timedelta(days=1)
+            start = datetime.combine(yesterday.date(), datetime.min.time(), tzinfo=now.tzinfo)
+            end = datetime.combine(yesterday.date(), datetime.max.time(), tzinfo=now.tzinfo)
+            return queryset.filter(user__date_joined__range=(start, end))
+
         elif value == 'this_week':
-            start = now.date() - timedelta(days=now.weekday())
-            return queryset.filter(user__date_joined__date__gte=start)
+            start = now - timedelta(days=now.weekday())
+            start = datetime.combine(start.date(), datetime.min.time(), tzinfo=now.tzinfo)
+            return queryset.filter(user__date_joined__gte=start)
+
         elif value == 'last_week':
-            start = now.date() - timedelta(days=now.weekday() + 7)
+            start = now - timedelta(days=now.weekday() + 7)
             end = start + timedelta(days=6)
-            return queryset.filter(user__date_joined__date__range=(start, end))
+            start = datetime.combine(start.date(), datetime.min.time(), tzinfo=now.tzinfo)
+            end = datetime.combine(end.date(), datetime.max.time(), tzinfo=now.tzinfo)
+            return queryset.filter(user__date_joined__range=(start, end))
+
         elif value == 'this_month':
-            return queryset.filter(
-                user__date_joined__month=now.month,
-                user__date_joined__year=now.year
-            )
+            start = datetime(now.year, now.month, 1, tzinfo=now.tzinfo)
+            return queryset.filter(user__date_joined__gte=start)
+
         elif value == 'last_month':
-            last_month = now.month - 1 if now.month > 1 else 12
-            year = now.year if now.month > 1 else now.year - 1
-            return queryset.filter(
-                user__date_joined__month=last_month,
-                user__date_joined__year=year
-            )
+            if now.month == 1:
+                year = now.year - 1
+                month = 12
+            else:
+                year = now.year
+                month = now.month - 1
+            start = datetime(year, month, 1, tzinfo=now.tzinfo)
+            if month == 12:
+                end = datetime(year + 1, 1, 1, tzinfo=now.tzinfo)
+            else:
+                end = datetime(year, month + 1, 1, tzinfo=now.tzinfo)
+            return queryset.filter(user__date_joined__gte=start, user__date_joined__lt=end)
+
         elif value == 'this_year':
-            return queryset.filter(user__date_joined__year=now.year)
+            start = datetime(now.year, 1, 1, tzinfo=now.tzinfo)
+            return queryset.filter(user__date_joined__gte=start)
+
         return queryset
 
     def choices(self, changelist):
@@ -992,10 +1011,14 @@ class CustomerAdmin(ExportMixin, admin.ModelAdmin):
     email.short_description = _('Email')
     email.admin_order_field = 'user__email'
 
+    from django.utils import timezone
+
     def date_joined(self, obj):
-        return obj.user.date_joined.strftime('%Y-%m-%d %H:%M')
+        local_dt = timezone.localtime(obj.user.date_joined)
+        return local_dt.strftime('%Y-%m-%d %H:%M')
     date_joined.short_description = _('Date Joined')
     date_joined.admin_order_field = 'user__date_joined'
+
 
     def export_as_pdf(self, request, queryset):
         headers = ['Customer Name', 'Phone Number', 'Email', 'In Ride', 'Date Joined']
