@@ -1,0 +1,386 @@
+{% load i18n %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{% trans "Drivers Map" %}</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: #f4f6f8;
+            margin: 0;
+            padding: 20px;
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+        #driverCount {
+            text-align: center;
+            font-size: 16px;
+            margin-bottom: 20px;
+            color: #555;
+        }
+        .search-container {
+            background-color: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+        }
+        .search-container input, .search-container select {
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            font-size: 14px;
+            width: 200px;
+        }
+        .search-container button {
+            padding: 10px 20px;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .search-container button.search {
+            background-color: #1a73e8;
+        }
+        .search-container button.search:hover {
+            background-color: #1557b0;
+        }
+        .search-container button.reset {
+            background-color: #f44336;
+        }
+        .search-container button.reset:hover {
+            background-color: #d32f2f;
+        }
+        #map {
+            height: 600px;
+            width: 100%;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        .popup-content {
+            font-family: 'Arial', sans-serif;
+            padding: 10px;
+            background-color: #fff;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+        .popup-content h3 {
+            margin: 0 0 10px;
+            color: #1a73e8;
+        }
+        .popup-content p {
+            margin: 5px 0;
+            color: #333;
+        }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            font-style: italic;
+            color: #666;
+            display: none;
+        }
+        .no-results {
+            text-align: center;
+            padding: 20px;
+            color: #f44336;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <h1>{% trans "Drivers on Map" %}</h1>
+    <div class="search-container">
+        <input type="text" id="nameSearch" placeholder="{% trans 'Search by driver name' %}" value="{{ request.GET.name|default:'' }}">
+        <input type="text" id="phoneSearch" placeholder="{% trans 'Search by phone number' %}" value="{{ request.GET.phone|default:'' }}">
+        <select id="statusSearch">
+            <option value="">{% trans "All Statuses" %}</option>
+            <option value="available" {% if request.GET.status == 'available' %}selected{% endif %}>{% trans "Available" %}</option>
+            <option value="in_ride" {% if request.GET.status == 'in_ride' %}selected{% endif %}>{% trans "In Ride" %}</option>
+        </select>
+        <input type="text" id="locationSearch" placeholder="{% trans 'Search by location (e.g., Cairo or 30.0444,31.2357)' %}" value="{{ request.GET.location|default:'' }}">
+        <button class="search" onclick="filterDrivers()">{% trans "Search" %}</button>
+        <button class="reset" onclick="resetSearch()">{% trans "Reset" %}</button>
+    </div>
+    <div id="driverCount">{% trans "Drivers found" %}: <span id="count">0</span></div>
+    <div id="map"></div>
+    <div id="loading" class="loading">{% trans "Loading location data..." %}</div>
+    <div id="noResults" class="no-results">{% trans "No drivers found matching your criteria" %}</div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // Global variables
+        let map;
+        let markers = [];
+        let currentCenter = [30.0444, 31.2357]; // Default: Cairo
+        let currentZoom = 10;
+        let lastFilters = {
+            name: '',
+            phone: '',
+            status: '',
+            location: '',
+            coords: null
+        };
+        const allDrivers = {{ driver_data|safe }};
+
+        // Initialize the map when DOM is loaded
+        document.addEventListener('DOMContentLoaded', function() {
+            initMap();
+            applyInitialFilters();
+        });
+
+        function initMap() {
+            // Set initial view from URL parameters or defaults
+            const urlParams = new URLSearchParams(window.location.search);
+            const lat = parseFloat(urlParams.get('lat')) || currentCenter[0];
+            const lng = parseFloat(urlParams.get('lng')) || currentCenter[1];
+            currentCenter = [lat, lng];
+            currentZoom = urlParams.has('lat') ? 12 : 10;
+
+            // Create map instance
+            map = L.map('map').setView(currentCenter, currentZoom);
+            
+            // Add tile layer
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            }).addTo(map);
+
+            // Set up event listeners
+            setupEventListeners();
+        }
+
+        function setupEventListeners() {
+            // Enter key in any search field triggers search
+            document.querySelectorAll('.search-container input, .search-container select').forEach(el => {
+                el.addEventListener('keypress', e => {
+                    if (e.key === 'Enter') filterDrivers();
+                });
+            });
+        }
+
+        function applyInitialFilters() {
+            const urlParams = new URLSearchParams(window.location.search);
+            lastFilters = {
+                name: urlParams.get('name') || '',
+                phone: urlParams.get('phone') || '',
+                status: urlParams.get('status') || '',
+                location: urlParams.get('location') || '',
+                coords: urlParams.has('lat') ? 
+                    [parseFloat(urlParams.get('lat')), parseFloat(urlParams.get('lng'))] : null
+            };
+            
+            // Set initial values in form fields
+            document.getElementById('nameSearch').value = lastFilters.name;
+            document.getElementById('phoneSearch').value = lastFilters.phone;
+            document.getElementById('statusSearch').value = lastFilters.status;
+            document.getElementById('locationSearch').value = lastFilters.location;
+            
+            applyFilters();
+        }
+
+        function resetSearch() {
+            // Clear all search fields
+            document.getElementById('nameSearch').value = '';
+            document.getElementById('phoneSearch').value = '';
+            document.getElementById('statusSearch').value = '';
+            document.getElementById('locationSearch').value = '';
+            
+            // Reset filters and map position
+            lastFilters = { name: '', phone: '', status: '', location: '', coords: null };
+            currentCenter = [30.0444, 31.2357];
+            currentZoom = 10;
+            
+            // Update URL and map view
+            updateUrlWithFilters();
+            map.setView(currentCenter, currentZoom);
+            applyFilters();
+        }
+
+        async function filterDrivers() {
+            // Get current filter values
+            lastFilters = {
+                name: document.getElementById('nameSearch').value.toLowerCase(),
+                phone: document.getElementById('phoneSearch').value.toLowerCase(),
+                status: document.getElementById('statusSearch').value,
+                location: document.getElementById('locationSearch').value.trim(),
+                coords: null
+            };
+
+            // Handle location search (coordinates or place name)
+            const locationQuery = lastFilters.location;
+            if (locationQuery) {
+                document.getElementById('loading').style.display = 'block';
+                document.getElementById('noResults').style.display = 'none';
+                
+                try {
+                    // Check if input is coordinates
+                    const coordMatch = locationQuery.match(/^(-?\d+\.?\d*)[,\s]+(-?\d+\.?\d*)$/);
+                    if (coordMatch) {
+                        const lat = parseFloat(coordMatch[1]);
+                        const lng = parseFloat(coordMatch[2]);
+                        if (!isNaN(lat) && !isNaN(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180) {
+                            lastFilters.coords = [lat, lng];
+                            currentCenter = [lat, lng];
+                            currentZoom = 12;
+                        } else {
+                            alert('{% trans "Invalid coordinates. Latitude must be between -90 and 90, longitude between -180 and 180" %}');
+                        }
+                    } else {
+                        // Geocode place name
+                        const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(locationQuery)}`);
+                        const data = await response.json();
+                        if (data?.length > 0) {
+                            lastFilters.coords = [parseFloat(data[0].lat), parseFloat(data[0].lon)];
+                            currentCenter = lastFilters.coords;
+                            currentZoom = 12;
+                        } else {
+                            alert('{% trans "Location not found" %}');
+                        }
+                    }
+                } catch (error) {
+                    console.error("Geocoding error:", error);
+                    alert('{% trans "Error searching location" %}');
+                } finally {
+                    document.getElementById('loading').style.display = 'none';
+                }
+            }
+
+            // Update URL and apply filters
+            updateUrlWithFilters();
+            applyFilters();
+        }
+
+        function updateUrlWithFilters() {
+            const params = new URLSearchParams();
+            
+            // Add active filters to URL
+            if (lastFilters.name) params.set('name', lastFilters.name);
+            if (lastFilters.phone) params.set('phone', lastFilters.phone);
+            if (lastFilters.status) params.set('status', lastFilters.status);
+            if (lastFilters.location) params.set('location', lastFilters.location);
+            if (lastFilters.coords) {
+                params.set('lat', lastFilters.coords[0]);
+                params.set('lng', lastFilters.coords[1]);
+            }
+            
+            // Update URL without reloading page
+            window.history.pushState({}, '', `?${params.toString()}`);
+        }
+
+        function applyFilters() {
+            const { name, phone, status, coords } = lastFilters;
+            
+            // Filter drivers based on current criteria
+            const filtered = allDrivers.filter(driver => {
+                const matchesName = !name || (driver.name && driver.name.toLowerCase().includes(name));
+                const matchesPhone = !phone || (driver.phone && driver.phone.toLowerCase().includes(phone));
+                const matchesStatus = !status || driver.status === status;
+                
+                // If coordinates search, filter by distance (10km radius)
+                if (coords) {
+                    const distance = getDistance(coords[0], coords[1], driver.lat, driver.lng);
+                    return matchesName && matchesPhone && matchesStatus && distance <= 10;
+                }
+                
+                return matchesName && matchesPhone && matchesStatus;
+            });
+
+            updateMarkers(filtered);
+
+            // Center map on results if searching by name/phone
+            if ((name || phone) && !coords) {
+                centerMapOnResults(filtered);
+            } else if (coords) {
+                // Center on searched location if coordinates were used
+                map.setView(currentCenter, currentZoom);
+            }
+
+            // Show no results message if needed
+            document.getElementById('noResults').style.display = 
+                filtered.length === 0 ? 'block' : 'none';
+        }
+
+        function centerMapOnResults(drivers) {
+            if (drivers.length === 0) return;
+            
+            if (drivers.length === 1) {
+                // Center on single result with zoom
+                const driver = drivers[0];
+                map.setView([driver.lat, driver.lng], 14);
+            } else {
+                // Fit bounds for multiple results
+                const bounds = L.latLngBounds();
+                drivers.forEach(driver => {
+                    bounds.extend([driver.lat, driver.lng]);
+                });
+                map.fitBounds(bounds, { padding: [50, 50] });
+            }
+        }
+
+        function updateMarkers(drivers) {
+            // Clear existing markers
+            markers.forEach(marker => map.removeLayer(marker));
+            markers = [];
+
+            // Create new markers for filtered drivers
+            drivers.forEach(driver => {
+                const marker = L.marker([driver.lat, driver.lng], {
+                    icon: L.icon({
+                        iconUrl: driver.status === 'available' ? 
+                            'https://img.icons8.com/color/48/000000/car--v1.png' : 
+                            'https://img.icons8.com/color/48/000000/car--v2.png',
+                        iconSize: [40, 40]
+                    })
+                }).addTo(map);
+                
+                // Add popup with driver info
+                marker.bindPopup(`
+                    <div class="popup-content">
+                        <h3>${driver.name || 'Unknown'}</h3>
+                        <p>{% trans "Status" %}: ${driver.status === 'available' ? '{% trans "Available" %}' : '{% trans "In Ride" %}'}</p>
+                        <p>{% trans "Phone" %}: ${driver.phone || 'N/A'}</p>
+                        ${driver.activity_percentage ? `<p>{% trans "Activity" %}: ${driver.activity_percentage}%</p>` : ''}
+                    </div>
+                `);
+                
+                // Center map on marker click
+                marker.on('click', function() {
+                    map.setView([driver.lat, driver.lng], 14);
+                });
+                
+                markers.push(marker);
+            });
+
+            // Update driver count display
+            document.getElementById('count').innerText = drivers.length;
+        }
+
+        // Calculate distance between two coordinates in kilometers
+        function getDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371; // Earth's radius in km
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = 
+                Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+                Math.sin(dLon/2) * Math.sin(dLon/2);
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+        }
+
+        // Auto-refresh data every 15 seconds
+        setInterval(() => {
+            if (map) applyFilters();
+        }, 15000);
+    </script>
+</body>
+</html>

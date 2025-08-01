@@ -59,7 +59,7 @@ ROOT_URLCONF = "project.urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],  # make sure this exists
+        "DIRS": [os.path.join(BASE_DIR, 'templates')],  # make sure this exists
         "APP_DIRS": True,
         "OPTIONS": {
             "debug": True,  # ← Add this line
@@ -412,3 +412,5 @@ SIMPLEUI_INDEX = _('Dashboard')
 
 # Customize SimpleUI login page
 SIMPLEUI_LOGIN_PARTICLES = True
+
+GOOGLE_MAPS_API_KEY = 'AIzaSyDXSvQvWo_ay-Tgq7qIlXIgdn-vNNxOAFA'  # Replace with your actual API key

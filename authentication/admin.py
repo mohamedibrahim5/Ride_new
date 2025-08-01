@@ -2,6 +2,7 @@ from django.contrib import admin
 from django.contrib.auth.models import Group
 from django.utils.translation import gettext_lazy as _
 from django.utils.html import format_html
+from django.urls import path, reverse
 from authentication.models import (
     User,
     UserOtp,
@@ -25,6 +26,9 @@ from authentication.models import (
     PlatformSettings
 )
 from django import forms
+import json
+from django.template.response import TemplateResponse
+
 from rest_framework.authtoken.models import Token
 import dal.autocomplete
 from dal import autocomplete
@@ -34,6 +38,7 @@ from django.http import HttpResponse
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
 import io
+from django.http import HttpResponse, HttpResponseRedirect
 from reportlab.lib import colors
 from reportlab.platypus import Table, TableStyle, SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
@@ -596,9 +601,8 @@ class DriverProfileAdmin(ExportMixin, admin.ModelAdmin):
     list_filter = ('status', 'provider__is_verified')
     search_fields = ('provider__user__name', 'provider__user__phone', 'license')
     ordering = ('-provider__user__date_joined',)
-    actions = ['export_as_pdf']
+    actions = ['export_as_pdf', 'view_drivers_on_map']
     readonly_fields = ('is_verified',)
-
     def user_name(self, obj):
         return obj.provider.user.name
     user_name.short_description = _('Driver Name')
@@ -639,6 +643,63 @@ class DriverProfileAdmin(ExportMixin, admin.ModelAdmin):
             'Content-Disposition': 'attachment; filename=driver_profiles.pdf'
         })
     export_as_pdf.short_description = 'Export selected drivers as PDF'
+    
+    # Add custom URL for map view
+    def view_drivers_on_map(self, request, queryset):
+        # If any driver is selected, filter by selected IDs
+        if queryset.exists():
+            ids = queryset.values_list('id', flat=True)
+            query_string = '&'.join([f'id={i}' for i in ids])
+            map_url = f"{reverse('admin:driverprofile-map')}?{query_string}"
+        else:
+            # No selection: show all drivers
+            map_url = reverse('admin:driverprofile-map')
+        return HttpResponseRedirect(map_url)
+
+    view_drivers_on_map.short_description = _('View Drivers on Map')
+
+    def get_urls(self):
+        urls = super().get_urls()
+        custom_urls = [
+            path('map/', self.admin_site.admin_view(self.map_view), name='driverprofile-map'),
+        ]
+        return custom_urls + urls
+
+    def map_view(self, request):
+        ids = request.GET.getlist('id')
+        # Start with all drivers, optimized with select_related
+        queryset = DriverProfile.objects.select_related('provider__user')
+
+        # Apply ID filter only if IDs are provided
+        if ids:
+            queryset = queryset.filter(id__in=ids)
+
+        # Filter for drivers with valid location coordinates
+        queryset = queryset.filter(
+            provider__user__location2_lat__isnull=False,
+            provider__user__location2_lng__isnull=False
+        )
+
+        driver_data = []
+        for driver in queryset:
+            total_rides = RideStatus.objects.filter(provider=driver.provider.user).count()
+            completed_rides = RideStatus.objects.filter(
+                provider=driver.provider.user, status='finished'
+            ).count()
+            activity_percentage = (completed_rides / total_rides * 100) if total_rides > 0 else 0
+            driver_data.append({
+                'name': driver.provider.user.name,
+                'lat': driver.provider.user.location2_lat,
+                'lng': driver.provider.user.location2_lng,
+                'status': driver.status,
+                'activity_percentage': round(activity_percentage, 2),
+            })
+
+        context = {
+            'driver_data': json.dumps(driver_data),
+            'google_maps_api_key': 'AIzaSyDXSvQvWo_ay-Tgq7qIlXIgdn-vNNxOAFA',
+        }
+        return TemplateResponse(request, 'admin/driverprofile_map.html', context)
 
 @admin.register(CarAgency)
 class CarAgencyAdmin(admin.ModelAdmin):
@@ -905,6 +966,7 @@ class CustomerAdmin(ExportMixin, admin.ModelAdmin):
 @admin.register(PlatformSettings)
 class DashboardSettingsAdmin(admin.ModelAdmin):
     def has_add_permission(self, request):
+        # Prevent adding more than one instance
         return not PlatformSettings.objects.exists()
 
 
