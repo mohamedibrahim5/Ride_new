@@ -1087,6 +1087,27 @@ class CustomerAdmin(ExportMixin, admin.ModelAdmin):
         extra_context['total_customers'] = total_customers
         self.message_user(request, f'Total Customers: {total_customers}', level='INFO')
         return super().changelist_view(request, extra_context=extra_context)
+    
+    def get_changelist(self, request, **kwargs):
+        self._normalize_datetime_filters(request)
+        return super().get_changelist(request, **kwargs)
+
+    def _normalize_datetime_filters(self, request):
+        """Force datetime filters to use local timezone from settings."""
+        get = request.GET.copy()
+        local_tz = pytz.timezone(settings.TIME_ZONE)
+
+        for param in ['user__date_joined__gte', 'user__date_joined__lte']:
+            if param in get:
+                try:
+                    dt = datetime.fromisoformat(get[param])
+                    dt_local = dt.astimezone(local_tz)
+                    print(f"{param}: {get[param]} → {dt_local}")
+                    get[param] = dt_local.isoformat()
+                except Exception as e:
+                    print(f"Failed to parse {param}: {e}")
+
+        request.GET = get
 
 
 @admin.register(PlatformSettings)
