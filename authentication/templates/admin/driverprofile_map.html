@@ -296,35 +296,41 @@
             });
 
             updateMarkers(filtered);
-
-            // Center map on results if searching by name/phone
-            if ((name || phone) && !coords) {
-                centerMapOnResults(filtered);
-            } else if (coords) {
-                // Center on searched location if coordinates were used
-                map.setView(currentCenter, currentZoom);
-            }
-
+            adjustMapView(filtered);
+            
             // Show no results message if needed
             document.getElementById('noResults').style.display = 
                 filtered.length === 0 ? 'block' : 'none';
         }
 
-        function centerMapOnResults(drivers) {
+        function adjustMapView(drivers) {
             if (drivers.length === 0) return;
             
             if (drivers.length === 1) {
-                // Center on single result with zoom
-                const driver = drivers[0];
-                map.setView([driver.lat, driver.lng], 14);
+                // Single driver - zoom in close
+                map.setView([drivers[0].lat, drivers[0].lng], 14);
             } else {
-                // Fit bounds for multiple results
+                // Multiple drivers - fit all markers in view
                 const bounds = L.latLngBounds();
                 drivers.forEach(driver => {
                     bounds.extend([driver.lat, driver.lng]);
                 });
-                map.fitBounds(bounds, { padding: [50, 50] });
+                
+                // Calculate appropriate padding based on number of markers
+                const padding = calculatePadding(drivers.length);
+                
+                map.fitBounds(bounds, {
+                    padding: padding,
+                    maxZoom: 12  // Don't zoom in too close for multiple markers
+                });
             }
+        }
+
+        function calculatePadding(numMarkers) {
+            // Dynamic padding based on number of markers
+            if (numMarkers <= 3) return [100, 100];
+            if (numMarkers <= 10) return [50, 50];
+            return [20, 20];  // More markers need less padding
         }
 
         function updateMarkers(drivers) {
