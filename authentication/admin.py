@@ -1063,8 +1063,12 @@ class CustomerAdmin(ExportMixin, admin.ModelAdmin):
                 try:
                     # Decode URL-encoded parameter
                     dt_str = urllib.parse.unquote(get[param])
-                    # Replace '+' or space with 'T' for ISO format
-                    dt_str = dt_str.replace(' ', 'T').replace('+', 'T', 1) if '+' in dt_str else dt_str
+                    # Replace first '+' with 'T' for ISO format, preserving timezone offset
+                    if '+' in dt_str:
+                        parts = dt_str.split('+', 1)
+                        dt_str = parts[0].replace(' ', 'T') + '+' + parts[1]
+                    else:
+                        dt_str = dt_str.replace(' ', 'T')
                     # Parse the datetime string
                     dt = datetime.fromisoformat(dt_str)
                     # Extract date and time components
