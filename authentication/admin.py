@@ -29,6 +29,7 @@ from django import forms
 from django.utils.timezone import make_aware, get_default_timezone
 import pytz
 import json
+import urllib.parse
 from django.conf import settings
 from django.template.response import TemplateResponse
 from django.contrib.admin import SimpleListFilter, DateFieldListFilter
@@ -983,7 +984,7 @@ class CustomerAdmin(ExportMixin, admin.ModelAdmin):
         'in_ride',
         ('user__is_active', admin.BooleanFieldListFilter),
         'user__role',
-        'user__date_joined',
+        ('user__date_joined', DateFieldListFilter),
         CustomDateFilter,  # Only use our custom filter
     )
     search_fields = ('user__name', 'user__phone', 'user__email')
@@ -1061,37 +1062,6 @@ class CustomerAdmin(ExportMixin, admin.ModelAdmin):
         self.message_user(request, f'{updated} customers have been marked as not in ride.')
     mark_not_in_ride.short_description = "Mark selected customers as not in ride"
     
-    def changelist_view(self, request, extra_context=None):
-        local_tz = pytz.timezone(settings.TIME_ZONE)
-        get = request.GET.copy()
-
-        for param in ['user__date_joined__gte', 'user__date_joined__lte']:
-            if param in get:
-                try:
-                    # Parse ISO format (with timezone info)
-                    dt = datetime.fromisoformat(get[param])
-                    # Convert to local timezone if not already
-                    if dt.tzinfo is not None:
-                        dt_local = dt.astimezone(local_tz)
-                    else:
-                        dt_local = local_tz.localize(dt)
-                    # Save back to GET params
-                    get[param] = dt_local.isoformat()
-                except Exception:
-                    pass  # silently ignore parse errors
-
-        request.GET = get
-
-        extra_context = extra_context or {}
-        total_customers = Customer.objects.count()
-        extra_context['total_customers'] = total_customers
-        self.message_user(request, f'Total Customers: {total_customers}', level='INFO')
-        return super().changelist_view(request, extra_context=extra_context)
-    
-    def get_changelist(self, request, **kwargs):
-        self._normalize_datetime_filters(request)
-        return super().get_changelist(request, **kwargs)
-
     def _normalize_datetime_filters(self, request):
         """Force datetime filters to use local timezone from settings."""
         get = request.GET.copy()
@@ -1100,14 +1070,35 @@ class CustomerAdmin(ExportMixin, admin.ModelAdmin):
         for param in ['user__date_joined__gte', 'user__date_joined__lte']:
             if param in get:
                 try:
-                    dt = datetime.fromisoformat(get[param])
-                    dt_converted = dt.astimezone(get_default_timezone())
-                    print(f"{param}: {get[param]} → {dt_converted}")
+                    # Decode URL-encoded parameter
+                    dt_str = urllib.parse.unquote(get[param])
+                    # Replace space with 'T' for ISO format if needed
+                    dt_str = dt_str.replace(' ', 'T')
+                    # Parse the datetime string
+                    dt = datetime.fromisoformat(dt_str)
+                    # Convert to local timezone
+                    if dt.tzinfo is not None:
+                        dt_converted = dt.astimezone(local_tz)
+                    else:
+                        dt_converted = local_tz.localize(dt)
+                    # Format back to ISO string for URL
                     get[param] = dt_converted.isoformat()
-                except Exception as e:
+                    print(f"{param}: {dt_str} → {dt_converted.isoformat()}")
+                except ValueError as e:
                     print(f"Failed to parse {param}: {e}")
-
+                    continue  # Skip invalid datetime values
         request.GET = get
+
+    def changelist_view(self, request, extra_context=None):
+        self._normalize_datetime_filters(request)
+        extra_context = extra_context or {}
+        total_customers = Customer.objects.count()
+        extra_context['total_customers'] = total_customers
+        self.message_user(request, f'Total Customers: {total_customers}', level='INFO')
+        return super().changelist_view(request, extra_context=extra_context)
+
+    def get_changelist(self, request, **kwargs):
+        return super().get_changelist(request, **kwargs)
 
 
 @admin.register(PlatformSettings)
