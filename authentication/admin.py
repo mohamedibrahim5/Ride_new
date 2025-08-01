@@ -26,7 +26,7 @@ from authentication.models import (
     PlatformSettings
 )
 from django import forms
-from django.utils.timezone import make_aware
+from django.utils.timezone import make_aware, get_default_timezone
 import pytz
 import json
 from django.conf import settings
@@ -1101,9 +1101,9 @@ class CustomerAdmin(ExportMixin, admin.ModelAdmin):
             if param in get:
                 try:
                     dt = datetime.fromisoformat(get[param])
-                    dt_local = dt.astimezone(local_tz)
-                    print(f"{param}: {get[param]} → {dt_local}")
-                    get[param] = dt_local.isoformat()
+                    dt_converted = dt.astimezone(get_default_timezone())
+                    print(f"{param}: {get[param]} → {dt_converted}")
+                    get[param] = dt_converted.isoformat()
                 except Exception as e:
                     print(f"Failed to parse {param}: {e}")
 
