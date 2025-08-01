@@ -895,7 +895,7 @@ class CustomerResource(resources.ModelResource):
 
 from datetime import datetime, timedelta
 class CustomDateFilter(admin.SimpleListFilter):
-    title = _('Date Joined')
+    title = _('Date Joined Range')
     parameter_name = 'date_joined_range'
 
     def lookups(self, request, model_admin):
@@ -914,35 +914,30 @@ class CustomDateFilter(admin.SimpleListFilter):
         if not value:
             return queryset
 
-        now = timezone.localtime()  # ensure local timezone
+        now = timezone.localtime()  # Ensure local timezone (EEST)
         today_start = datetime.combine(now.date(), datetime.min.time(), tzinfo=now.tzinfo)
         today_end = datetime.combine(now.date(), datetime.max.time(), tzinfo=now.tzinfo)
 
         if value == 'today':
             return queryset.filter(user__date_joined__range=(today_start, today_end))
-
         elif value == 'yesterday':
             yesterday = now - timedelta(days=1)
             start = datetime.combine(yesterday.date(), datetime.min.time(), tzinfo=now.tzinfo)
             end = datetime.combine(yesterday.date(), datetime.max.time(), tzinfo=now.tzinfo)
             return queryset.filter(user__date_joined__range=(start, end))
-
         elif value == 'this_week':
             start = now - timedelta(days=now.weekday())
             start = datetime.combine(start.date(), datetime.min.time(), tzinfo=now.tzinfo)
             return queryset.filter(user__date_joined__gte=start)
-
         elif value == 'last_week':
             start = now - timedelta(days=now.weekday() + 7)
             end = start + timedelta(days=6)
             start = datetime.combine(start.date(), datetime.min.time(), tzinfo=now.tzinfo)
             end = datetime.combine(end.date(), datetime.max.time(), tzinfo=now.tzinfo)
             return queryset.filter(user__date_joined__range=(start, end))
-
         elif value == 'this_month':
             start = datetime(now.year, now.month, 1, tzinfo=now.tzinfo)
             return queryset.filter(user__date_joined__gte=start)
-
         elif value == 'last_month':
             if now.month == 1:
                 year = now.year - 1
@@ -956,11 +951,9 @@ class CustomDateFilter(admin.SimpleListFilter):
             else:
                 end = datetime(year, month + 1, 1, tzinfo=now.tzinfo)
             return queryset.filter(user__date_joined__gte=start, user__date_joined__lt=end)
-
         elif value == 'this_year':
             start = datetime(now.year, 1, 1, tzinfo=now.tzinfo)
             return queryset.filter(user__date_joined__gte=start)
-
         return queryset
 
     def choices(self, changelist):
@@ -975,7 +968,7 @@ class CustomDateFilter(admin.SimpleListFilter):
 
     def expected_parameters(self):
         return [self.parameter_name, 'date_joined_start', 'date_joined_end']
-            
+
 @admin.register(Customer)
 class CustomerAdmin(ExportMixin, admin.ModelAdmin):
     resource_class = CustomerResource
@@ -984,8 +977,8 @@ class CustomerAdmin(ExportMixin, admin.ModelAdmin):
         'in_ride',
         ('user__is_active', admin.BooleanFieldListFilter),
         'user__role',
-        ('user__date_joined', DateFieldListFilter),
-        CustomDateFilter,  # Only use our custom filter
+        ('user__date_joined', DateFieldListFilter),  # Default date filter for user__date_joined
+        CustomDateFilter,  # Custom range filter
     )
     search_fields = ('user__name', 'user__phone', 'user__email')
     ordering = ('-user__date_joined',)
@@ -996,7 +989,7 @@ class CustomerAdmin(ExportMixin, admin.ModelAdmin):
         return obj.user.name
     customer_name.short_description = _('Customer Name')
     customer_name.admin_order_field = 'user__name'
-    
+
     def user_is_active(self, obj):
         if obj.user.is_active:
             return format_html('<span style="color: green;">✓</span> Active')
@@ -1015,72 +1008,71 @@ class CustomerAdmin(ExportMixin, admin.ModelAdmin):
     email.short_description = _('Email')
     email.admin_order_field = 'user__email'
 
-    from django.utils import timezone
-
     def date_joined(self, obj):
         local_dt = timezone.localtime(obj.user.date_joined)
         return local_dt.strftime('%Y-%m-%d %H:%M')
     date_joined.short_description = _('Date Joined')
     date_joined.admin_order_field = 'user__date_joined'
 
-
     def export_as_pdf(self, request, queryset):
         headers = ['Customer Name', 'Phone Number', 'Email', 'In Ride', 'Date Joined']
         title = "Customers Export"
         rows = []
         for obj in queryset:
+            local_dt = timezone.localtime(obj.user.date_joined)
             rows.append([
                 obj.user.name,
                 obj.user.phone,
                 obj.user.email,
                 'Yes' if obj.in_ride else 'No',
-                obj.user.date_joined.strftime('%Y-%m-%d %H:%M'),
+                local_dt.strftime('%Y-%m-%d %H:%M'),
             ])
         buffer = export_pdf(title, headers, rows, filename="customers.pdf", is_arabic=False)
         return HttpResponse(buffer, content_type='application/pdf', headers={
             'Content-Disposition': 'attachment; filename=customers.pdf'
         })
     export_as_pdf.short_description = 'Export selected customers as PDF'
-    
+
     def activate_customers(self, request, queryset):
         updated = queryset.update(user__is_active=True)
         self.message_user(request, f'{updated} customers have been activated.')
     activate_customers.short_description = "Activate selected customers"
-    
+
     def deactivate_customers(self, request, queryset):
         updated = queryset.update(user__is_active=False)
         self.message_user(request, f'{updated} customers have been deactivated.')
     deactivate_customers.short_description = "Deactivate selected customers"
-    
+
     def mark_in_ride(self, request, queryset):
         updated = queryset.update(in_ride=True)
         self.message_user(request, f'{updated} customers have been marked as in ride.')
     mark_in_ride.short_description = "Mark selected customers as in ride"
-    
+
     def mark_not_in_ride(self, request, queryset):
         updated = queryset.update(in_ride=False)
         self.message_user(request, f'{updated} customers have been marked as not in ride.')
     mark_not_in_ride.short_description = "Mark selected customers as not in ride"
-    
+
     def _normalize_datetime_filters(self, request):
-        """Force datetime filters to use local timezone from settings."""
+        """Force datetime filters to use local timezone (EEST) without altering date/time."""
         get = request.GET.copy()
-        local_tz = pytz.timezone(settings.TIME_ZONE)
+        local_tz = pytz.timezone(settings.TIME_ZONE)  # E.g., 'Europe/Helsinki' for EEST
 
         for param in ['user__date_joined__gte', 'user__date_joined__lte']:
             if param in get:
                 try:
                     # Decode URL-encoded parameter
                     dt_str = urllib.parse.unquote(get[param])
-                    # Replace space with 'T' for ISO format if needed
-                    dt_str = dt_str.replace(' ', 'T')
+                    # Replace '+' or space with 'T' for ISO format
+                    dt_str = dt_str.replace(' ', 'T').replace('+', 'T', 1) if '+' in dt_str else dt_str
                     # Parse the datetime string
                     dt = datetime.fromisoformat(dt_str)
-                    # Convert to local timezone
-                    if dt.tzinfo is not None:
-                        dt_converted = dt.astimezone(local_tz)
-                    else:
-                        dt_converted = local_tz.localize(dt)
+                    # Extract date and time components
+                    dt_components = datetime(
+                        dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second, dt.microsecond
+                    )
+                    # Apply local timezone (EEST, +03:00) without changing date/time
+                    dt_converted = local_tz.localize(dt_components)
                     # Format back to ISO string for URL
                     get[param] = dt_converted.isoformat()
                     print(f"{param}: {dt_str} → {dt_converted.isoformat()}")
@@ -1099,8 +1091,6 @@ class CustomerAdmin(ExportMixin, admin.ModelAdmin):
 
     def get_changelist(self, request, **kwargs):
         return super().get_changelist(request, **kwargs)
-
-
 @admin.register(PlatformSettings)
 class DashboardSettingsAdmin(admin.ModelAdmin):
     def has_add_permission(self, request):
