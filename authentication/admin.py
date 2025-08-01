@@ -28,7 +28,9 @@ from authentication.models import (
 from django import forms
 import json
 from django.template.response import TemplateResponse
-
+from django.contrib.admin import SimpleListFilter, DateFieldListFilter
+from django.utils import timezone
+from datetime import timedelta
 from rest_framework.authtoken.models import Token
 import dal.autocomplete
 from dal import autocomplete
@@ -886,15 +888,86 @@ class CustomerResource(resources.ModelResource):
         )
         export_order = fields
 
+
+class CustomDateFilter(admin.SimpleListFilter):
+    title = 'Date Joined'
+    parameter_name = 'date_joined_range'
+    template = 'admin/custom_date_filter.html'
+
+    def lookups(self, request, model_admin):
+        return (
+            ('today', 'Today'),
+            ('yesterday', 'Yesterday'),
+            ('this_week', 'This week'),
+            ('last_week', 'Last week'),
+            ('this_month', 'This month'),
+            ('last_month', 'Last month'),
+            ('this_year', 'This year'),
+        )
+
+    def queryset(self, request, queryset):
+        value = self.value()
+        if not value:
+            return queryset
+
+        now = timezone.now()
+        
+        if value == 'today':
+            return queryset.filter(user__date_joined__date=now.date())
+        elif value == 'yesterday':
+            yesterday = now.date() - timedelta(days=1)
+            return queryset.filter(user__date_joined__date=yesterday)
+        elif value == 'this_week':
+            start = now.date() - timedelta(days=now.weekday())
+            return queryset.filter(user__date_joined__date__gte=start)
+        elif value == 'last_week':
+            start = now.date() - timedelta(days=now.weekday() + 7)
+            end = start + timedelta(days=6)
+            return queryset.filter(user__date_joined__date__range=(start, end))
+        elif value == 'this_month':
+            return queryset.filter(
+                user__date_joined__month=now.month,
+                user__date_joined__year=now.year
+            )
+        elif value == 'last_month':
+            last_month = now.month - 1 if now.month > 1 else 12
+            year = now.year if now.month > 1 else now.year - 1
+            return queryset.filter(
+                user__date_joined__month=last_month,
+                user__date_joined__year=year
+            )
+        elif value == 'this_year':
+            return queryset.filter(user__date_joined__year=now.year)
+        return queryset
+
+    def choices(self, changelist):
+        for lookup, title in self.lookups(None, None):
+            yield {
+                'selected': self.value() == lookup,
+                'query_string': changelist.get_query_string({
+                    self.parameter_name: lookup,
+                }, ['date_joined_start', 'date_joined_end']),
+                'display': title,
+            }
+
+    def expected_parameters(self):
+        return [self.parameter_name, 'date_joined_start', 'date_joined_end']
+            
 @admin.register(Customer)
 class CustomerAdmin(ExportMixin, admin.ModelAdmin):
     resource_class = CustomerResource
     list_display = ('customer_name', 'phone', 'email', 'in_ride', 'user_is_active', 'date_joined')
-    list_filter = ('in_ride', 'user__is_active', 'user__role', 'user__date_joined')
+    list_filter = (
+        'in_ride',
+        ('user__is_active', admin.BooleanFieldListFilter),
+        'user__role',
+        'user__date_joined',
+        CustomDateFilter,  # Only use our custom filter
+    )
     search_fields = ('user__name', 'user__phone', 'user__email')
     ordering = ('-user__date_joined',)
     readonly_fields = ('user',)
-    actions = ['export_as_pdf', 'activate_customers', 'deactivate_customers', 'mark_in_ride', 'mark_not_in_ride']
+    actions = ['export_as_pdf', 'mark_in_ride', 'mark_not_in_ride']
 
     def customer_name(self, obj):
         return obj.user.name
@@ -962,7 +1035,14 @@ class CustomerAdmin(ExportMixin, admin.ModelAdmin):
         self.message_user(request, f'{updated} customers have been marked as not in ride.')
     mark_not_in_ride.short_description = "Mark selected customers as not in ride"
     
-    
+    def changelist_view(self, request, extra_context=None):
+        extra_context = extra_context or {}
+        total_customers = Customer.objects.count()
+        extra_context['total_customers'] = total_customers
+        self.message_user(request, f'Total Customers: {total_customers}', level='INFO')
+        return super().changelist_view(request, extra_context=extra_context)
+
+
 @admin.register(PlatformSettings)
 class DashboardSettingsAdmin(admin.ModelAdmin):
     def has_add_permission(self, request):
