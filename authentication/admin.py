@@ -26,6 +26,8 @@ from authentication.models import (
     PlatformSettings
 )
 from django import forms
+from django.utils.timezone import make_aware
+import pytz
 import json
 from django.template.response import TemplateResponse
 from django.contrib.admin import SimpleListFilter, DateFieldListFilter
@@ -1059,12 +1061,27 @@ class CustomerAdmin(ExportMixin, admin.ModelAdmin):
     mark_not_in_ride.short_description = "Mark selected customers as not in ride"
     
     def changelist_view(self, request, extra_context=None):
+        # Convert input date strings from +08:00 to Africa/Cairo
+        cairo = pytz.timezone('Africa/Cairo')
+        get = request.GET.copy()
+
+        for param in ['user__date_joined__gte', 'user__date_joined__lte']:
+            if param in get:
+                try:
+                    # Parse and convert input datetime to Cairo TZ
+                    dt = datetime.fromisoformat(get[param])
+                    dt_cairo = dt.astimezone(cairo)
+                    get[param] = dt_cairo.isoformat()
+                except Exception:
+                    pass  # fallback silently if parsing fails
+
+        request.GET = get  # overwrite original GET params with converted ones
+
         extra_context = extra_context or {}
         total_customers = Customer.objects.count()
         extra_context['total_customers'] = total_customers
         self.message_user(request, f'Total Customers: {total_customers}', level='INFO')
         return super().changelist_view(request, extra_context=extra_context)
-
 
 @admin.register(PlatformSettings)
 class DashboardSettingsAdmin(admin.ModelAdmin):
