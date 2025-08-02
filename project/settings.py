@@ -12,7 +12,6 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = "django-insecure-1234567890"
 DEBUG = True
 
-FCM_SERVER_KEY = "AIzaSyAY3N3Ekmj_drw3P2QlsyyWiW1OPkG0jxU"  # From Firebase Console > Project Settings > Cloud Messaging
 
 
 # ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS").split(",")
@@ -245,7 +244,6 @@ REST_FRAMEWORK = {
 try:
     firebase_admin.get_app()
 except ValueError:
-    print("Firebase not initialized")
     FCM_CREDENTIALS_PATH = os.path.join(
         # BASE_DIR, "rides-7fe48-firebase-adminsdk-fbsvc-1f06aadce5.json"
         BASE_DIR, "forrent-b4654-firebase-adminsdk-rxxek-bcfb0b7bba.json"
