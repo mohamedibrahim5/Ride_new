@@ -12,6 +12,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = "django-insecure-1234567890"
 DEBUG = True
 
+FCM_SERVER_KEY = "AIzaSyAY3N3Ekmj_drw3P2QlsyyWiW1OPkG0jxU"  # From Firebase Console > Project Settings > Cloud Messaging
+
+
 # ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS").split(",")
 ALLOWED_HOSTS = ['*']
 
@@ -224,6 +227,9 @@ LOCALE_PATHS = [BASE_DIR / "locale"]  # Ensure you have this line
 
 STATIC_URL = "static/"
 STATIC_ROOT = os.path.join(BASE_DIR, "static")
+# STATICFILES_DIRS = [
+#     os.path.join(BASE_DIR, 'static'),  # Your manual static files
+# ]
 
 MEDIA_URL = "media/"
 MEDIA_ROOT = os.path.join(BASE_DIR, "media")
@@ -239,8 +245,10 @@ REST_FRAMEWORK = {
 try:
     firebase_admin.get_app()
 except ValueError:
+    print("Firebase not initialized")
     FCM_CREDENTIALS_PATH = os.path.join(
-        BASE_DIR, "rides-7fe48-firebase-adminsdk-fbsvc-1f06aadce5.json"
+        # BASE_DIR, "rides-7fe48-firebase-adminsdk-fbsvc-1f06aadce5.json"
+        BASE_DIR, "forrent-b4654-firebase-adminsdk-rxxek-bcfb0b7bba.json"
     )
     cred = firebase_admin.credentials.Certificate(FCM_CREDENTIALS_PATH)
     firebase_admin.initialize_app(cred)
@@ -259,7 +267,7 @@ SIMPLEUI_LOGO = '/media/dashboard_logos/logo.png'  # Updated path
 
 SIMPLEUI_CONFIG = {
     'system_keep': False,
-    'menu_display': [_('Authentication'), _('Products'), _('Points'), _('Purchases'), _('Car Rentals'),  _('Services'), _('Configuration')],
+    'menu_display': [_('Authentication'), _('Products'), _('Points'), _('Purchases'), _('Car Rentals'),  _('Services'), _('Configuration') ,_('Coupons'),_('Notifications')],
     'dynamic': True,
     'menus': [
         {
@@ -394,6 +402,33 @@ SIMPLEUI_CONFIG = {
                     'url': 'authentication/platformsettings/'
                 }
             ]
+        },
+        {
+            'name': _('Coupons'),
+            'icon': 'fas fa-ticket-alt',
+            'models': [
+                {
+                    'name': _('Coupons'),
+                    'icon': 'fas fa-tags',
+                    'url': 'authentication/coupon/'
+                }
+            ]
+        },
+        {
+            'name': _('Notifications'),
+            'icon': 'fas fa-bell',
+            'models': [
+                {
+                    'name': _('Notifications'),
+                    'icon': 'fas fa-bell',
+                    'url': 'authentication/notification/'
+                }
+            ]
+        },
+        {
+            'name': _('Dashboard Settings'),
+            'icon': 'fas fa-tachometer-alt',
+            'url': '/admin/authentication/platformsettings/',
         }
         
     ]

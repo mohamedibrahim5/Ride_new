@@ -23,7 +23,9 @@ from authentication.models import (
     ProviderServicePricing,
     PricingZone,
     WhatsAppAPISettings,
-    PlatformSettings
+    PlatformSettings,
+    Coupon,
+    Notification
 )
 from django import forms
 from django.utils.timezone import make_aware, get_default_timezone
@@ -50,6 +52,17 @@ from reportlab.platypus import Table, TableStyle, SimpleDocTemplate, Paragraph, 
 from reportlab.lib.styles import getSampleStyleSheet
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
+from django.contrib import messages
+from django.shortcuts import render
+from firebase_admin import messaging
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+
+
 import os
 from utils.pdf_export import export_pdf
 
@@ -134,9 +147,7 @@ class UserAdmin(admin.ModelAdmin):
     
     # Make certain fields read-only
     readonly_fields = ('date_joined', 'last_login', 'average_rating')
-    
-    # Add custom actions
-    actions = ['activate_users', 'deactivate_users', 'make_staff', 'remove_staff']
+    actions = ['activate_users', 'deactivate_users', 'make_staff', 'remove_staff', 'send_bulk_notification']
     
     def activate_users(self, request, queryset):
         updated = queryset.update(is_active=True)
@@ -171,9 +182,95 @@ class UserAdmin(admin.ModelAdmin):
                     fieldsets[i] = (title, fieldset)
                     break
         
-        return fieldsets
+        return fieldsets    
+    
+    def send_fcm_notification(self, token, title, body, data=None):
+        """
+        Sends an FCM notification to a specific device.
+        Args:
+            token (str): The FCM device token.
+            title (str): Notification title.
+            body (str): Notification body.
+            data (dict, optional): Custom data payload.
+        Returns:
+            str or None: Message ID if sent successfully, None otherwise.
+        """
+        logger.info(f"Sending FCM notification to token: {token}")
+        try:
+            message = messaging.Message(
+                notification=messaging.Notification(
+                    title=title,
+                    body=body,
+                ),
+                token=token,
+                data=data or {}
+            )
+            response = messaging.send(message)
+            logger.info(f"Successfully sent FCM message: {response}")
+            return response
+        except messaging.ApiCallError as e:
+            logger.error(f"FCM API error: {e.code} - {e.message}")
+        except Exception as e:
+            logger.exception(f"Unexpected error sending FCM message: {e}")
+        return None
+    
+    
+    def send_bulk_notification(self, request, queryset):
+        if request.POST.get('action') == 'send_bulk_notification' and request.POST.get('apply'):
+            title = request.POST.get('title', 'Notification')
+            message = request.POST.get('message', '')
+        
+            if not message:
+                self.message_user(request, "Message cannot be empty", level=messages.ERROR)
+                return HttpResponseRedirect(request.get_full_path())
+        
+        # Get the originally selected users from POST data
+            selected_ids = request.POST.getlist('_selected_action')
+            if not selected_ids:
+                selected_ids = queryset.values_list('id', flat=True)
+        
+        # Get the full queryset again to ensure we have all selected users
+            users = User.objects.filter(id__in=selected_ids)
+        
+            success_count = 0
+            failure_count = 0
+        
+            for user in users:
+                if not user.fcm_registration_id:
+                   failure_count += 1
+                   continue
+                
+                try:
+                    result = self.send_fcm_notification(
+                        token=user.fcm_registration_id,
+                        title=title,
+                        body=message,
+                        data={
+                            "type": "bulk_notification",
+                            "message": message,
+                        }
+                    )
+                    if result:
+                        success_count += 1
+                    else:
+                        failure_count += 1
+                except Exception:
+                    failure_count += 1
+        
+            msg = f"Notifications sent: {success_count} successful, {failure_count} failed"
+            level = messages.SUCCESS if success_count > 0 else messages.ERROR
+            self.message_user(request, msg, level=level)
+            return HttpResponseRedirect(request.get_full_path())
+    
+    # Render the form
+        return render(request, 'admin/bulk_notify.html', {
+            'users': queryset,
+            'opts': self.model._meta,
+            'action': 'send_bulk_notification',
+            'select_across': request.POST.get('select_across', '0'),
+            'selected_ids': request.POST.getlist('_selected_action'),
+        })
 
-# Unregister the default User admin if registered, then register the custom one
 try:
     admin.site.unregister(User)
 except admin.sites.NotRegistered:
@@ -266,7 +363,7 @@ class PricingZoneAdmin(admin.ModelAdmin):
 class RideStatusAdmin(admin.ModelAdmin):
     list_display = (
         'id', 'client_name', 'provider_name', 'status_display',
-        'service_name', 'pickup_coords', 'drop_coords', 'created_at', 'service_price_info'
+        'service_name', 'pickup_coords', 'drop_coords', 'created_at', 'service_price_info','total_price','distance_km', 'duration_minutes'
     )
     list_filter = ('status', 'service')
     search_fields = ('client__name', 'provider__name')
@@ -1102,3 +1199,20 @@ class DashboardSettingsAdmin(admin.ModelAdmin):
         return not PlatformSettings.objects.exists()
 
 
+@admin.register(Coupon)
+class CouponAdmin(admin.ModelAdmin):
+    # the list display for the admin interface are code,created_at ,updated_at, discount_percentage, is_active
+    list_display = ('code', 'created_at', 'updated_at', 'discount_percentage', 'is_active')
+    list_filter = ('is_active', 'created_at', 'updated_at')
+    search_fields = ('code',)
+    ordering = ('-created_at',) 
+    readonly_fields = ('created_at', 'updated_at')
+    fieldsets = (
+        (_('Coupon Information'), {
+            'fields': ('code', 'discount_percentage', 'is_active')
+        }),
+        (_('Timestamps'), {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )

@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Firebase Push Notification Test</title>
+</head>
+<body>
+    <h2>🔥 Firebase Web Push Notification Test</h2>
+    <button id="requestPermission">Enable Notifications</button>
+    <p id="tokenOutput" style="word-break: break-all;"></p>
+
+    <script src="https://www.gstatic.com/firebasejs/9.6.11/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.11/firebase-messaging-compat.js"></script>
+
+    <script>
+        // ✅ Your Firebase config
+        const firebaseConfig = {
+            apiKey: "AIzaSyAY3N3Ekmj_drw3P2QlsyyWiW1OPkG0jxU",
+            authDomain: "forrent-b4654.firebaseapp.com",
+            projectId: "forrent-b4654",
+            storageBucket: "forrent-b4654.appspot.com",
+            messagingSenderId: "603917507536",
+            appId: "1:603917507536:web:5fc141d950fc1f4f9237d5",
+            measurementId: "G-C6RHS2PC3L"
+        };
+
+        // ✅ Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+
+        // ✅ Initialize messaging
+        const messaging = firebase.messaging();
+
+        // ✅ Register service worker
+        // if ('serviceWorker' in navigator) {
+        //     navigator.serviceWorker.register('/firebase-messaging-sw.js')
+        //         .then((registration) => {
+        //             console.log('Service Worker registered:', registration);
+        //             messaging.useServiceWorker(registration); // for compat version
+        //         })
+        //         .catch((err) => {
+        //             console.error('Service Worker registration failed:', err);
+        //         });
+        // }
+
+        // ✅ Button to request permission & get token
+        document.getElementById('requestPermission').addEventListener('click', async () => {
+            try {
+                const permission = await Notification.requestPermission();
+                if (permission !== 'granted') {
+                    alert("Notification permission denied!");
+                    return;
+                }
+
+                // ⚠️ Replace with your Web Push certificate key (VAPID key)
+                const vapidKey = "BLRZEx9jOOP060Y4S_sak6ZWLRmD63bQN0AiAQQhbWZ7Kmb6eA2865wLGhKAeydZvB1T88FVuVZ9PuWFtk2sgNg"; 
+
+                const currentToken = await messaging.getToken({ vapidKey: vapidKey });
+                if (currentToken) {
+                    console.log('FCM Token:', currentToken);
+                    document.getElementById('tokenOutput').innerText = "Token: " + currentToken;
+                } else {
+                    console.warn('No registration token available. Request permission to generate one.');
+                }
+
+            } catch (error) {
+                console.error('Error while retrieving token:', error);
+            }
+        });
+
+        // ✅ Handle foreground messages
+        messaging.onMessage((payload) => {
+            console.log('Message received in foreground: ', payload);
+            alert("Notification: " + payload.notification.title + " - " + payload.notification.body);
+        });
+    </script>
+</body>
+</html>

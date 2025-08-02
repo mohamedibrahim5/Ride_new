@@ -39,6 +39,8 @@ from authentication.views import (
     ProviderAutocomplete,
     ServiceAutocomplete,
     dashboard_logo,
+    notification_test_view,
+    test_notification
 )
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
@@ -96,8 +98,10 @@ urlpatterns = [
     path('provider-autocomplete/', ProviderAutocomplete.as_view(), name='provider-autocomplete'),
     path('service-autocomplete/', ServiceAutocomplete.as_view(), name='service-autocomplete'),
     path('admin/logo/', dashboard_logo, name='dashboard_logo'),
+    path('test-notifications/', notification_test_view, name='notification_test'),
+    
+    path('test-notification/', test_notification, name='test_notification'),
     # path('calculate-price/', CalculatePriceView.as_view(), name='calculate-price'),
-
 
 
 

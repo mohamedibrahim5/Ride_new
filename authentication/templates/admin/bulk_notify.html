@@ -1,0 +1,32 @@
+{% extends "admin/base_site.html" %}
+
+{% block content %}
+<form method="post" action="">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="{{ action }}">
+    <input type="hidden" name="apply" value="true">
+    <input type="hidden" name="select_across" value="{{ select_across }}">
+    
+    <!-- Important: Use getlist to maintain all selected IDs -->
+    {% for id in selected_ids %}
+    <input type="hidden" name="_selected_action" value="{{ id }}">
+    {% endfor %}
+    
+    <h3>Send to {{ users|length }} selected users</h3>
+    
+    <div>
+        <label>Title:</label>
+        <input type="text" name="title" value="Notification" required>
+    </div>
+    
+    <div>
+        <label>Message:</label>
+        <textarea name="message" required></textarea>
+    </div>
+    
+    <div class="submit-row">
+        <input type="submit" value="Send" class="default">
+        <a href="." class="button">Cancel</a>
+    </div>
+</form>
+{% endblock %}

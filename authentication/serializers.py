@@ -518,6 +518,10 @@ class RideStatusSerializer(serializers.ModelSerializer):
             "drop_lng",
             "created_at",
             "service_price_info",
+            "total_price",
+            "distance_km",
+            "duration_minutes",
+            "total_price_before_discount",
         ]
 
     def get_service_price_info(self, obj):

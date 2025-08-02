@@ -8,6 +8,7 @@ from django.utils.translation import gettext_lazy as _
 from django.utils import timezone
 from django.contrib.postgres.fields import JSONField
 from django.core.validators import MinValueValidator, MaxValueValidator
+from django.core.exceptions import ValidationError
 
 
 class WhatsAppAPISettings(models.Model):
@@ -272,6 +273,16 @@ class RideStatus(models.Model):
     pickup_lng = models.FloatField(_("Pickup Longitude"), null=True, blank=True)
     drop_lat = models.FloatField(_("Drop Latitude"), null=True, blank=True)
     drop_lng = models.FloatField(_("Drop Longitude"), null=True, blank=True)
+    total_price = models.FloatField(_("Total Price"), null=True, blank=True)
+    distance_km = models.FloatField(_("Distance (km)"), null=True, blank=True)
+    duration_minutes = models.FloatField(_("Duration (minutes)"), null=True, blank=True)
+    total_price_before_discount = models.FloatField(
+        _("Total Price Before Discount"),
+        null=True,
+        blank=True,
+        help_text=_("Total price before applying any discounts or coupons")
+    )
+    # Add any other ride-specific fields as needed
 
     created_at = models.DateTimeField(_("Created At"), auto_now_add=True)
 
@@ -698,3 +709,22 @@ class PlatformSettings(models.Model):
     class Meta:
         verbose_name = "Platform Settings"
         verbose_name_plural = "Platform Settings"
+
+
+class Coupon(models.Model):
+    code = models.CharField(_("Code"), max_length=50, unique=True)
+    discount_percentage = models.DecimalField(_("Discount Percentage"), max_digits=5, decimal_places=2, validators=[MinValueValidator(0), MaxValueValidator(100)])
+    is_active = models.BooleanField(_("Is Active"), default=True)
+    created_at = models.DateTimeField(_("Created At"), auto_now_add=True)
+    updated_at = models.DateTimeField(_("Updated At"), auto_now=True)
+
+    def __str__(self):
+        return self.code
+    
+    class Meta:
+        verbose_name = _("Coupon")
+        verbose_name_plural = _("Coupons")
+    def clean(self):
+        if self.discount_percentage < 0 or self.discount_percentage > 100:
+            raise ValidationError(_("Discount percentage must be between 0 and 100."))
+        super().clean()

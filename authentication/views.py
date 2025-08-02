@@ -652,6 +652,69 @@ class BroadcastRideRequestView(APIView):
             drop_lat = None
             drop_lng = None
 
+        # add coupon code opttional 
+        coupon_code = request.data.get("coupon_code", None)
+        if coupon_code:
+            from authentication.models import Coupon
+            try:
+                coupon = Coupon.objects.get(code=coupon_code, is_active=True)
+                if coupon == None:
+                    # adding any thing rather returning None
+                    couponMessage = "Coupon not found or inactive."
+                    coupon = None
+            except Coupon.DoesNotExist:
+                coupon = None
+                couponMessage = "Coupon not found or inactive."
+                # return Response({"error": "Invalid coupon code."}, status=400)  
+       
+        pricing = ProviderServicePricing.objects.filter(
+            service_id=service_id,
+        ).first() 
+        if not pricing:
+            return Response({"error": "No pricing found for this service."}, status=404)
+        distance_km = 0 
+        duration_minutes = 0
+        if pricing:
+            if drop_lat and drop_lng:
+                distance_km = haversine(lat, lng, drop_lat, drop_lng)  
+                duration_minutes = (distance_km / 30) * 60  # Assuming 2 minutes per km
+            else:
+                # For one-way rides, calculate distance and duration based on lat and lng and user's location
+                user_location_lat = user.location2_lat
+                user_location_lng = user.location2_lng
+                print(f"User's location: {user_location_lat}, {user_location_lng}")
+                print(f"Pickup location: {lat}, {lng}")
+                if user_location_lat is None or user_location_lng is None:
+                    return Response({"error": "User's location is not set."}, status=400)
+                distance_km = haversine(lat, lng, user_location_lat, user_location_lng) 
+                duration_minutes = (distance_km / 30) * 60  # Assuming
+            # Calculate total price based on distance and duration    
+            total_price  = pricing.calculate_price(
+                distance_km=distance_km,
+                duration_minutes=duration_minutes,
+                pickup_time=timezone.now()
+            )  
+            if total_price is None:
+                return Response({"error": "Failed to calculate total price."}, status=400)
+            print (f"Distance: {distance_km} km, Duration: {duration_minutes} minutes, Total Price: {total_price}")
+
+            total_price_before_discount = total_price
+
+            
+            if coupon_code:
+                if coupon is None:
+                    total_price = total_price  # No discount applied
+                else:
+                    couponMessage = "Coupon applied successfully."    
+                    discount_amount = float(coupon.discount_percentage)
+                    total_price -= total_price * discount_amount / 100
+                    if total_price < 0:
+                        total_price = 0
+                    print(f"Total price after coupon: {total_price}")
+                # Apply coupon discount if available
+                
+        
+        
         providers = Provider.objects.filter(
             is_verified=True,
             services__id=service_id,
@@ -679,15 +742,24 @@ class BroadcastRideRequestView(APIView):
 
         # Send to all nearby providers simultaneously
         channel_layer = get_channel_layer()
+        print('request.user.id')
+        print(vars(request.user))
         client_data = {
             "client_id": request.user.id,
             "client_name": request.user.name,
+            "client_phone": request.user.phone,
+            "client_image": request.user.image.url if request.user.image else None,
+            "avarage_rating": request.user.average_rating,
             "lat": lat,
             "lng": lng,
             "drop_lat": drop_lat,
             "drop_lng": drop_lng,
             "ride_type": ride_type,
-            "message": "Ride request from nearby client"
+            "message": "Ride request from nearby client",
+            "total_price": total_price,
+            "distance_km": distance_km,
+            "duration_minutes": duration_minutes,
+            "total_price_before_discount": total_price_before_discount if coupon_code and coupon else None,
         }
 
         for provider in nearby_providers:
@@ -732,7 +804,6 @@ class BroadcastRideRequestView(APIView):
                         "ride_data": json.dumps(client_data)
                     }
                 )
-
         ride = RideStatus.objects.create(
             client=user,
             provider=None,  # not selected yet
@@ -741,7 +812,11 @@ class BroadcastRideRequestView(APIView):
             pickup_lat=lat,
             pickup_lng=lng,
             drop_lat=drop_lat,
-            drop_lng=drop_lng
+            drop_lng=drop_lng,
+            total_price=total_price,
+            distance_km=distance_km,
+            duration_minutes=duration_minutes,
+            total_price_before_discount=total_price_before_discount if coupon_code and coupon else None,
         )    
         # Set customer.in_ride = True
         if hasattr(user, 'customer'):
@@ -753,7 +828,15 @@ class BroadcastRideRequestView(APIView):
         for provider in nearby_providers:
             self._clear_user_statistics_cache(provider.user.id)
 
-        return Response({"status": f"Broadcasted ride request to {len(nearby_providers)} nearby providers"})
+        return Response({"status": f"Broadcasted ride request to {len(nearby_providers)} nearby providers",
+                         "ride_id": ride.id,
+                        "total_price": total_price,
+                        "distance_km": distance_km,
+                        "duration_minutes": duration_minutes,
+                        "total_price_before_discount": total_price_before_discount if coupon_code and coupon else None,
+                            "coupon_code": coupon_code if coupon_code else None,
+                            "coupon_message": couponMessage if coupon_code and coupon is None else None
+                        }, status=200)
 
     def _clear_user_statistics_cache(self, user_id):
         """Clear cached statistics for a user when rides are updated"""
@@ -816,6 +899,9 @@ class ProviderRideResponseView(APIView):
                         "provider_id": request.user.id,
                         "provider_name": request.user.name,
                         "accepted": accepted,
+                        "provider_image": request.user.image.url if request.user.image else None,
+                        "provider_phone": request.user.phone,
+                        "avarage_rating": request.user.average_rating
                     }
                 }
             )
@@ -2115,3 +2201,40 @@ def dashboard_logo(request):
             return HttpResponse(f.read(), content_type="image/png")  # Adjust content type as needed
     else:
         return HttpResponse(status=404)
+    
+from django.shortcuts import render
+
+def notification_test_view(request):
+    return render(request, 'admin/notifications_test.html')
+
+
+
+from django.http import JsonResponse
+from pyfcm import FCMNotification
+
+from django.http import JsonResponse
+from pyfcm import FCMNotification
+
+def test_notification(request):
+    try:
+        send_fcm_notification(
+            token='d28d_rtvHpvO6K_eShNOYD:APA91bF2GPBnuq7boFdQSwYkVNapumUomUKJUkke6lDIU1_5MDV1-UWePFqO-HMRU7sx55O-1g2flRUXl2mxewciHN45VE2bCDS18Z-XIz96gEjDTKpmzUg',
+            title='Test Notification',
+            body='This is a test notification from the Django app.',
+            data={
+                "type": "test_notification",
+                "message": "This is a test message",
+            }
+        )
+        
+        return JsonResponse({
+            "status": "success",
+            "message": "Notification sent successfully"
+        })
+        
+    except Exception as e:
+        print(f"Error sending notification: {e}")
+        return JsonResponse({
+            "status": "error",
+            "message": str(e)
+        }, status=500)

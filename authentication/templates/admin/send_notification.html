@@ -1,0 +1,22 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls static %}
+
+{% block content %}
+<div id="content-main">
+    <form method="post">
+        {% csrf_token %}
+        <div>
+            <label for="title">Title:</label>
+            <input type="text" name="title" id="title" value="Notification" required style="width: 100%; padding: 8px; margin: 5px 0;">
+        </div>
+        <div>
+            <label for="message">Message:</label>
+            <textarea name="message" id="message" required style="width: 100%; height: 100px; padding: 8px; margin: 5px 0;"></textarea>
+        </div>
+        <div class="submit-row">
+            <input type="submit" value="Send Notification" class="default">
+            <a href="{% url 'admin:authentication_user_change' original.id %}" class="button">Cancel</a>
+        </div>
+    </form>
+</div>
+{% endblock %}
