@@ -2,7 +2,7 @@ importScripts('https://www.gstatic.com/firebasejs/9.6.11/firebase-app-compat.js'
 importScripts('https://www.gstatic.com/firebasejs/9.6.11/firebase-messaging-compat.js');
 
 firebase.initializeApp({
-    apiKey: "AIzaSyAY3N3Ekmj_drw3P2QlsyyWiW1OPkG0jxU",
+    // apiKey: "AIzaSyAY3N3Ekmj_drw3P2QlsyyWiW1OPkG0jxU",
     authDomain: "forrent-b4654.firebaseapp.com",
     projectId: "forrent-b4654",
     storageBucket: "forrent-b4654.appspot.com",
