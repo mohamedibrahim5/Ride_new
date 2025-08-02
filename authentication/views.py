@@ -2160,9 +2160,9 @@ class RideHistoryView(generics.ListAPIView):
                                 )
                             else:
                                 distance_km = 0
-                            application_fee = float(pricing.application_fee or 0)
-                            service_price = float(pricing.service_price or 0)
-                            delivery_fee_per_km = float(pricing.delivery_fee_per_km or 0)
+                            application_fee = float(pricing.platform_fee or 0)
+                            service_price = float(pricing.service_fee or 0)
+                            delivery_fee_per_km = float(pricing.price_per_km or 0)
                             delivery_fee_total = delivery_fee_per_km * distance_km
                             total_amount += round(application_fee + service_price + delivery_fee_total, 2)
         

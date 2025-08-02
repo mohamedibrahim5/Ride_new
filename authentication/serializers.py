@@ -995,7 +995,7 @@ class RideHistorySerializer(serializers.ModelSerializer):
     client_name = serializers.CharField(source='client.name', read_only=True)
     provider_name = serializers.CharField(source='provider.name', read_only=True)
     service_name = serializers.CharField(source='service.name', read_only=True)
-    total_price = serializers.SerializerMethodField()
+    # total_price = serializers.SerializerMethodField()
     pricing_details = serializers.SerializerMethodField()
     rating = serializers.SerializerMethodField()
     ride_type = serializers.SerializerMethodField()
@@ -1009,10 +1009,15 @@ class RideHistorySerializer(serializers.ModelSerializer):
             "service_name",
             "status",
             "created_at",
-            "total_price",
+            # "total_price",
             "pricing_details",
             "rating",
-            "ride_type"
+            "ride_type",
+            "total_price",
+            "distance_km",
+            "duration_minutes",
+            "total_price_before_discount"
+
         ]
         read_only_fields = fields
 
