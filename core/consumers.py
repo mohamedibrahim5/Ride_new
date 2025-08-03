@@ -9,7 +9,7 @@ from authentication.models import User, RideStatus, ProviderServicePricing
 
 
 # Timeout decorator for async functions
-def with_timeout(seconds=5):
+def with_timeout(seconds=50):
     def decorator(func):
         @wraps(func)
         async def wrapper(*args, **kwargs):
@@ -83,7 +83,7 @@ class ApplyConsumer(AsyncWebsocketConsumer):
             print(f"Error updating location: {e}")
             return None
 
-    @with_timeout(5)
+    @with_timeout(50)
     @database_sync_to_async
     def lock_and_process_ride(self, client_id, provider_id, accepted):
         try:
@@ -98,7 +98,7 @@ class ApplyConsumer(AsyncWebsocketConsumer):
         except RideStatus.DoesNotExist:
             return None
 
-    @with_timeout(5)
+    @with_timeout(50)
     @database_sync_to_async
     def get_provider_name(self, ride_id):
         try:
@@ -108,7 +108,7 @@ class ApplyConsumer(AsyncWebsocketConsumer):
             print(f"[get_provider_name] Error: {e}")
             return None
 
-    @with_timeout(5)
+    @with_timeout(50)
     @database_sync_to_async
     def get_service_price_info(self, ride_id):
         try:
@@ -154,7 +154,7 @@ class ApplyConsumer(AsyncWebsocketConsumer):
             print(f"[get_service_price_info] Error: {e}")
             return None
 
-    @with_timeout(5)
+    @with_timeout(50)
     @database_sync_to_async
     def get_accepted_ride(self):
         return RideStatus.objects.filter(
@@ -162,7 +162,7 @@ class ApplyConsumer(AsyncWebsocketConsumer):
             status="accepted"
         ).first()
 
-    @with_timeout(5)
+    @with_timeout(50)
     @database_sync_to_async
     def get_latest_ride_by_client(self, client_id):
         return RideStatus.objects.filter(client_id=client_id).order_by('-created_at').first()
