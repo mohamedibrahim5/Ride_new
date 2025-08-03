@@ -271,4 +271,3 @@ class ApplyConsumer(AsyncWebsocketConsumer):
     async def fail_card(self, event): await self.send_json(event)
     async def send_client_cancel(self, event): await self.send_json(event)
     async def ride_status_update(self, event): await self.send_json(event)
-Timeout decorators to auto-cancel stuck calls
