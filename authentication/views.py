@@ -78,34 +78,35 @@ from authentication.signals import set_request_data
 from .utils import send_fcm_notification
 from django.core.cache import cache
 
+from collections import defaultdict
+from django.http import QueryDict
+
 def flatten_form_data(data):
-    from collections import defaultdict
-    import json
-
-    result = defaultdict(dict)
-    normal = {}
-
-    for key, value in data.items():
+    """
+    Flattens dot-notated keys like 'car.uploaded_images' into nested dicts,
+    preserving multiple uploaded files properly.
+    """
+    result = {}
+    
+    # Ensure we use getlist for QueryDicts (used in multipart/form-data)
+    keys = data.keys() if not isinstance(data, QueryDict) else list(dict.fromkeys(data.keys()))
+    
+    for key in keys:
+        values = data.getlist(key) if isinstance(data, QueryDict) else [data[key]]
+        
         if '.' in key:
-            prefix, subkey = key.split('.', 1)
-            # Parse JSON arrays from string if needed
-            if isinstance(value, str) and value.startswith('[') and value.endswith(']'):
-                try:
-                    value = json.loads(value)
-                except Exception:
-                    pass
-            result[prefix][subkey] = value
+            parts = key.split('.')
+            current = result
+            for part in parts[:-1]:
+                current = current.setdefault(part, {})
+            if len(values) > 1:
+                current[parts[-1]] = values
+            else:
+                current[parts[-1]] = values[0]
         else:
-            if isinstance(value, str) and value.startswith('[') and value.endswith(']'):
-                try:
-                    value = json.loads(value)
-                except Exception:
-                    pass
-            normal[key] = value
-
-    for key, val in result.items():
-        normal[key] = val
-    return normal
+            result[key] = values if len(values) > 1 else values[0]
+    
+    return result
 
 
 class UserRegisterView(generics.CreateAPIView):
