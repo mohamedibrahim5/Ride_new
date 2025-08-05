@@ -264,6 +264,13 @@ class DriverCarSerializer(serializers.ModelSerializer):
             DriverCarImage.objects.create(car=instance, image=image)
 
         return instance
+    
+    def to_internal_value(self, data):
+        # Handle case where files come in as base64 or other formats
+        if isinstance(data.get('uploaded_images'), dict):
+            # Convert the dict of files to a list
+            data['uploaded_images'] = list(data['uploaded_images'].values())
+        return super().to_internal_value(data)
 
 
 class CustomerSerializer(serializers.ModelSerializer):
