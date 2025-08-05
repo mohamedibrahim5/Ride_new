@@ -585,225 +585,8 @@ class ServiceAdmin(admin.ModelAdmin):
     search_fields = ['name']
     ordering = ['-created_at']
     
-class ProviderResource(resources.ModelResource):
-    provider_name = fields.Field(attribute='user__name', column_name='Provider Name')
-    phone = fields.Field(attribute='user__phone', column_name='Phone Number')
-    email = fields.Field(attribute='user__email', column_name='Email')
-    is_verified = fields.Field(attribute='is_verified', column_name='Verified')
-    in_ride = fields.Field(attribute='in_ride', column_name='In Ride')
-    sub_service = fields.Field(attribute='sub_service', column_name='Sub Service')
-    services = fields.Field(column_name='Services')
-    date_joined = fields.Field(attribute='user__date_joined', column_name='Date Joined')
 
-    def dehydrate_services(self, obj):
-        return ', '.join([s.name for s in obj.services.all()])
-
-    def dehydrate_is_verified(self, obj):
-        return 'Yes' if obj.is_verified else 'No'
-
-    def dehydrate_in_ride(self, obj):
-        return 'Yes' if obj.in_ride else 'No'
-
-    class Meta:
-        model = Provider
-        fields = (
-            'provider_name',
-            'phone',
-            'email',
-            'is_verified',
-            'in_ride',
-            'sub_service',
-            'services',
-            'date_joined',
-        )
-        export_order = fields
-
-@admin.register(Provider)
-class ProviderAdmin(ExportMixin, admin.ModelAdmin):
-    resource_class = ProviderResource
-    list_display = ['provider_name', 'provider_phone', 'is_verified', 'in_ride', 'sub_service', 'services_list', 'date_joined']
-    list_filter = ['is_verified', 'in_ride', 'sub_service', 'user__date_joined']
-    search_fields = ['user__name', 'user__phone', 'sub_service', 'services__name']
-    filter_horizontal = ['services']
-    ordering = ['-user__date_joined']
-    actions = ['export_as_pdf']
-
-    def provider_name(self, obj):
-        return obj.user.name
-    provider_name.short_description = _('Provider Name')
-    provider_name.admin_order_field = 'user__name'
-
-    def provider_phone(self, obj):
-        return obj.user.phone
-    provider_phone.short_description = _('Phone Number')
-    provider_phone.admin_order_field = 'user__phone'
-
-    def services_list(self, obj):
-        return ", ".join([s.name for s in obj.services.all()])
-    services_list.short_description = _('Services')
-
-    def date_joined(self, obj):
-        return obj.user.date_joined.strftime('%Y-%m-%d %H:%M')
-    date_joined.short_description = _('Date Joined')
-    date_joined.admin_order_field = 'user__date_joined'
-
-    def export_as_pdf(self, request, queryset):
-        headers = [
-            "Provider Name", "Phone Number", "Email", "Verified", "In Ride",
-            "Sub Service", "Services", "Date Joined"
-        ]
-        title = "Providers Export"
-        rows = []
-        for obj in queryset:
-            rows.append([
-                obj.user.name,
-                obj.user.phone,
-                obj.user.email,
-                'Yes' if obj.is_verified else 'No',
-                'Yes' if obj.in_ride else 'No',
-                obj.sub_service or '',
-                ', '.join([s.name for s in obj.services.all()]),
-                obj.user.date_joined.strftime('%Y-%m-%d %H:%M'),
-            ])
-        buffer = export_pdf(title, headers, rows, filename="providers.pdf", is_arabic=False)
-        return HttpResponse(buffer, content_type='application/pdf', headers={
-            'Content-Disposition': 'attachment; filename=providers.pdf'
-        })
-    export_as_pdf.short_description = _('Export selected providers as PDF')
-    
-    
 # DriverProfileResource and Admin
-class DriverProfileResource(resources.ModelResource):
-    driver_name = fields.Field(attribute='provider__user__name', column_name='Driver Name')
-    phone = fields.Field(attribute='provider__user__phone', column_name='Phone Number')
-    license = fields.Field(attribute='license', column_name='License Number')
-    status = fields.Field(attribute='status', column_name='Status')
-    email = fields.Field(attribute='provider__user__email', column_name='Email')
-    date_joined = fields.Field(attribute='provider__user__date_joined', column_name='Date Joined')
-    verified = fields.Field(column_name='Verified')
-
-    def dehydrate_verified(self, obj):
-        return 'Yes' if obj.provider.is_verified else 'No'
-
-    class Meta:
-        model = DriverProfile
-        fields = (
-            'driver_name',
-            'phone',
-            'license',
-            'status',
-            'verified',
-            'email',
-            'date_joined',
-        )
-        export_order = fields
-
-@admin.register(DriverProfile)
-class DriverProfileAdmin(ExportMixin, admin.ModelAdmin):
-    resource_class = DriverProfileResource
-    list_display = ('user_name', 'user_phone', 'license', 'status', 'provider_verified', 'documents_link')
-    list_filter = ('status', 'provider__is_verified')
-    search_fields = ('provider__user__name', 'provider__user__phone', 'license')
-    ordering = ('-provider__user__date_joined',)
-    actions = ['export_as_pdf', 'view_drivers_on_map']
-    readonly_fields = ('is_verified',)
-    def user_name(self, obj):
-        return obj.provider.user.name
-    user_name.short_description = _('Driver Name')
-    user_name.admin_order_field = 'provider__user__name'
-
-    def user_phone(self, obj):
-        return obj.provider.user.phone
-    user_phone.short_description = _('Phone Number')
-    user_phone.admin_order_field = 'provider__user__phone'
-
-    def provider_verified(self, obj):
-        return 'Yes' if obj.provider.is_verified else 'No'
-    provider_verified.short_description = _('Verified')
-    provider_verified.admin_order_field = 'provider__is_verified'
-
-    def documents_link(self, obj):
-        if obj.documents:
-            return format_html('<a href="{}" target="_blank">Download</a>', obj.documents.url)
-        return '-'
-    documents_link.short_description = _('Documents')
-
-    def export_as_pdf(self, request, queryset):
-        headers = ['Driver Name', 'Phone Number', 'License Number', 'Status', 'Verified', 'Email', 'Date Joined']
-        title = "Driver Profiles Export"
-        rows = []
-        for obj in queryset:
-            rows.append([
-                obj.provider.user.name,
-                obj.provider.user.phone,
-                obj.license,
-                obj.status,
-                'Yes' if obj.provider.is_verified else 'No',
-                obj.provider.user.email,
-                obj.provider.user.date_joined.strftime('%Y-%m-%d %H:%M'),
-            ])
-        buffer = export_pdf(title, headers, rows, filename="driver_profiles.pdf", is_arabic=False)
-        return HttpResponse(buffer, content_type='application/pdf', headers={
-            'Content-Disposition': 'attachment; filename=driver_profiles.pdf'
-        })
-    export_as_pdf.short_description = 'Export selected drivers as PDF'
-    
-    # Add custom URL for map view
-    def view_drivers_on_map(self, request, queryset):
-        # If any driver is selected, filter by selected IDs
-        if queryset.exists():
-            ids = queryset.values_list('id', flat=True)
-            query_string = '&'.join([f'id={i}' for i in ids])
-            map_url = f"{reverse('admin:driverprofile-map')}?{query_string}"
-        else:
-            # No selection: show all drivers
-            map_url = reverse('admin:driverprofile-map')
-        return HttpResponseRedirect(map_url)
-
-    view_drivers_on_map.short_description = _('View Drivers on Map')
-
-    def get_urls(self):
-        urls = super().get_urls()
-        custom_urls = [
-            path('map/', self.admin_site.admin_view(self.map_view), name='driverprofile-map'),
-        ]
-        return custom_urls + urls
-
-    def map_view(self, request):
-        ids = request.GET.getlist('id')
-        # Start with all drivers, optimized with select_related
-        queryset = DriverProfile.objects.select_related('provider__user')
-
-        # Apply ID filter only if IDs are provided
-        if ids:
-            queryset = queryset.filter(id__in=ids)
-
-        # Filter for drivers with valid location coordinates
-        queryset = queryset.filter(
-            provider__user__location2_lat__isnull=False,
-            provider__user__location2_lng__isnull=False
-        )
-
-        driver_data = []
-        for driver in queryset:
-            total_rides = RideStatus.objects.filter(provider=driver.provider.user).count()
-            completed_rides = RideStatus.objects.filter(
-                provider=driver.provider.user, status='finished'
-            ).count()
-            activity_percentage = (completed_rides / total_rides * 100) if total_rides > 0 else 0
-            driver_data.append({
-                'name': driver.provider.user.name,
-                'lat': driver.provider.user.location2_lat,
-                'lng': driver.provider.user.location2_lng,
-                'status': driver.status,
-                'activity_percentage': round(activity_percentage, 2),
-            })
-
-        context = {
-            'driver_data': json.dumps(driver_data),
-            'google_maps_api_key': 'AIzaSyDXSvQvWo_ay-Tgq7qIlXIgdn-vNNxOAFA',
-        }
-        return TemplateResponse(request, 'admin/driverprofile_map.html', context)
 
 @admin.register(CarAgency)
 class CarAgencyAdmin(admin.ModelAdmin):
@@ -1213,6 +996,229 @@ class DashboardSettingsAdmin(admin.ModelAdmin):
         return not PlatformSettings.objects.exists()
 
 
+class ProviderResource(resources.ModelResource):
+    provider_name = fields.Field(attribute='user__name', column_name='Provider Name')
+    phone = fields.Field(attribute='user__phone', column_name='Phone Number')
+    email = fields.Field(attribute='user__email', column_name='Email')
+    is_verified = fields.Field(attribute='is_verified', column_name='Verified')
+    in_ride = fields.Field(attribute='in_ride', column_name='In Ride')
+    sub_service = fields.Field(attribute='sub_service', column_name='Sub Service')
+    services = fields.Field(column_name='Services')
+    date_joined = fields.Field(attribute='user__date_joined', column_name='Date Joined')
+
+    def dehydrate_services(self, obj):
+        return ', '.join([s.name for s in obj.services.all()])
+
+    def dehydrate_is_verified(self, obj):
+        return 'Yes' if obj.is_verified else 'No'
+
+    def dehydrate_in_ride(self, obj):
+        return 'Yes' if obj.in_ride else 'No'
+
+    class Meta:
+        model = Provider
+        fields = (
+            'provider_name',
+            'phone',
+            'email',
+            'is_verified',
+            'in_ride',
+            'sub_service',
+            'services',
+            'date_joined',
+        )
+        export_order = fields
+
+@admin.register(Provider)
+class ProviderAdmin(ExportMixin, admin.ModelAdmin):
+    resource_class = ProviderResource
+    list_display = ['provider_name', 'provider_phone', 'is_verified', 'in_ride', 'sub_service', 'services_list', 'date_joined']
+    list_filter = ['is_verified', 'in_ride', 'sub_service', ('user__date_joined', admin.DateFieldListFilter),
+        CustomDateFilter,  # ✅ added here
+    ]
+    search_fields = ['user__name', 'user__phone', 'sub_service', 'services__name']
+    filter_horizontal = ['services']
+    ordering = ['-user__date_joined']
+    actions = ['export_as_pdf']
+
+    def provider_name(self, obj):
+        return obj.user.name
+    provider_name.short_description = _('Provider Name')
+    provider_name.admin_order_field = 'user__name'
+
+    def provider_phone(self, obj):
+        return obj.user.phone
+    provider_phone.short_description = _('Phone Number')
+    provider_phone.admin_order_field = 'user__phone'
+
+    def services_list(self, obj):
+        return ", ".join([s.name for s in obj.services.all()])
+    services_list.short_description = _('Services')
+
+    def date_joined(self, obj):
+        return obj.user.date_joined.strftime('%Y-%m-%d %H:%M')
+    date_joined.short_description = _('Date Joined')
+    date_joined.admin_order_field = 'user__date_joined'
+
+    def export_as_pdf(self, request, queryset):
+        headers = [
+            "Provider Name", "Phone Number", "Email", "Verified", "In Ride",
+            "Sub Service", "Services", "Date Joined"
+        ]
+        title = "Providers Export"
+        rows = []
+        for obj in queryset:
+            rows.append([
+                obj.user.name,
+                obj.user.phone,
+                obj.user.email,
+                'Yes' if obj.is_verified else 'No',
+                'Yes' if obj.in_ride else 'No',
+                obj.sub_service or '',
+                ', '.join([s.name for s in obj.services.all()]),
+                obj.user.date_joined.strftime('%Y-%m-%d %H:%M'),
+            ])
+        buffer = export_pdf(title, headers, rows, filename="providers.pdf", is_arabic=False)
+        return HttpResponse(buffer, content_type='application/pdf', headers={
+            'Content-Disposition': 'attachment; filename=providers.pdf'
+        })
+    export_as_pdf.short_description = _('Export selected providers as PDF')
+
+class DriverProfileResource(resources.ModelResource):
+    driver_name = fields.Field(attribute='provider__user__name', column_name='Driver Name')
+    phone = fields.Field(attribute='provider__user__phone', column_name='Phone Number')
+    license = fields.Field(attribute='license', column_name='License Number')
+    status = fields.Field(attribute='status', column_name='Status')
+    email = fields.Field(attribute='provider__user__email', column_name='Email')
+    date_joined = fields.Field(attribute='provider__user__date_joined', column_name='Date Joined')
+    verified = fields.Field(column_name='Verified')
+
+    def dehydrate_verified(self, obj):
+        return 'Yes' if obj.provider.is_verified else 'No'
+
+    class Meta:
+        model = DriverProfile
+        fields = (
+            'driver_name',
+            'phone',
+            'license',
+            'status',
+            'verified',
+            'email',
+            'date_joined',
+        )
+        export_order = fields
+
+@admin.register(DriverProfile)
+class DriverProfileAdmin(ExportMixin, admin.ModelAdmin):
+    resource_class = DriverProfileResource
+    list_display = ('user_name', 'user_phone', 'license', 'status', 'provider_verified', 'documents_link')
+    list_filter = ('status', 'provider__is_verified', ('provider__user__date_joined', admin.DateFieldListFilter),
+        CustomDateFilter,
+    )
+    search_fields = ('provider__user__name', 'provider__user__phone', 'license')
+    ordering = ('-provider__user__date_joined',)
+    actions = ['export_as_pdf', 'view_drivers_on_map']
+    readonly_fields = ('is_verified',)
+    def user_name(self, obj):
+        return obj.provider.user.name
+    user_name.short_description = _('Driver Name')
+    user_name.admin_order_field = 'provider__user__name'
+
+    def user_phone(self, obj):
+        return obj.provider.user.phone
+    user_phone.short_description = _('Phone Number')
+    user_phone.admin_order_field = 'provider__user__phone'
+
+    def provider_verified(self, obj):
+        return 'Yes' if obj.provider.is_verified else 'No'
+    provider_verified.short_description = _('Verified')
+    provider_verified.admin_order_field = 'provider__is_verified'
+
+    def documents_link(self, obj):
+        if obj.documents:
+            return format_html('<a href="{}" target="_blank">Download</a>', obj.documents.url)
+        return '-'
+    documents_link.short_description = _('Documents')
+
+    def export_as_pdf(self, request, queryset):
+        headers = ['Driver Name', 'Phone Number', 'License Number', 'Status', 'Verified', 'Email', 'Date Joined']
+        title = "Driver Profiles Export"
+        rows = []
+        for obj in queryset:
+            rows.append([
+                obj.provider.user.name,
+                obj.provider.user.phone,
+                obj.license,
+                obj.status,
+                'Yes' if obj.provider.is_verified else 'No',
+                obj.provider.user.email,
+                obj.provider.user.date_joined.strftime('%Y-%m-%d %H:%M'),
+            ])
+        buffer = export_pdf(title, headers, rows, filename="driver_profiles.pdf", is_arabic=False)
+        return HttpResponse(buffer, content_type='application/pdf', headers={
+            'Content-Disposition': 'attachment; filename=driver_profiles.pdf'
+        })
+    export_as_pdf.short_description = 'Export selected drivers as PDF'
+    
+    # Add custom URL for map view
+    def view_drivers_on_map(self, request, queryset):
+        # If any driver is selected, filter by selected IDs
+        if queryset.exists():
+            ids = queryset.values_list('id', flat=True)
+            query_string = '&'.join([f'id={i}' for i in ids])
+            map_url = f"{reverse('admin:driverprofile-map')}?{query_string}"
+        else:
+            # No selection: show all drivers
+            map_url = reverse('admin:driverprofile-map')
+        return HttpResponseRedirect(map_url)
+
+    view_drivers_on_map.short_description = _('View Drivers on Map')
+
+    def get_urls(self):
+        urls = super().get_urls()
+        custom_urls = [
+            path('map/', self.admin_site.admin_view(self.map_view), name='driverprofile-map'),
+        ]
+        return custom_urls + urls
+
+    def map_view(self, request):
+        ids = request.GET.getlist('id')
+        # Start with all drivers, optimized with select_related
+        queryset = DriverProfile.objects.select_related('provider__user')
+
+        # Apply ID filter only if IDs are provided
+        if ids:
+            queryset = queryset.filter(id__in=ids)
+
+        # Filter for drivers with valid location coordinates
+        queryset = queryset.filter(
+            provider__user__location2_lat__isnull=False,
+            provider__user__location2_lng__isnull=False
+        )
+
+        driver_data = []
+        for driver in queryset:
+            total_rides = RideStatus.objects.filter(provider=driver.provider.user).count()
+            completed_rides = RideStatus.objects.filter(
+                provider=driver.provider.user, status='finished'
+            ).count()
+            activity_percentage = (completed_rides / total_rides * 100) if total_rides > 0 else 0
+            driver_data.append({
+                'name': driver.provider.user.name,
+                'lat': driver.provider.user.location2_lat,
+                'lng': driver.provider.user.location2_lng,
+                'status': driver.status,
+                'activity_percentage': round(activity_percentage, 2),
+            })
+
+        context = {
+            'driver_data': json.dumps(driver_data),
+            'google_maps_api_key': 'AIzaSyDXSvQvWo_ay-Tgq7qIlXIgdn-vNNxOAFA',
+        }
+        return TemplateResponse(request, 'admin/driverprofile_map.html', context)
+
+    
 @admin.register(Coupon)
 class CouponAdmin(admin.ModelAdmin):
     # the list display for the admin interface are code,created_at ,updated_at, discount_percentage, is_active
