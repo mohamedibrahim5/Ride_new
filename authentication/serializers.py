@@ -196,8 +196,10 @@ class ProviderSerializer(serializers.ModelSerializer):
             if not car_data and self.initial_data.get("car"):
                 car_data = self.initial_data.get("car")
             if car_data:
-                DriverCar.objects.create(driver_profile=driver_profile, **car_data)
-
+                # ✅ Use serializer to handle uploaded_images
+                car_serializer = DriverCarSerializer(data=car_data)
+                car_serializer.is_valid(raise_exception=True)
+                car_serializer.save(driver_profile=driver_profile)
         return provider
 
     def update(self, instance, validated_data):
