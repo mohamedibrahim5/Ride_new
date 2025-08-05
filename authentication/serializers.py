@@ -226,6 +226,8 @@ class DriverCarImageSerializer(serializers.ModelSerializer):
         fields = ['id', 'image']
         
 
+from rest_framework.fields import empty
+
 class DriverCarSerializer(serializers.ModelSerializer):
     images = DriverCarImageSerializer(many=True, read_only=True)
     uploaded_images = serializers.ListField(
@@ -236,28 +238,31 @@ class DriverCarSerializer(serializers.ModelSerializer):
         model = DriverCar
         fields = ['type', 'model', 'number', 'color', 'images', 'uploaded_images']
 
+    def to_internal_value(self, data):
+        """
+        Override to support single file or list of files in uploaded_images.
+        """
+        uploaded_images = data.get('uploaded_images')
+        if uploaded_images and not isinstance(uploaded_images, list):
+            data.setlist('uploaded_images', [uploaded_images])
+        return super().to_internal_value(data)
+
     def create(self, validated_data):
         images_data = validated_data.pop('uploaded_images', [])
         car = DriverCar.objects.create(**validated_data)
-
         for image in images_data:
             DriverCarImage.objects.create(car=car, image=image)
-
         return car
 
     def update(self, instance, validated_data):
         images_data = validated_data.pop('uploaded_images', [])
-
-        # update fields
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
-
-        # upload new images
         for image in images_data:
             DriverCarImage.objects.create(car=instance, image=image)
-
         return instance
+
 
 
 class CustomerSerializer(serializers.ModelSerializer):
