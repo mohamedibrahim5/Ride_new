@@ -91,104 +91,59 @@ from authentication.utils import set_request_data, clear_request_data, get_reque
 
 
 def flatten_form_data(data):
-    """
-    Robust form data flattener that properly handles:
-    - File uploads (both single and multiple)
-    - Nested fields (dot notation)
-    - Multiple values
-    - JSON-encoded strings
-    - Both QueryDict and regular dictionaries
-    """
     result = {}
-
     if not isinstance(data, (QueryDict, dict)):
         return data
 
-    keys = data.keys() if isinstance(data, dict) else data.keys()
+    keys = data.keys()
 
     for key in keys:
-        if isinstance(data, QueryDict):
-            values = data.getlist(key)
-        else:
-            values = [data[key]] if not isinstance(data[key], list) else data[key]
-
-        if not values:
-            continue
+        values = data.getlist(key) if isinstance(data, QueryDict) else data.get(key)
+        if not isinstance(values, list):
+            values = [values]
 
         if any(isinstance(v, UploadedFile) for v in values):
-            if '.' in key:
-                parts = key.split('.')
-                current = result
-                for part in parts[:-1]:
-                    current = current.setdefault(part, {})
-                current[parts[-1]] = values
-            else:
-                result[key] = values[0] if len(values) == 1 else values
+            parts = key.split('.')
+            current = result
+            for part in parts[:-1]:
+                current = current.setdefault(part, {})
+            current[parts[-1]] = values if len(values) > 1 else values[0]
             continue
 
-        if len(values) == 1:
-            value = values[0]
-            
-            if isinstance(value, str) and value.strip():
-                try:
-                    parsed = json.loads(value)
-                    if isinstance(parsed, (list, dict)):
-                        value = parsed
-                except (json.JSONDecodeError, TypeError):
-                    pass
+        value = values if len(values) > 1 else values[0]
+        if isinstance(value, str):
+            try:
+                parsed = json.loads(value)
+                if isinstance(parsed, (list, dict)):
+                    value = parsed
+            except Exception:
+                pass
 
-            if '.' in key:
-                parts = key.split('.')
-                current = result
-                for part in parts[:-1]:
-                    current = current.setdefault(part, {})
-                current[parts[-1]] = value
-            else:
-                result[key] = value
-        else:
-            if '.' in key:
-                parts = key.split('.')
-                current = result
-                for part in parts[:-1]:
-                    current = current.setdefault(part, {})
-                current[parts[-1]] = values
-            else:
-                result[key] = values
+        parts = key.split('.')
+        current = result
+        for part in parts[:-1]:
+            current = current.setdefault(part, {})
+        current[parts[-1]] = value
 
     return result
 
-
 class UserRegisterView(generics.CreateAPIView):
-    """
-    Unified registration endpoint that handles:
-    - Regular users
-    - Providers
-    - Driver providers with car images
-    - Multipart form-data file uploads
-    - Nested data structures
-    """
-
     def get_serializer_class(self):
         role = self._get_role_from_request_data()
-        has_nested_user = self._has_nested_user_data()
-        
         if role == "CU":
             return CustomerSerializer
         elif role == "PR":
-            if has_nested_user:
+            if self._has_nested_user_data():
                 return ProviderDriverRegisterSerializer
             return ProviderSerializer
         return UserSerializer
 
     def _get_role_from_request_data(self):
         data = get_request_data() or self.request.data
-        
         if isinstance(data.get('user'), dict) and 'role' in data['user']:
             return data['user']['role']
-        
         if 'user.role' in data:
             return data['user.role']
-        
         return data.get('role')
 
     def _has_nested_user_data(self):
@@ -201,25 +156,19 @@ class UserRegisterView(generics.CreateAPIView):
     def _process_request_data(self):
         if self.request.content_type.startswith('multipart/form-data') or \
            self.request.content_type.startswith('application/x-www-form-urlencoded'):
-            
             data = self.request.data.copy()
-            
             for file_key, file_list in self.request.FILES.lists():
                 data.setlist(file_key, file_list)
-            
             return flatten_form_data(data)
-        
         return self.request.data
 
     def post(self, request, *args, **kwargs):
         processed_data = self._process_request_data()
         set_request_data(processed_data)
-        
         try:
             serializer = self.get_serializer(data=processed_data)
             serializer.is_valid(raise_exception=True)
             self.perform_create(serializer)
-            
             response_data = self._prepare_response_data(serializer)
             headers = self.get_success_headers(serializer.data)
             return Response(response_data, status=status.HTTP_201_CREATED, headers=headers)
@@ -229,20 +178,20 @@ class UserRegisterView(generics.CreateAPIView):
     def _prepare_response_data(self, serializer):
         response_data = serializer.data
         provider = serializer.instance if hasattr(serializer, 'instance') else None
-        
         if provider is None and 'id' in serializer.data:
             try:
                 provider = Provider.objects.get(id=serializer.data['id'])
             except Provider.DoesNotExist:
                 provider = None
-        
+
         if provider and hasattr(provider, 'driver_profile'):
             response_data['driver_profile'] = DriverProfileSerializer(provider.driver_profile).data
             if hasattr(provider.driver_profile, 'car'):
                 response_data['car'] = DriverCarSerializer(provider.driver_profile.car).data
-        
+
         return response_data
-    
+
+
 class LoginView(generics.GenericAPIView):
     serializer_class = LoginSerializer
 
