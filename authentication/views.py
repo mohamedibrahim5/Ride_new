@@ -83,6 +83,11 @@ from collections import defaultdict
 from django.http import QueryDict
 
 
+import json
+from django.http import QueryDict
+
+FORCE_LIST_KEYS = ['service_ids']
+
 def flatten_form_data(data):
     result = {}
     keys = data.keys() if not isinstance(data, QueryDict) else list(dict.fromkeys(data.keys()))
@@ -90,20 +95,24 @@ def flatten_form_data(data):
     for key in keys:
         values = data.getlist(key) if isinstance(data, QueryDict) else [data[key]]
 
-        # Attempt to parse JSON strings like "[1, 2, 3]"
+        # Try to parse JSON string like "[1, 2]"
         if len(values) == 1 and isinstance(values[0], str):
-            val = values[0]
             try:
-                parsed = json.loads(val)
+                parsed = json.loads(values[0])
                 if isinstance(parsed, list):
                     values = parsed
             except Exception:
-                pass  # Keep original string if not valid JSON
+                pass
 
-        # Force certain keys to always be lists (like service_ids)
-        if key in ['service_ids'] and not isinstance(values, list):
-            values = [values]
+        # ✅ Force key to always be a list
+        if key in FORCE_LIST_KEYS:
+            if isinstance(values, list):
+                result[key] = values
+            else:
+                result[key] = [values]
+            continue
 
+        # Handle nested keys like car.uploaded_images
         if '.' in key:
             parts = key.split('.')
             current = result
@@ -114,6 +123,7 @@ def flatten_form_data(data):
             result[key] = values if len(values) > 1 else values[0]
 
     return result
+
 
 
 
