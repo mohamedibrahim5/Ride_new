@@ -200,7 +200,6 @@ class DriverCar(models.Model):
     model = models.CharField(_("Model"), max_length=20)
     number = models.CharField(_("Number"), max_length=20)
     color = models.CharField(_("Color"), max_length=20)
-    image = models.ImageField(_("Image"), upload_to="car/images/")
     # license field removed
 
     def __str__(self):
