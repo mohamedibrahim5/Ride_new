@@ -227,16 +227,23 @@ class DriverCarImageSerializer(serializers.ModelSerializer):
 class DriverCarSerializer(serializers.ModelSerializer):
     images = DriverCarImageSerializer(many=True, required=False, read_only=True)
     uploaded_images = serializers.ListField(
-        child=serializers.ImageField(), write_only=True, required=False
+        child=serializers.ImageField(),
+        write_only=True,
+        required=False
     )
+
     class Meta:
         model = DriverCar
-        fields = ["type", "model", "number", "color", "images", "uploaded_images"]
-        
+        fields = ['type', 'model', 'number', 'color', 'images', 'uploaded_images']
+
     def create(self, validated_data):
+        # Pop uploaded_images before creating the model instance
         uploaded_images = validated_data.pop('uploaded_images', [])
+
+        # ✅ Create the car WITHOUT uploaded_images
         car = DriverCar.objects.create(**validated_data)
 
+        # ✅ Then create DriverCarImage entries
         for image in uploaded_images:
             DriverCarImage.objects.create(car=car, image=image)
 
@@ -244,14 +251,18 @@ class DriverCarSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         uploaded_images = validated_data.pop('uploaded_images', [])
+
+        # Update regular fields
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
 
+        # Add new images if any
         for image in uploaded_images:
             DriverCarImage.objects.create(car=instance, image=image)
 
         return instance
+
 
 class CustomerSerializer(serializers.ModelSerializer):
     user = UserSerializer(read_only=True)
