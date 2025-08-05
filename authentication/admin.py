@@ -1083,6 +1083,43 @@ class ProviderAdmin(ExportMixin, admin.ModelAdmin):
             'Content-Disposition': 'attachment; filename=providers.pdf'
         })
     export_as_pdf.short_description = _('Export selected providers as PDF')
+    
+    def _normalize_datetime_filters(self, request):
+        """Force datetime filters to use local timezone (EEST) without altering date/time."""
+        get = request.GET.copy()
+        local_tz = pytz.timezone(settings.TIME_ZONE)  # E.g., 'Europe/Helsinki' for EEST
+
+        for param in ['user__date_joined__gte', 'user__date_joined__lte']:
+            if param in get:
+                try:
+                    # Decode URL-encoded parameter
+                    dt_str = urllib.parse.unquote(get[param])
+                    # Replace first '+' with 'T' for ISO format, preserving timezone offset
+                    if '+' in dt_str:
+                        parts = dt_str.split('+', 1)
+                        dt_str = parts[0].replace(' ', 'T') + '+' + parts[1]
+                    else:
+                        dt_str = dt_str.replace(' ', 'T')
+                    # Parse the datetime string
+                    dt = datetime.fromisoformat(dt_str)
+                    # Extract date and time components
+                    dt_components = datetime(
+                        dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second, dt.microsecond
+                    )
+                    # Apply local timezone (EEST, +03:00) without changing date/time
+                    dt_converted = local_tz.localize(dt_components)
+                    # Format back to ISO string for URL
+                    get[param] = dt_converted.isoformat()
+                    print(f"{param}: {dt_str} → {dt_converted.isoformat()}")
+                except ValueError as e:
+                    print(f"Failed to parse {param}: {e}")
+                    continue  # Skip invalid datetime values
+        request.GET = get
+        
+    def changelist_view(self, request, extra_context=None):
+        self._normalize_datetime_filters(request, ['user__date_joined__gte', 'user__date_joined__lte'])
+        return super().changelist_view(request, extra_context)
+
 
 class DriverProfileResource(resources.ModelResource):
     driver_name = fields.Field(attribute='provider__user__name', column_name='Driver Name')
@@ -1217,6 +1254,42 @@ class DriverProfileAdmin(ExportMixin, admin.ModelAdmin):
             'google_maps_api_key': 'AIzaSyDXSvQvWo_ay-Tgq7qIlXIgdn-vNNxOAFA',
         }
         return TemplateResponse(request, 'admin/driverprofile_map.html', context)
+    
+    def _normalize_datetime_filters(self, request):
+        """Force datetime filters to use local timezone (EEST) without altering date/time."""
+        get = request.GET.copy()
+        local_tz = pytz.timezone(settings.TIME_ZONE)  # E.g., 'Europe/Helsinki' for EEST
+
+        for param in ['user__date_joined__gte', 'user__date_joined__lte']:
+            if param in get:
+                try:
+                    # Decode URL-encoded parameter
+                    dt_str = urllib.parse.unquote(get[param])
+                    # Replace first '+' with 'T' for ISO format, preserving timezone offset
+                    if '+' in dt_str:
+                        parts = dt_str.split('+', 1)
+                        dt_str = parts[0].replace(' ', 'T') + '+' + parts[1]
+                    else:
+                        dt_str = dt_str.replace(' ', 'T')
+                    # Parse the datetime string
+                    dt = datetime.fromisoformat(dt_str)
+                    # Extract date and time components
+                    dt_components = datetime(
+                        dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second, dt.microsecond
+                    )
+                    # Apply local timezone (EEST, +03:00) without changing date/time
+                    dt_converted = local_tz.localize(dt_components)
+                    # Format back to ISO string for URL
+                    get[param] = dt_converted.isoformat()
+                    print(f"{param}: {dt_str} → {dt_converted.isoformat()}")
+                except ValueError as e:
+                    print(f"Failed to parse {param}: {e}")
+                    continue  # Skip invalid datetime values
+        request.GET = get
+        
+    def changelist_view(self, request, extra_context=None):
+        self._normalize_datetime_filters(request, ['user__date_joined__gte', 'user__date_joined__lte'])
+        return super().changelist_view(request, extra_context)
 
     
 @admin.register(Coupon)
