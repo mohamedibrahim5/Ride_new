@@ -952,20 +952,29 @@ class ProviderDriverRegisterSerializer(serializers.ModelSerializer):
         driver_profile_data = validated_data.pop("driver_profile")
         car_data = validated_data.pop("car")
 
+        # Create user
         user_serializer = UserSerializer(data=user_data)
         user_serializer.is_valid(raise_exception=True)
         user = user_serializer.save()
 
+        # Create provider
         provider = Provider.objects.create(user=user, **validated_data)
-        
+
+        # Set services
         if service_ids:
             services = Service.objects.filter(pk__in=service_ids)
             provider.services.set(services)
 
+        # Create driver profile
         driver_profile = DriverProfile.objects.create(provider=provider, **driver_profile_data)
-        DriverCar.objects.create(driver_profile=driver_profile, **car_data)
+
+        # ✅ Create car using serializer to handle uploaded_images
+        car_serializer = DriverCarSerializer(data=car_data)
+        car_serializer.is_valid(raise_exception=True)
+        car_serializer.save(driver_profile=driver_profile)
 
         return provider
+
 
 
 
