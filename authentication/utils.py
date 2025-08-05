@@ -7,6 +7,28 @@ from authentication.models import Provider, Customer
 from .models import Notification, RideStatus, ProviderServicePricing, WhatsAppAPISettings
 
 
+from threading import local
+
+_thread_locals = local()
+
+def get_request_data():
+    """
+    Returns the request data stored in thread local storage
+    """
+    return getattr(_thread_locals, 'request_data', None)
+
+def set_request_data(data):
+    """
+    Stores the request data in thread local storage
+    """
+    _thread_locals.request_data = data
+
+def clear_request_data():
+    """
+    Clears the request data from thread local storage
+    """
+    if hasattr(_thread_locals, 'request_data'):
+        del _thread_locals.request_data
 
 def send_sms(phone):
     # url = "http://messaging.cyparta.com/api/send-sms/"

@@ -87,7 +87,7 @@ from django.http import QueryDict
 from django.core.files.uploadedfile import UploadedFile
 import json
 
-from authentication.utils import set_request_data
+from authentication.utils import set_request_data, clear_request_data, get_request_data
 
 
 def flatten_form_data(data):
@@ -101,27 +101,21 @@ def flatten_form_data(data):
     """
     result = {}
 
-    # Handle case where data is already properly structured
     if not isinstance(data, (QueryDict, dict)):
         return data
 
-    # Get all keys (works for both QueryDict and regular dict)
     keys = data.keys() if isinstance(data, dict) else data.keys()
 
     for key in keys:
-        # Get values - for QueryDict this preserves multiple values
         if isinstance(data, QueryDict):
             values = data.getlist(key)
         else:
             values = [data[key]] if not isinstance(data[key], list) else data[key]
 
-        # Skip empty values
         if not values:
             continue
 
-        # Handle file uploads
         if any(isinstance(v, UploadedFile) for v in values):
-            # Handle nested file fields (e.g., 'car.uploaded_images')
             if '.' in key:
                 parts = key.split('.')
                 current = result
@@ -132,11 +126,9 @@ def flatten_form_data(data):
                 result[key] = values[0] if len(values) == 1 else values
             continue
 
-        # Handle non-file values
         if len(values) == 1:
             value = values[0]
             
-            # Try to parse JSON strings
             if isinstance(value, str) and value.strip():
                 try:
                     parsed = json.loads(value)
@@ -145,7 +137,6 @@ def flatten_form_data(data):
                 except (json.JSONDecodeError, TypeError):
                     pass
 
-            # Handle nested dot notation
             if '.' in key:
                 parts = key.split('.')
                 current = result
@@ -155,7 +146,6 @@ def flatten_form_data(data):
             else:
                 result[key] = value
         else:
-            # Handle multiple non-file values
             if '.' in key:
                 parts = key.split('.')
                 current = result
@@ -179,13 +169,7 @@ class UserRegisterView(generics.CreateAPIView):
     """
 
     def get_serializer_class(self):
-        """
-        Determines the appropriate serializer based on the role and data structure
-        """
-        # Get role from either flattened or nested data
         role = self._get_role_from_request_data()
-        
-        # Check for nested user data (either dot notation or nested dict)
         has_nested_user = self._has_nested_user_data()
         
         if role == "CU":
@@ -197,106 +181,65 @@ class UserRegisterView(generics.CreateAPIView):
         return UserSerializer
 
     def _get_role_from_request_data(self):
-        """
-        Safely extracts role from request data in various formats
-        """
-        if not hasattr(self, '_request_data'):
-            self._request_data = self._get_processed_request_data()
+        data = get_request_data() or self.request.data
         
-        data = self._request_data
-        
-        # Check nested user.role
         if isinstance(data.get('user'), dict) and 'role' in data['user']:
             return data['user']['role']
         
-        # Check dot notation user.role
         if 'user.role' in data:
             return data['user.role']
         
-        # Check flat role
         return data.get('role')
 
     def _has_nested_user_data(self):
-        """
-        Checks if request contains nested user data
-        """
-        if not hasattr(self, '_request_data'):
-            self._request_data = self._get_processed_request_data()
-        
-        data = self._request_data
+        data = get_request_data() or self.request.data
         return (
             any(k.startswith("user.") for k in data.keys()) or
             isinstance(data.get("user"), dict)
         )
 
-    def _get_processed_request_data(self):
-        """
-        Processes request data to handle both JSON and multipart form-data
-        including file uploads
-        """
-        # Handle multipart/form-data or form-urlencoded
+    def _process_request_data(self):
         if self.request.content_type.startswith('multipart/form-data') or \
            self.request.content_type.startswith('application/x-www-form-urlencoded'):
             
-            # Create mutable copy of the data
             data = self.request.data.copy()
             
-            # Merge files into the data
             for file_key, file_list in self.request.FILES.lists():
                 data.setlist(file_key, file_list)
             
-            # Flatten the data structure
             return flatten_form_data(data)
         
-        # For JSON requests, use data as-is
         return self.request.data
 
     def post(self, request, *args, **kwargs):
-        """
-        Handle POST request with proper data processing and response formatting
-        """
-        # Process the request data
-        processed_data = self._get_processed_request_data()
-        
-        # Set thread local for signals
+        processed_data = self._process_request_data()
         set_request_data(processed_data)
         
-        # Get the appropriate serializer
-        serializer_class = self.get_serializer_class()
-        serializer = serializer_class(data=processed_data)
-        
-        # Validate and save
-        serializer.is_valid(raise_exception=True)
-        self.perform_create(serializer)
-        
-        # Prepare response data
-        response_data = self._prepare_response_data(serializer)
-        
-        # Return response
-        headers = self.get_success_headers(serializer.data)
-        return Response(response_data, status=status.HTTP_201_CREATED, headers=headers)
+        try:
+            serializer = self.get_serializer(data=processed_data)
+            serializer.is_valid(raise_exception=True)
+            self.perform_create(serializer)
+            
+            response_data = self._prepare_response_data(serializer)
+            headers = self.get_success_headers(serializer.data)
+            return Response(response_data, status=status.HTTP_201_CREATED, headers=headers)
+        finally:
+            clear_request_data()
 
     def _prepare_response_data(self, serializer):
-        """
-        Prepares the response data including nested driver profile and car info if available
-        """
         response_data = serializer.data
-        
-        # Get the provider instance
         provider = serializer.instance if hasattr(serializer, 'instance') else None
+        
         if provider is None and 'id' in serializer.data:
             try:
                 provider = Provider.objects.get(id=serializer.data['id'])
             except Provider.DoesNotExist:
                 provider = None
         
-        # Add driver profile and car data if available
         if provider and hasattr(provider, 'driver_profile'):
-            driver_profile = provider.driver_profile
-            response_data['driver_profile'] = DriverProfileSerializer(driver_profile).data
-            
-            if hasattr(driver_profile, 'car'):
-                response_data['car'] = DriverCarSerializer(driver_profile.car).data
+            response_data['driver_profile'] = DriverProfileSerializer(provider.driver_profile).data
+            if hasattr(provider.driver_profile, 'car'):
+                response_data['car'] = DriverCarSerializer(provider.driver_profile.car).data
         
         return response_data
     
