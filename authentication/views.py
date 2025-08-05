@@ -79,61 +79,51 @@ from .utils import send_fcm_notification
 from django.core.cache import cache
 
 import json
-from collections import defaultdict
-from django.http import QueryDict
-from django.core.files.uploadedfile import UploadedFile
-
-
-import json
 from django.http import QueryDict
 from django.core.files.uploadedfile import UploadedFile
 
 
 def flatten_form_data(data):
     """
-    Safely flattens dot-notated keys into nested dictionaries.
-    Handles list fields (e.g., service_ids) and file uploads (e.g., uploaded_images) correctly.
+    Flattens dot-notated keys like 'car.uploaded_images' into nested dicts,
+    while preserving file uploads and parsing specific list fields.
     """
     result = {}
 
-    # Required to preserve all keys (even duplicates like uploaded_images)
-    keys = list(dict.fromkeys(data.keys())) if isinstance(data, QueryDict) else data.keys()
+    # Ensure we preserve file lists from QueryDict
+    keys = data.keys()
 
     for key in keys:
-        # Handle multiple values (like images[] or repeated fields)
         values = data.getlist(key) if isinstance(data, QueryDict) else [data[key]]
 
-        # Special handling for 'uploaded_images': treat as raw files
-        if key.endswith("uploaded_images"):
+        # ✅ Special case: preserve uploaded files
+        if all(isinstance(v, UploadedFile) for v in values):
             final_value = values if len(values) > 1 else values[0]
-        
-        # Handle keys like service_ids that should be a list of integers
-        elif key in ["service_ids"]:
-            if len(values) == 1:
-                # Try to parse JSON string like "[1, 2]"
-                try:
+
+        # ✅ Handle list fields like service_ids
+        elif key in ['service_ids']:
+            try:
+                if len(values) == 1:
                     parsed = json.loads(values[0])
-                    if isinstance(parsed, list):
-                        final_value = parsed
-                    else:
-                        final_value = [int(values[0])]
-                except Exception:
-                    final_value = [int(values[0])]
-            else:
+                    final_value = parsed if isinstance(parsed, list) else [parsed]
+                else:
+                    final_value = [int(v) for v in values]
+            except Exception:
                 final_value = [int(v) for v in values]
 
-        # Handle everything else normally
+        # ✅ Handle everything else normally
         else:
-            # If only one value and it's a JSON string list, parse it
-            if len(values) == 1 and isinstance(values[0], str):
+            if len(values) == 1:
+                # Try to parse JSON string like "[1,2]"
                 try:
                     parsed = json.loads(values[0])
-                    values = parsed if isinstance(parsed, list) else [parsed]
+                    final_value = parsed
                 except Exception:
-                    pass
-            final_value = values if len(values) > 1 else values[0]
+                    final_value = values[0]
+            else:
+                final_value = values
 
-        # Handle nested keys like "car.uploaded_images" → {"car": {"uploaded_images": [...]} }
+        # ✅ Handle nesting: car.uploaded_images → car: {uploaded_images: ...}
         if "." in key:
             parts = key.split(".")
             current = result
@@ -144,8 +134,6 @@ def flatten_form_data(data):
             result[key] = final_value
 
     return result
-
-
 
 
 
