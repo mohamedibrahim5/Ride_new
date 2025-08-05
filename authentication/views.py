@@ -84,37 +84,58 @@ from django.http import QueryDict
 from django.core.files.uploadedfile import UploadedFile
 
 
+import json
+from django.http import QueryDict
+from django.core.files.uploadedfile import UploadedFile
+
+
 def flatten_form_data(data):
     """
-    Flattens dot-notated keys into nested dicts and handles multi-file fields correctly.
-    Works with multipart/form-data (QueryDict) and avoids corrupting UploadedFile objects.
+    Safely flattens dot-notated keys into nested dictionaries.
+    Handles list fields (e.g., service_ids) and file uploads (e.g., uploaded_images) correctly.
     """
     result = {}
-    keys = data.keys() if not isinstance(data, QueryDict) else list(dict.fromkeys(data.keys()))
+
+    # Required to preserve all keys (even duplicates like uploaded_images)
+    keys = list(dict.fromkeys(data.keys())) if isinstance(data, QueryDict) else data.keys()
 
     for key in keys:
-        # If it's multipart/form-data (QueryDict), get all values for the key (e.g., multiple images)
+        # Handle multiple values (like images[] or repeated fields)
         values = data.getlist(key) if isinstance(data, QueryDict) else [data[key]]
 
-        # Handle single string that looks like a list — e.g., "[1, 2, 3]"
-        if len(values) == 1 and isinstance(values[0], str):
-            val = values[0]
-            try:
-                parsed = json.loads(val)
-                if isinstance(parsed, list):
-                    values = parsed
-            except Exception:
-                pass  # Keep original value if not JSON
-
-        # Prevent parsing files or turning them into strings
-        if any(isinstance(v, UploadedFile) for v in values):
+        # Special handling for 'uploaded_images': treat as raw files
+        if key.endswith("uploaded_images"):
             final_value = values if len(values) > 1 else values[0]
+        
+        # Handle keys like service_ids that should be a list of integers
+        elif key in ["service_ids"]:
+            if len(values) == 1:
+                # Try to parse JSON string like "[1, 2]"
+                try:
+                    parsed = json.loads(values[0])
+                    if isinstance(parsed, list):
+                        final_value = parsed
+                    else:
+                        final_value = [int(values[0])]
+                except Exception:
+                    final_value = [int(values[0])]
+            else:
+                final_value = [int(v) for v in values]
+
+        # Handle everything else normally
         else:
+            # If only one value and it's a JSON string list, parse it
+            if len(values) == 1 and isinstance(values[0], str):
+                try:
+                    parsed = json.loads(values[0])
+                    values = parsed if isinstance(parsed, list) else [parsed]
+                except Exception:
+                    pass
             final_value = values if len(values) > 1 else values[0]
 
-        # Now apply to nested dict
-        if '.' in key:
-            parts = key.split('.')
+        # Handle nested keys like "car.uploaded_images" → {"car": {"uploaded_images": [...]} }
+        if "." in key:
+            parts = key.split(".")
             current = result
             for part in parts[:-1]:
                 current = current.setdefault(part, {})
