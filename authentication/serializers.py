@@ -239,12 +239,12 @@ class DriverCarSerializer(serializers.ModelSerializer):
         fields = ['type', 'model', 'number', 'color', 'images', 'uploaded_images']
 
     def to_internal_value(self, data):
-        """
-        Override to support single file or list of files in uploaded_images.
-        """
         uploaded_images = data.get('uploaded_images')
         if uploaded_images and not isinstance(uploaded_images, list):
-            data.setlist('uploaded_images', [uploaded_images])
+            if hasattr(data, 'setlist'):
+                data.setlist('uploaded_images', [uploaded_images])
+            else:
+                data['uploaded_images'] = [uploaded_images]
         return super().to_internal_value(data)
 
     def create(self, validated_data):
