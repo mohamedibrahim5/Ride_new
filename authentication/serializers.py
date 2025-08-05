@@ -228,7 +228,9 @@ class DriverCarImageSerializer(serializers.ModelSerializer):
 
 class DriverCarSerializer(serializers.ModelSerializer):
     images = DriverCarImageSerializer(many=True, read_only=True)
-    uploaded_images = serializers.ListField(child=serializers.ImageField(), write_only=True, required=False)
+    uploaded_images = serializers.ListField(
+        child=serializers.ImageField(), write_only=True, required=False
+    )
 
     class Meta:
         model = DriverCar
@@ -237,17 +239,24 @@ class DriverCarSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         images_data = validated_data.pop('uploaded_images', [])
         car = DriverCar.objects.create(**validated_data)
+
         for image in images_data:
             DriverCarImage.objects.create(car=car, image=image)
+
         return car
 
     def update(self, instance, validated_data):
         images_data = validated_data.pop('uploaded_images', [])
+
+        # update fields
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
+
+        # upload new images
         for image in images_data:
             DriverCarImage.objects.create(car=instance, image=image)
+
         return instance
 
 
