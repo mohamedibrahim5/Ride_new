@@ -25,7 +25,8 @@ from authentication.models import (
     WhatsAppAPISettings,
     PlatformSettings,
     Coupon,
-    Notification
+    Notification,
+    DriverCarImage,
 )
 from django import forms
 from django.utils.timezone import make_aware, get_default_timezone
@@ -930,12 +931,25 @@ class DriverCarResource(resources.ModelResource):
         )
         export_order = fields
 
+class DriverCarImageInline(admin.TabularInline):
+    model = DriverCarImage
+    extra = 0
+    readonly_fields = ['image_preview']
+    fields = ['image', 'image_preview']
+
+    def image_preview(self, obj):
+        if obj.image:
+            return format_html('<img src="{}" width="100" height="60" style="object-fit:cover;" />', obj.image.url)
+        return "-"
+    image_preview.short_description = "Preview"
+    
 @admin.register(DriverCar)
 class DriverCarAdmin(ExportMixin, admin.ModelAdmin):
     resource_class = DriverCarResource
     list_display = ('driver_name', 'driver_phone', 'type', 'model', 'number', 'color')
     search_fields = ('driver_profile__provider__user__name', 'driver_profile__provider__user__phone', 'type', 'model', 'number', 'color')
     actions = ['export_as_pdf']
+    inlines = [DriverCarImageInline]
 
     def driver_name(self, obj):
         return obj.driver_profile.provider.user.name

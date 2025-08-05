@@ -21,6 +21,7 @@ from authentication.models import (
     Rating,
     ProviderServicePricing,
     PricingZone,
+    DriverCarImage,
 )
 from authentication.utils import send_sms, extract_user_data, update_user_data
 from django.utils.translation import gettext_lazy as _
@@ -210,17 +211,47 @@ class ProviderSerializer(serializers.ModelSerializer):
         return super().update(instance, validated_data)
 
 
+
 class DriverProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = DriverProfile
         fields = ["id", "license", "status", "is_verified", "documents"]
 
 
+class DriverCarImageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DriverCarImage
+        fields = ['id', 'image']
+        
+
 class DriverCarSerializer(serializers.ModelSerializer):
+    images = DriverCarImageSerializer(many=True, required=False, read_only=True)
+    uploaded_images = serializers.ListField(
+        child=serializers.ImageField(), write_only=True, required=False
+    )
     class Meta:
         model = DriverCar
-        fields = ["type", "model", "number", "color", "image"]
+        fields = ["type", "model", "number", "color", "images", "uploaded_images"]
+        
+    def create(self, validated_data):
+        uploaded_images = validated_data.pop('uploaded_images', [])
+        car = DriverCar.objects.create(**validated_data)
 
+        for image in uploaded_images:
+            DriverCarImage.objects.create(car=car, image=image)
+
+        return car
+
+    def update(self, instance, validated_data):
+        uploaded_images = validated_data.pop('uploaded_images', [])
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+
+        for image in uploaded_images:
+            DriverCarImage.objects.create(car=instance, image=image)
+
+        return instance
 
 class CustomerSerializer(serializers.ModelSerializer):
     user = UserSerializer(read_only=True)

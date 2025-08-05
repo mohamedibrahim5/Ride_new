@@ -209,6 +209,16 @@ class DriverCar(models.Model):
     class Meta:
         verbose_name = _("Driver Car")
         verbose_name_plural = _("Driver Cars")
+        
+class DriverCarImage(models.Model):
+    car = models.ForeignKey(
+        DriverCar, on_delete=models.CASCADE,
+        related_name="images"
+    )
+    image = models.ImageField(_("Image"), upload_to="car/images/")
+
+    def __str__(self):
+        return f"Image for {self.car}"
 
 
 class Customer(models.Model):
