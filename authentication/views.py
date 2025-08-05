@@ -81,48 +81,49 @@ from django.core.cache import cache
 import json
 from collections import defaultdict
 from django.http import QueryDict
+from django.core.files.uploadedfile import UploadedFile
 
-
-import json
-from django.http import QueryDict
-
-FORCE_LIST_KEYS = ['service_ids']
 
 def flatten_form_data(data):
+    """
+    Flattens dot-notated keys into nested dicts and handles multi-file fields correctly.
+    Works with multipart/form-data (QueryDict) and avoids corrupting UploadedFile objects.
+    """
     result = {}
     keys = data.keys() if not isinstance(data, QueryDict) else list(dict.fromkeys(data.keys()))
 
     for key in keys:
+        # If it's multipart/form-data (QueryDict), get all values for the key (e.g., multiple images)
         values = data.getlist(key) if isinstance(data, QueryDict) else [data[key]]
 
-        # Try to parse JSON string like "[1, 2]"
+        # Handle single string that looks like a list — e.g., "[1, 2, 3]"
         if len(values) == 1 and isinstance(values[0], str):
+            val = values[0]
             try:
-                parsed = json.loads(values[0])
+                parsed = json.loads(val)
                 if isinstance(parsed, list):
                     values = parsed
             except Exception:
-                pass
+                pass  # Keep original value if not JSON
 
-        # ✅ Force key to always be a list
-        if key in FORCE_LIST_KEYS:
-            if isinstance(values, list):
-                result[key] = values
-            else:
-                result[key] = [values]
-            continue
+        # Prevent parsing files or turning them into strings
+        if any(isinstance(v, UploadedFile) for v in values):
+            final_value = values if len(values) > 1 else values[0]
+        else:
+            final_value = values if len(values) > 1 else values[0]
 
-        # Handle nested keys like car.uploaded_images
+        # Now apply to nested dict
         if '.' in key:
             parts = key.split('.')
             current = result
             for part in parts[:-1]:
                 current = current.setdefault(part, {})
-            current[parts[-1]] = values if len(values) > 1 else values[0]
+            current[parts[-1]] = final_value
         else:
-            result[key] = values if len(values) > 1 else values[0]
+            result[key] = final_value
 
     return result
+
 
 
 
