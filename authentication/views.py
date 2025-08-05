@@ -78,34 +78,36 @@ from authentication.signals import set_request_data
 from .utils import send_fcm_notification
 from django.core.cache import cache
 
+import json
 from collections import defaultdict
 from django.http import QueryDict
 
 def flatten_form_data(data):
-    """
-    Flattens dot-notated keys like 'car.uploaded_images' into nested dicts,
-    preserving multiple uploaded files properly.
-    """
     result = {}
-    
-    # Ensure we use getlist for QueryDicts (used in multipart/form-data)
     keys = data.keys() if not isinstance(data, QueryDict) else list(dict.fromkeys(data.keys()))
-    
+
     for key in keys:
         values = data.getlist(key) if isinstance(data, QueryDict) else [data[key]]
-        
+
+        # Special case: single string that looks like a list, e.g. "[2]"
+        if len(values) == 1 and isinstance(values[0], str):
+            val = values[0]
+            try:
+                parsed = json.loads(val)
+                if isinstance(parsed, list):
+                    values = parsed
+            except Exception:
+                pass  # Keep original string if not JSON
+
         if '.' in key:
             parts = key.split('.')
             current = result
             for part in parts[:-1]:
                 current = current.setdefault(part, {})
-            if len(values) > 1:
-                current[parts[-1]] = values
-            else:
-                current[parts[-1]] = values[0]
+            current[parts[-1]] = values if len(values) > 1 else values[0]
         else:
             result[key] = values if len(values) > 1 else values[0]
-    
+
     return result
 
 
