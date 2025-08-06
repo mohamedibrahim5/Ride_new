@@ -1117,7 +1117,7 @@ class ProviderAdmin(ExportMixin, admin.ModelAdmin):
         request.GET = get
         
     def changelist_view(self, request, extra_context=None):
-        self._normalize_datetime_filters(request, ['user__date_joined__gte', 'user__date_joined__lte'])
+        self._normalize_datetime_filters(request)
         return super().changelist_view(request, extra_context)
 
 
@@ -1288,7 +1288,7 @@ class DriverProfileAdmin(ExportMixin, admin.ModelAdmin):
         request.GET = get
         
     def changelist_view(self, request, extra_context=None):
-        self._normalize_datetime_filters(request, ['user__date_joined__gte', 'user__date_joined__lte'])
+        self._normalize_datetime_filters(request)
         return super().changelist_view(request, extra_context)
 
     
