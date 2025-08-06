@@ -998,9 +998,10 @@ class CustomerAdmin(ExportMixin, admin.ModelAdmin):
         self.message_user(request, f'{updated} customers marked as not in ride.')
     mark_not_in_ride.short_description = "Mark selected customers as not in ride"
 
-    def view_map_all_users_and_drivers(self, request, queryset):
+    def view_map_all_users_and_drivers(self, request, queryset=None):
         return HttpResponseRedirect(reverse('admin:customer-map-view'))
-    view_map_all_users_and_drivers.short_description = "🗺 عرض خريطة المستخدمين والسائقين"
+
+    view_map_all_users_and_drivers.short_description = "🗺 View Customers And Drivers Map"
 
     def full_map_view(self, request):
         drivers = DriverProfile.objects.select_related('provider__user').filter(
@@ -1012,30 +1013,36 @@ class CustomerAdmin(ExportMixin, admin.ModelAdmin):
             user__location2_lng__isnull=False
         )
 
-        driver_data = []
-        for d in drivers:
-            driver_data.append({
+        driver_data = [
+            {
                 'name': escape(d.provider.user.name),
                 'lat': float(d.provider.user.location2_lat),
                 'lng': float(d.provider.user.location2_lng),
                 'status': d.status,
-            })
+            }
+            for d in drivers
+        ]
 
-        customer_data = []
-        for c in customers:
-            customer_data.append({
+        customer_data = [
+            {
                 'name': escape(c.user.name),
                 'lat': float(c.user.location2_lat),
                 'lng': float(c.user.location2_lng),
-            })
+            }
+            for c in customers
+        ]
 
         html = f"""
-        <html>
+        <html lang="ar">
         <head>
-            <title>خريطة المستخدمين والسائقين</title>
-            <meta name="viewport" content="initial-scale=1.0, user-scalable=no" />
+            <title>Customers and Drivers Map</title>
             <meta charset="utf-8" />
+            <meta name="viewport" content="initial-scale=1.0, width=device-width" />
             <style>
+                body {{
+                    margin: 0;
+                    font-family: sans-serif;
+                }}
                 #map {{
                     height: 85vh;
                     width: 100%;
@@ -1045,6 +1052,7 @@ class CustomerAdmin(ExportMixin, admin.ModelAdmin):
                     text-align: center;
                     font-size: 18px;
                     background-color: #f1f1f1;
+                    direction: rtl;
                 }}
             </style>
             <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDXSvQvWo_ay-Tgq7qIlXIgdn-vNNxOAFA"></script>
@@ -1053,44 +1061,58 @@ class CustomerAdmin(ExportMixin, admin.ModelAdmin):
                 const customers = {json.dumps(customer_data)};
 
                 function initMap() {{
-                    const center = {{ lat: 30.0444, lng: 31.2357 }};
                     const map = new google.maps.Map(document.getElementById("map"), {{
                         zoom: 6,
-                        center: center
+                        center: {{ lat: 30.0444, lng: 31.2357 }}
                     }});
 
+                    const bounds = new google.maps.LatLngBounds();
+
                     drivers.forEach(d => {{
+                        const pos = {{ lat: d.lat, lng: d.lng }};
                         new google.maps.Marker({{
-                            position: {{ lat: d.lat, lng: d.lng }},
+                            position: pos,
                             map,
                             title: `${{d.name}} - ${{d.status}}`,
-                            icon: d.status === 'available' ? 'http://maps.google.com/mapfiles/ms/icons/green-dot.png'
+                            icon: d.status === 'available'
+                                ? 'http://maps.google.com/mapfiles/ms/icons/green-dot.png'
                                 : 'http://maps.google.com/mapfiles/ms/icons/red-dot.png'
                         }});
+                        bounds.extend(pos);
                     }});
 
                     customers.forEach(c => {{
+                        const pos = {{ lat: c.lat, lng: c.lng }};
                         new google.maps.Marker({{
-                            position: {{ lat: c.lat, lng: c.lng }},
+                            position: pos,
                             map,
                             title: `${{c.name}}`,
                             icon: 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png'
                         }});
+                        bounds.extend(pos);
                     }});
+
+                    if (!bounds.isEmpty()) {{
+                        map.fitBounds(bounds);
+                    }}
                 }}
+
                 window.onload = initMap;
             </script>
         </head>
         <body>
             <div class="summary">
-                🚗 عدد السائقين: {len(driver_data)} | 🟢 المتاح: {len([d for d in driver_data if d['status'] == 'available'])} |
-                👤 عدد المستخدمين: {len(customer_data)}
+                🚗 Drivers Number: {len(driver_data)} |
+                🟢 Avaliable: {len([d for d in driver_data if d['status'] == 'available'])} |
+                👤 Customers Number: {len(customer_data)}
             </div>
             <div id="map"></div>
         </body>
         </html>
         """
+
         return HttpResponse(html)
+        
 
     def get_urls(self):
         urls = super().get_urls()
