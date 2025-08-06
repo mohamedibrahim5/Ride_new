@@ -307,7 +307,8 @@ class RideStatus(models.Model):
 
     def __str__(self):
         return f"{_('Ride')} #{self.pk} - {self.get_status_display()}"
-    
+
+
 class UserPoints(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, verbose_name=_("User"))
     points = models.PositiveIntegerField(_("Points"), default=0)

@@ -406,7 +406,11 @@ SIMPLEUI_CONFIG = {
                     'icon': 'fas fa-road',
                     'url': 'authentication/ridestatus/'
                 },
-                
+                {
+                    'name': _('Ratings'),
+                    'icon': 'fas fa-star',
+                    'url': 'authentication/rating/'
+                }
             ]
         },
         {

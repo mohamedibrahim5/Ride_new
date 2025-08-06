@@ -372,6 +372,42 @@ class RatingInline(admin.StackedInline):
     readonly_fields = ('created_at', 'updated_at',)
 
 
+@admin.register(Rating)
+class RatingAdmin(admin.ModelAdmin):
+    list_display = (
+        'ride',
+        'driver_rating_stars',
+        'customer_rating_stars',
+        'created_at',
+        'updated_at',
+    )
+    list_filter = ('driver_rating', 'customer_rating', 'created_at')
+    search_fields = (
+        'ride__id',
+        'ride__client__name',
+        'ride__provider__name',
+        'driver_comment',
+        'customer_comment',
+    )
+    readonly_fields = ('created_at', 'updated_at')
+
+    def driver_rating_stars(self, obj):
+        return self._render_stars(obj.driver_rating)
+    driver_rating_stars.short_description = "⭐ Driver Rating"
+    driver_rating_stars.admin_order_field = 'driver_rating'
+
+    def customer_rating_stars(self, obj):
+        return self._render_stars(obj.customer_rating)
+    customer_rating_stars.short_description = "⭐ Customer Rating"
+    customer_rating_stars.admin_order_field = 'customer_rating'
+
+    def _render_stars(self, value):
+        if value is None:
+            return "-"
+        full_star = "★"
+        empty_star = "☆"
+        return format_html('<span style="color: gold; font-size: 16px;">{}</span>', full_star * value + empty_star * (5 - value))
+
 # --- Customized RideStatus admin ---
 @admin.register(RideStatus)
 class RideStatusAdmin(admin.ModelAdmin):
@@ -383,6 +419,9 @@ class RideStatusAdmin(admin.ModelAdmin):
     search_fields = ('client__name', 'provider__name')
     ordering = ('-created_at',)
     readonly_fields = ('created_at',)
+    inlines = [RatingInline]
+
+    
 
     def client_name(self, obj):
         return obj.client.name
