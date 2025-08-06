@@ -57,6 +57,7 @@ from django.contrib import messages
 from django.shortcuts import render
 from firebase_admin import messaging
 import logging
+from django.utils.html import escape
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -931,44 +932,44 @@ class CustomerAdmin(ExportMixin, admin.ModelAdmin):
         'in_ride',
         ('user__is_active', admin.BooleanFieldListFilter),
         'user__role',
-        ('user__date_joined', DateFieldListFilter),  # Default date filter for user__date_joined
-        CustomDateFilter,  # Custom range filter
+        ('user__date_joined', DateFieldListFilter),
+        CustomDateFilter,
     )
     search_fields = ('user__name', 'user__phone', 'user__email')
     ordering = ('-user__date_joined',)
     readonly_fields = ('user',)
-    actions = ['export_as_pdf', 'mark_in_ride', 'mark_not_in_ride']
+    actions = ['export_as_pdf', 'mark_in_ride', 'mark_not_in_ride', 'view_map_all_users_and_drivers']
 
     def customer_name(self, obj):
         return obj.user.name
-    customer_name.short_description = _('Customer Name')
+    customer_name.short_description = 'Customer Name'
     customer_name.admin_order_field = 'user__name'
 
     def user_is_active(self, obj):
-        if obj.user.is_active:
-            return format_html('<span style="color: green;">✓</span> Active')
-        else:
-            return format_html('<span style="color: red;">✗</span> Inactive')
-    user_is_active.short_description = _('Status')
+        return format_html(
+            '<span style="color: green;">✓</span> Active' if obj.user.is_active else '<span style="color: red;">✗</span> Inactive'
+        )
+    user_is_active.short_description = 'Status'
     user_is_active.admin_order_field = 'user__is_active'
 
     def phone(self, obj):
         return obj.user.phone
-    phone.short_description = _('Phone Number')
+    phone.short_description = 'Phone Number'
     phone.admin_order_field = 'user__phone'
 
     def email(self, obj):
         return obj.user.email
-    email.short_description = _('Email')
+    email.short_description = 'Email'
     email.admin_order_field = 'user__email'
 
     def date_joined(self, obj):
         local_dt = timezone.localtime(obj.user.date_joined)
         return local_dt.strftime('%Y-%m-%d %H:%M')
-    date_joined.short_description = _('Date Joined')
+    date_joined.short_description = 'Date Joined'
     date_joined.admin_order_field = 'user__date_joined'
 
     def export_as_pdf(self, request, queryset):
+        from .utils import export_pdf  # Ensure this is your custom utility
         headers = ['Customer Name', 'Phone Number', 'Email', 'In Ride', 'Date Joined']
         title = "Customers Export"
         rows = []
@@ -987,68 +988,144 @@ class CustomerAdmin(ExportMixin, admin.ModelAdmin):
         })
     export_as_pdf.short_description = 'Export selected customers as PDF'
 
-    def activate_customers(self, request, queryset):
-        updated = queryset.update(user__is_active=True)
-        self.message_user(request, f'{updated} customers have been activated.')
-    activate_customers.short_description = "Activate selected customers"
-
-    def deactivate_customers(self, request, queryset):
-        updated = queryset.update(user__is_active=False)
-        self.message_user(request, f'{updated} customers have been deactivated.')
-    deactivate_customers.short_description = "Deactivate selected customers"
-
     def mark_in_ride(self, request, queryset):
         updated = queryset.update(in_ride=True)
-        self.message_user(request, f'{updated} customers have been marked as in ride.')
+        self.message_user(request, f'{updated} customers marked as in ride.')
     mark_in_ride.short_description = "Mark selected customers as in ride"
 
     def mark_not_in_ride(self, request, queryset):
         updated = queryset.update(in_ride=False)
-        self.message_user(request, f'{updated} customers have been marked as not in ride.')
+        self.message_user(request, f'{updated} customers marked as not in ride.')
     mark_not_in_ride.short_description = "Mark selected customers as not in ride"
 
-    def _normalize_datetime_filters(self, request):
-        """Force datetime filters to use local timezone (EEST) without altering date/time."""
-        get = request.GET.copy()
-        local_tz = pytz.timezone(settings.TIME_ZONE)  # E.g., 'Europe/Helsinki' for EEST
+    def view_map_all_users_and_drivers(self, request, queryset):
+        return HttpResponseRedirect(reverse('admin:customer-map-view'))
+    view_map_all_users_and_drivers.short_description = "🗺 عرض خريطة المستخدمين والسائقين"
 
+    def full_map_view(self, request):
+        drivers = DriverProfile.objects.select_related('provider__user').filter(
+            provider__user__location2_lat__isnull=False,
+            provider__user__location2_lng__isnull=False
+        )
+        customers = Customer.objects.select_related('user').filter(
+            user__location2_lat__isnull=False,
+            user__location2_lng__isnull=False
+        )
+
+        driver_data = []
+        for d in drivers:
+            driver_data.append({
+                'name': escape(d.provider.user.name),
+                'lat': float(d.provider.user.location2_lat),
+                'lng': float(d.provider.user.location2_lng),
+                'status': d.status,
+            })
+
+        customer_data = []
+        for c in customers:
+            customer_data.append({
+                'name': escape(c.user.name),
+                'lat': float(c.user.location2_lat),
+                'lng': float(c.user.location2_lng),
+            })
+
+        html = f"""
+        <html>
+        <head>
+            <title>خريطة المستخدمين والسائقين</title>
+            <meta name="viewport" content="initial-scale=1.0, user-scalable=no" />
+            <meta charset="utf-8" />
+            <style>
+                #map {{
+                    height: 85vh;
+                    width: 100%;
+                }}
+                .summary {{
+                    padding: 10px;
+                    text-align: center;
+                    font-size: 18px;
+                    background-color: #f1f1f1;
+                }}
+            </style>
+            <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDXSvQvWo_ay-Tgq7qIlXIgdn-vNNxOAFA"></script>
+            <script>
+                const drivers = {json.dumps(driver_data)};
+                const customers = {json.dumps(customer_data)};
+
+                function initMap() {{
+                    const center = {{ lat: 30.0444, lng: 31.2357 }};
+                    const map = new google.maps.Map(document.getElementById("map"), {{
+                        zoom: 6,
+                        center: center
+                    }});
+
+                    drivers.forEach(d => {{
+                        new google.maps.Marker({{
+                            position: {{ lat: d.lat, lng: d.lng }},
+                            map,
+                            title: `${{d.name}} - ${{d.status}}`,
+                            icon: d.status === 'available' ? 'http://maps.google.com/mapfiles/ms/icons/green-dot.png'
+                                : 'http://maps.google.com/mapfiles/ms/icons/red-dot.png'
+                        }});
+                    }});
+
+                    customers.forEach(c => {{
+                        new google.maps.Marker({{
+                            position: {{ lat: c.lat, lng: c.lng }},
+                            map,
+                            title: `${{c.name}}`,
+                            icon: 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png'
+                        }});
+                    }});
+                }}
+                window.onload = initMap;
+            </script>
+        </head>
+        <body>
+            <div class="summary">
+                🚗 عدد السائقين: {len(driver_data)} | 🟢 المتاح: {len([d for d in driver_data if d['status'] == 'available'])} |
+                👤 عدد المستخدمين: {len(customer_data)}
+            </div>
+            <div id="map"></div>
+        </body>
+        </html>
+        """
+        return HttpResponse(html)
+
+    def get_urls(self):
+        urls = super().get_urls()
+        custom_urls = [
+            path('full-map/', self.admin_site.admin_view(self.full_map_view), name='customer-map-view'),
+        ]
+        return custom_urls + urls
+
+    def _normalize_datetime_filters(self, request):
+        get = request.GET.copy()
+        local_tz = pytz.timezone(settings.TIME_ZONE)
         for param in ['user__date_joined__gte', 'user__date_joined__lte']:
             if param in get:
                 try:
-                    # Decode URL-encoded parameter
                     dt_str = urllib.parse.unquote(get[param])
-                    # Replace first '+' with 'T' for ISO format, preserving timezone offset
                     if '+' in dt_str:
                         parts = dt_str.split('+', 1)
                         dt_str = parts[0].replace(' ', 'T') + '+' + parts[1]
                     else:
                         dt_str = dt_str.replace(' ', 'T')
-                    # Parse the datetime string
                     dt = datetime.fromisoformat(dt_str)
-                    # Extract date and time components
                     dt_components = datetime(
                         dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second, dt.microsecond
                     )
-                    # Apply local timezone (EEST, +03:00) without changing date/time
                     dt_converted = local_tz.localize(dt_components)
-                    # Format back to ISO string for URL
                     get[param] = dt_converted.isoformat()
-                    print(f"{param}: {dt_str} → {dt_converted.isoformat()}")
-                except ValueError as e:
-                    print(f"Failed to parse {param}: {e}")
-                    continue  # Skip invalid datetime values
+                except ValueError:
+                    continue
         request.GET = get
 
     def changelist_view(self, request, extra_context=None):
         self._normalize_datetime_filters(request)
-        extra_context = extra_context or {}
-        total_customers = Customer.objects.count()
-        extra_context['total_customers'] = total_customers
-        self.message_user(request, f'Total Customers: {total_customers}', level='INFO')
-        return super().changelist_view(request, extra_context=extra_context)
+        return super().changelist_view(request, extra_context)
 
-    def get_changelist(self, request, **kwargs):
-        return super().get_changelist(request, **kwargs)
+
 @admin.register(PlatformSettings)
 class DashboardSettingsAdmin(admin.ModelAdmin):
     def has_add_permission(self, request):
