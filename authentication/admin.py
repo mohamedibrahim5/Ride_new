@@ -764,6 +764,66 @@ class DriverCarAdmin(ExportMixin, admin.ModelAdmin):
     export_as_pdf.short_description = 'Export selected driver cars as PDF'
 
 
+class DriverDateFilter(admin.SimpleListFilter):
+    title = _('Date Joined Range')
+    parameter_name = 'date_joined_range'
+
+    # 👇 يتم تعيين المسار الصحيح لحقل التاريخ في الـ Admin class
+    date_field_path = 'provider__user__date_joined'
+
+    def lookups(self, request, model_admin):
+        return (
+            ('today', _('Today')),
+            ('yesterday', _('Yesterday')),
+            ('this_week', _('This week')),
+            ('last_week', _('Last week')),
+            ('this_month', _('This month')),
+            ('last_month', _('Last month')),
+            ('this_year', _('This year')),
+        )
+
+    def queryset(self, request, queryset):
+        value = self.value()
+        if not value:
+            return queryset
+
+        now = timezone.localtime()
+        field = self.date_field_path
+        today_start = datetime.combine(now.date(), datetime.min.time(), tzinfo=now.tzinfo)
+        today_end = datetime.combine(now.date(), datetime.max.time(), tzinfo=now.tzinfo)
+
+        filters = {
+            'today':   {f"{field}__range": (today_start, today_end)},
+            'yesterday': {
+                f"{field}__range": (
+                    datetime.combine((now - timedelta(days=1)).date(), datetime.min.time(), tzinfo=now.tzinfo),
+                    datetime.combine((now - timedelta(days=1)).date(), datetime.max.time(), tzinfo=now.tzinfo),
+                )
+            },
+            'this_week': {
+                f"{field}__gte": datetime.combine((now - timedelta(days=now.weekday())).date(), datetime.min.time(), tzinfo=now.tzinfo)
+            },
+            'last_week': {
+                f"{field}__range": (
+                    datetime.combine((now - timedelta(days=now.weekday() + 7)).date(), datetime.min.time(), tzinfo=now.tzinfo),
+                    datetime.combine((now - timedelta(days=now.weekday() + 1)).date(), datetime.max.time(), tzinfo=now.tzinfo),
+                )
+            },
+            'this_month': {
+                f"{field}__gte": datetime(now.year, now.month, 1, tzinfo=now.tzinfo)
+            },
+            'last_month': {
+                f"{field}__gte": datetime(now.year if now.month > 1 else now.year - 1,
+                                          now.month - 1 if now.month > 1 else 12, 1, tzinfo=now.tzinfo),
+                f"{field}__lt": datetime(now.year, now.month, 1, tzinfo=now.tzinfo)
+            },
+            'this_year': {
+                f"{field}__gte": datetime(now.year, 1, 1, tzinfo=now.tzinfo)
+            }
+        }
+
+        return queryset.filter(**filters.get(value, {}))
+    
 # CustomerResource and Admin
 class CustomerResource(resources.ModelResource):
     customer_name = fields.Field(attribute='user__name', column_name='Customer Name')
@@ -1151,7 +1211,7 @@ class DriverProfileAdmin(ExportMixin, admin.ModelAdmin):
     resource_class = DriverProfileResource
     list_display = ('user_name', 'user_phone', 'license', 'status', 'provider_verified', 'documents_link')
     list_filter = ('status', 'provider__is_verified', ('provider__user__date_joined', admin.DateFieldListFilter),
-        CustomDateFilter,
+        DriverDateFilter,
     )
     search_fields = ('provider__user__name', 'provider__user__phone', 'license')
     ordering = ('-provider__user__date_joined',)
