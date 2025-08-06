@@ -393,6 +393,20 @@ class InvoiceAdmin(admin.ModelAdmin):
             'fields': ('issued_at',)
         }),
     )
+    
+    def print_invoice_link(self, obj):
+        return format_html(
+            '<a class="button" target="_blank" href="print/{}/">🖨️ Print</a>', obj.id
+        )
+    print_invoice_link.short_description = "Print"
+    
+    def get_urls(self):
+        urls = super().get_urls()
+        custom_urls = [
+            path('print/<int:invoice_id>/', self.admin_site.admin_view(print_invoice_view), name='print-invoice'),
+        ]
+        return custom_urls + urls
+
 
 @admin.register(Rating)
 class RatingAdmin(admin.ModelAdmin):
@@ -430,6 +444,7 @@ class RatingAdmin(admin.ModelAdmin):
         empty_star = "☆"
         return format_html('<span style="color: gold; font-size: 16px;">{}</span>', full_star * value + empty_star * (5 - value))
 
+    
 # --- Customized RideStatus admin ---
 @admin.register(RideStatus)
 class RideStatusAdmin(admin.ModelAdmin):
@@ -1560,3 +1575,98 @@ class NotificationAdmin(admin.ModelAdmin):
 
     def has_add_permission(self, request):
         return False  # ✅ إذا كنت لا تريد إضافة إشعارات يدوياً من لوحة التحكم
+
+
+def print_invoice_view(request, invoice_id):
+    try:
+        invoice = Invoice.objects.select_related('ride__client', 'ride__provider').get(id=invoice_id)
+    except Invoice.DoesNotExist:
+        return HttpResponse("Invoice not found", status=404)
+
+    client_name = escape(invoice.ride.client.name)
+    provider_name = escape(invoice.ride.provider.name) if invoice.ride.provider else "N/A"
+    ride_id = invoice.ride.id
+
+    html = f"""
+    <html>
+    <head>
+        <title>Invoice #{invoice.id}</title>
+        <meta charset="utf-8">
+        <style>
+            body {{
+                font-family: Arial, sans-serif;
+                padding: 40px;
+                background: #f9f9f9;
+            }}
+            .invoice-box {{
+                max-width: 800px;
+                margin: auto;
+                padding: 30px;
+                border: 1px solid #eee;
+                background: #fff;
+                box-shadow: 0 0 10px rgba(0, 0, 0, 0.15);
+            }}
+            .invoice-box h2 {{
+                text-align: center;
+            }}
+            table {{
+                width: 100%;
+                line-height: inherit;
+                text-align: left;
+            }}
+            table td {{
+                padding: 5px;
+                vertical-align: top;
+            }}
+            .details td {{
+                padding-bottom: 10px;
+            }}
+            .total {{
+                font-weight: bold;
+            }}
+        </style>
+    </head>
+    <body>
+        <div class="invoice-box">
+            <h2>🧾 Invoice #{invoice.id}</h2>
+            <table>
+                <tr class="details">
+                    <td><strong>Client:</strong> {client_name}</td>
+                    <td><strong>Provider:</strong> {provider_name}</td>
+                </tr>
+                <tr class="details">
+                    <td><strong>Ride ID:</strong> #{ride_id}</td>
+                    <td><strong>Date:</strong> {invoice.issued_at.strftime('%Y-%m-%d %H:%M')}</td>
+                </tr>
+            </table>
+            <hr/>
+            <table>
+                <tr>
+                    <td>Total:</td>
+                    <td>{invoice.total_amount:.2f} EGP</td>
+                </tr>
+                <tr>
+                    <td>Tax (10%):</td>
+                    <td>{invoice.tax:.2f} EGP</td>
+                </tr>
+                <tr>
+                    <td>Discount:</td>
+                    <td>{invoice.discount:.2f} EGP</td>
+                </tr>
+                <tr class="total">
+                    <td>Final Amount:</td>
+                    <td>{invoice.final_amount:.2f} EGP</td>
+                </tr>
+                <tr>
+                    <td>Status:</td>
+                    <td>{invoice.get_status_display()}</td>
+                </tr>
+            </table>
+            <br/>
+            <p>{invoice.notes or ''}</p>
+        </div>
+    </body>
+    </html>
+    """
+    return HttpResponse(html)
+
