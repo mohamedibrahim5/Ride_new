@@ -1318,34 +1318,42 @@ class DriverProfileAdmin(ExportMixin, admin.ModelAdmin):
     def _normalize_datetime_filters(self, request):
         """Force datetime filters to use local timezone (EEST) without altering date/time."""
         get = request.GET.copy()
-        local_tz = pytz.timezone(settings.TIME_ZONE)  # E.g., 'Europe/Helsinki' for EEST
+        local_tz = pytz.timezone(settings.TIME_ZONE)  # E.g., 'Europe/Cairo' or 'Asia/Riyadh'
 
-        for param in ['user__date_joined__gte', 'user__date_joined__lte']:
+        # ✅ استخدم المسار الصحيح لعلاقة DriverProfile → Provider → User → date_joined
+        for param in ['provider__user__date_joined__gte', 'provider__user__date_joined__lte']:
             if param in get:
                 try:
-                    # Decode URL-encoded parameter
+                    # فك تشفير قيمة التاريخ
                     dt_str = urllib.parse.unquote(get[param])
-                    # Replace first '+' with 'T' for ISO format, preserving timezone offset
+
+                    # استبدال المسافة بـ T لصيغة ISO، مع الحفاظ على + إن وُجد
                     if '+' in dt_str:
                         parts = dt_str.split('+', 1)
                         dt_str = parts[0].replace(' ', 'T') + '+' + parts[1]
                     else:
                         dt_str = dt_str.replace(' ', 'T')
-                    # Parse the datetime string
+
+                    # تحويل السلسلة إلى datetime
                     dt = datetime.fromisoformat(dt_str)
-                    # Extract date and time components
+
+                    # إنشاء datetime بدون تغيير الزمن
                     dt_components = datetime(
                         dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second, dt.microsecond
                     )
-                    # Apply local timezone (EEST, +03:00) without changing date/time
+
+                    # تطبيق timezone المحلي بدون تعديل الوقت
                     dt_converted = local_tz.localize(dt_components)
-                    # Format back to ISO string for URL
+
+                    # إعادة التنسيق لسلسلة ISO
                     get[param] = dt_converted.isoformat()
+
                     print(f"{param}: {dt_str} → {dt_converted.isoformat()}")
                 except ValueError as e:
                     print(f"Failed to parse {param}: {e}")
-                    continue  # Skip invalid datetime values
+                    continue  # تجاهل الأخطاء
         request.GET = get
+
         
     def changelist_view(self, request, extra_context=None):
         self._normalize_datetime_filters(request)
