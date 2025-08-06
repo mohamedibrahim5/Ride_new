@@ -375,7 +375,7 @@ class RatingInline(admin.StackedInline):
 
 @admin.register(Invoice)
 class InvoiceAdmin(admin.ModelAdmin):
-    list_display = ('id', 'ride', 'issued_at', 'total_amount', 'tax', 'discount', 'final_amount', 'status')
+    list_display = ('id', 'ride', 'issued_at', 'total_amount', 'tax', 'discount', 'final_amount', 'status', 'print_invoice_link')
     list_filter = ('status', 'issued_at')
     search_fields = ('ride__id', 'ride__client__name', 'ride__provider__name')
     date_hierarchy = 'issued_at'
