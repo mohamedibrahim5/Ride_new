@@ -27,6 +27,7 @@ from authentication.models import (
     Coupon,
     Notification,
     DriverCarImage,
+    Rating,
 )
 from django import forms
 from django.utils.timezone import make_aware, get_default_timezone
@@ -360,6 +361,17 @@ class PricingZoneAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
     )
+    
+class RatingInline(admin.StackedInline):
+    model = Rating
+    extra = 0
+    max_num = 1
+    can_delete = False
+    verbose_name = "Rating"
+    verbose_name_plural = "Rating"
+    readonly_fields = ('created_at', 'updated_at',)
+
+
 # --- Customized RideStatus admin ---
 @admin.register(RideStatus)
 class RideStatusAdmin(admin.ModelAdmin):
@@ -1476,3 +1488,14 @@ class CouponAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
     )
+
+
+@admin.register(Notification)
+class NotificationAdmin(admin.ModelAdmin):
+    list_display = ('title', 'user', 'notification_type', 'is_read', 'created_at')
+    list_filter = ('notification_type', 'is_read', 'created_at')
+    search_fields = ('title', 'message', 'user__name')
+    readonly_fields = ('created_at',)
+
+    def has_add_permission(self, request):
+        return False  # ✅ إذا كنت لا تريد إضافة إشعارات يدوياً من لوحة التحكم

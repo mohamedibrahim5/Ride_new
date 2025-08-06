@@ -265,7 +265,7 @@ SIMPLEUI_LOGO = '/media/dashboard_logos/logo.png'  # Updated path
 
 SIMPLEUI_CONFIG = {
     'system_keep': False,
-    'menu_display': [_('Authentication'), _('Products'), _('Points'), _('Purchases'), _('Car Rentals'),  _('Services'), _('Configuration') ,_('Coupons'),_('Notifications')],
+    'menu_display': [_('Authentication'), _('Products'), _('Points'), _('Purchases'), _('Car Rentals'),  _('Services'), _('Ride'), _('Configuration') ,_('Coupons'),_('Notifications')],
     'dynamic': True,
     'menus': [
         {
@@ -357,11 +357,6 @@ SIMPLEUI_CONFIG = {
                     'icon': 'fas fa-car-side',
                     'url': 'authentication/carrental/'
                 },
-                {
-                    'name': _('Ride Status'),
-                    'icon': 'fas fa-road',
-                    'url': 'authentication/ridestatus/'
-                }
             ]
         },
         {
@@ -399,6 +394,19 @@ SIMPLEUI_CONFIG = {
                     'icon': 'fas fa-cogs',
                     'url': 'authentication/platformsettings/'
                 }
+            ]
+        },
+        
+        {
+            'name': _('Ride'),
+            'icon': 'fas fa-road',
+            'models': [
+                {
+                    'name': _('Ride Status'),
+                    'icon': 'fas fa-road',
+                    'url': 'authentication/ridestatus/'
+                },
+                
             ]
         },
         {
