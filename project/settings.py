@@ -410,7 +410,12 @@ SIMPLEUI_CONFIG = {
                     'name': _('Ratings'),
                     'icon': 'fas fa-star',
                     'url': 'authentication/rating/'
-                }
+                },
+                {
+                    'name': _('Invoices'),
+                    'icon': 'fas fa-file-invoice-dollar',
+                    'url': 'authentication/invoice/'
+                },
             ]
         },
         {

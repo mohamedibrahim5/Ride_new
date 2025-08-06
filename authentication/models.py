@@ -721,6 +721,35 @@ class PlatformSettings(models.Model):
         verbose_name_plural = "Platform Settings"
 
 
+class Invoice(models.Model):
+    INVOICE_STATUS = [
+        ('paid', _('Paid')),
+        ('unpaid', _('Unpaid')),
+        ('cancelled', _('Cancelled')),
+    ]
+
+    ride = models.OneToOneField(
+        'RideStatus',
+        on_delete=models.CASCADE,
+        related_name='invoice',
+        verbose_name=_('Ride')
+    )
+    issued_at = models.DateTimeField(_('Issued At'), default=timezone.now)
+    total_amount = models.DecimalField(_('Total Amount'), max_digits=10, decimal_places=2)
+    tax = models.DecimalField(_('Tax'), max_digits=10, decimal_places=2, default=0)
+    discount = models.DecimalField(_('Discount'), max_digits=10, decimal_places=2, default=0)
+    final_amount = models.DecimalField(_('Final Amount'), max_digits=10, decimal_places=2)
+    status = models.CharField(_('Status'), choices=INVOICE_STATUS, max_length=10, default='unpaid')
+    notes = models.TextField(_('Notes'), blank=True)
+
+    class Meta:
+        verbose_name = _('Invoice')
+        verbose_name_plural = _('Invoices')
+        ordering = ['-issued_at']
+
+    def __str__(self):
+        return f"Invoice #{self.id} for Ride #{self.ride_id}"
+    
 class Coupon(models.Model):
     code = models.CharField(_("Code"), max_length=50, unique=True)
     discount_percentage = models.DecimalField(_("Discount Percentage"), max_digits=5, decimal_places=2, validators=[MinValueValidator(0), MaxValueValidator(100)])

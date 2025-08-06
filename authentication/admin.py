@@ -28,6 +28,7 @@ from authentication.models import (
     Notification,
     DriverCarImage,
     Rating,
+    Invoice,
 )
 from django import forms
 from django.utils.timezone import make_aware, get_default_timezone
@@ -371,6 +372,27 @@ class RatingInline(admin.StackedInline):
     verbose_name_plural = "Rating"
     readonly_fields = ('created_at', 'updated_at',)
 
+
+@admin.register(Invoice)
+class InvoiceAdmin(admin.ModelAdmin):
+    list_display = ('id', 'ride', 'issued_at', 'total_amount', 'tax', 'discount', 'final_amount', 'status')
+    list_filter = ('status', 'issued_at')
+    search_fields = ('ride__id', 'ride__client__name', 'ride__provider__name')
+    date_hierarchy = 'issued_at'
+    ordering = ('-issued_at',)
+    readonly_fields = ('issued_at',)
+
+    fieldsets = (
+        (None, {
+            'fields': ('ride', 'status', 'notes')
+        }),
+        ('Amounts', {
+            'fields': ('total_amount', 'tax', 'discount', 'final_amount')
+        }),
+        ('Timestamps', {
+            'fields': ('issued_at',)
+        }),
+    )
 
 @admin.register(Rating)
 class RatingAdmin(admin.ModelAdmin):

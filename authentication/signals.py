@@ -8,6 +8,11 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 from django.conf import settings
 import os, shutil
+from django.dispatch import receiver
+from django.utils import timezone
+from decimal import Decimal
+
+from .models import RideStatus, Invoice
 
 
 _thread_locals = local()
@@ -90,3 +95,26 @@ def update_logo(sender, instance, **kwargs):
                 logger.info(f"Logo deleted from {static_logo_path}")
         except Exception as e:
             logger.error(f"Failed to delete logo: {str(e)}")
+
+
+@receiver(post_save, sender=RideStatus)
+def create_invoice_when_ride_finished(sender, instance, created, **kwargs):
+    if instance.status == 'finished':
+        # Check if invoice already exists
+        if not hasattr(instance, 'invoice'):
+            # Calculate values
+            total = Decimal(instance.total_price or 0)
+            tax = total * Decimal('0.1')  # 10% tax (you can customize this)
+            discount = Decimal('0.0')     # or fetch from coupon if needed
+            final = total + tax - discount
+
+            Invoice.objects.create(
+                ride=instance,
+                total_amount=total,
+                tax=tax,
+                discount=discount,
+                final_amount=final,
+                issued_at=timezone.now(),
+                status='unpaid',  # or 'paid' if logic determines it's already paid
+                notes=f"Auto-generated for ride #{instance.pk}"
+            )
