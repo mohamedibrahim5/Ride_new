@@ -408,10 +408,19 @@ class InvoiceAdmin(admin.ModelAdmin):
         return custom_urls + urls
 
 
+from django.utils.html import format_html
+from django.contrib import admin
+from .models import Rating
+
 @admin.register(Rating)
 class RatingAdmin(admin.ModelAdmin):
     list_display = (
-        'ride',
+        'ride_id',
+        'service_name',
+        'driver_name',
+        'driver_phone',
+        'customer_name',
+        'customer_phone',
         'driver_rating_stars',
         'customer_rating_stars',
         'created_at',
@@ -424,8 +433,35 @@ class RatingAdmin(admin.ModelAdmin):
         'ride__provider__name',
         'driver_comment',
         'customer_comment',
+        'ride__client__phone',
+        'ride__provider__phone',
+        'ride__service__name',
     )
     readonly_fields = ('created_at', 'updated_at')
+
+    def ride_id(self, obj):
+        return f"Ride #{obj.ride.id}"
+    ride_id.short_description = "Ride ID"
+
+    def service_name(self, obj):
+        return obj.ride.service.name if obj.ride and obj.ride.service else "-"
+    service_name.short_description = "Service"
+
+    def driver_name(self, obj):
+        return obj.ride.provider.name if obj.ride and obj.ride.provider else "-"
+    driver_name.short_description = "Driver Name"
+
+    def driver_phone(self, obj):
+        return obj.ride.provider.phone if obj.ride and obj.ride.provider else "-"
+    driver_phone.short_description = "Driver Phone"
+
+    def customer_name(self, obj):
+        return obj.ride.client.name if obj.ride and obj.ride.client else "-"
+    customer_name.short_description = "Customer Name"
+
+    def customer_phone(self, obj):
+        return obj.ride.client.phone if obj.ride and obj.ride.client else "-"
+    customer_phone.short_description = "Customer Phone"
 
     def driver_rating_stars(self, obj):
         return self._render_stars(obj.driver_rating)
@@ -442,9 +478,11 @@ class RatingAdmin(admin.ModelAdmin):
             return "-"
         full_star = "★"
         empty_star = "☆"
-        return format_html('<span style="color: gold; font-size: 16px;">{}</span>', full_star * value + empty_star * (5 - value))
+        return format_html(
+            '<span style="color: gold; font-size: 16px;">{}</span>',
+            full_star * value + empty_star * (5 - value)
+        )
 
-    
 # --- Customized RideStatus admin ---
 @admin.register(RideStatus)
 class RideStatusAdmin(admin.ModelAdmin):
