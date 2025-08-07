@@ -60,6 +60,7 @@ from django.shortcuts import render
 from firebase_admin import messaging
 import logging
 from django.utils.html import escape
+from .forms import PhoneLoginForm
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -71,6 +72,8 @@ import os
 from utils.pdf_export import export_pdf
 
 admin.site.unregister(Group)
+
+admin.site.login_form = PhoneLoginForm
 
 class UserAdminForm(forms.ModelForm):
     password = forms.CharField(
@@ -457,11 +460,11 @@ from .models import Rating
 class RatingAdmin(admin.ModelAdmin):
     list_display = (
         'ride_id',
-        'service_name',
         'driver_name',
         'driver_phone',
         'customer_name',
         'customer_phone',
+        'service_name',
         'driver_rating_stars',
         'customer_rating_stars',
         'created_at',
