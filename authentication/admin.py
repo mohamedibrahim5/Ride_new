@@ -628,12 +628,30 @@ class RideStatusAdmin(admin.ModelAdmin):
     def delete_model(self, request, obj):
         client_user = obj.client
         provider_user = obj.provider
-
-        # Delete the ride status
         super().delete_model(request, obj)
-
-        # Now check and reset flags ONLY IF no other active rides exist
         self._reset_flags_if_no_active_rides(client_user, provider_user)
+
+    # Handle bulk delete
+    def delete_queryset(self, request, queryset):
+        affected_clients = set(queryset.values_list("client", flat=True))
+        affected_providers = set(queryset.values_list("provider", flat=True))
+
+        queryset.delete()
+
+        from django.contrib.auth import get_user_model
+        User = get_user_model()
+
+        for client_id in affected_clients:
+            try:
+                self._reset_flags_if_no_active_rides(User.objects.get(id=client_id), None)
+            except User.DoesNotExist:
+                pass
+
+        for provider_id in affected_providers:
+            try:
+                self._reset_flags_if_no_active_rides(None, User.objects.get(id=provider_id))
+            except User.DoesNotExist:
+                pass
 
     def _reset_flags(self, instance):
         # Reset customer in_ride
@@ -688,24 +706,28 @@ class RideStatusAdmin(admin.ModelAdmin):
                 pass
             
     def _reset_flags_if_no_active_rides(self, client_user, provider_user):
-        # Helper: get active (not completed/canceled) ride statuses
+        from django.db.models import Q
+
         def has_active_rides(user, is_provider=False):
-            filter_kwargs = {"provider": user} if is_provider else {"client": user}
+            if not user:
+                return False
+            filters = {"provider": user} if is_provider else {"client": user}
             return RideStatus.objects.filter(
-                **filter_kwargs,
-                status__in=["pending", "accepted", "arrived", "started"]
+                Q(**filters),
+                status__in=["pending", "accepted", "starting", "arriving"]
             ).exists()
 
-        # Reset customer in_ride
-        try:
-            customer = Customer.objects.get(user=client_user)
-            if not has_active_rides(client_user) and customer.in_ride:
-                customer.in_ride = False
-                customer.save()
-        except Customer.DoesNotExist:
-            pass
+        # Reset client
+        if client_user:
+            try:
+                customer = Customer.objects.get(user=client_user)
+                if not has_active_rides(client_user) and customer.in_ride:
+                    customer.in_ride = False
+                    customer.save()
+            except Customer.DoesNotExist:
+                pass
 
-        # Reset provider in_ride and driver status
+        # Reset provider
         if provider_user:
             try:
                 provider = Provider.objects.get(user=provider_user)
