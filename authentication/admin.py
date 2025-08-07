@@ -620,9 +620,11 @@ class RideStatusAdmin(admin.ModelAdmin):
 
     def save_model(self, request, obj, form, change):
         super().save_model(request, obj, form, change)
-        if obj.status in ("finished", "cancelled", "accepted"):
+        if obj.status in ("finished", "cancelled"):
             self._reset_flags(obj)
-
+        elif obj.status == "accepted":
+            self._set_flags(obj)
+            
     def delete_model(self, request, obj):
         self._reset_flags(obj)
         super().delete_model(request, obj)
@@ -649,6 +651,32 @@ class RideStatusAdmin(admin.ModelAdmin):
                     driver = provider.driver_profile
                     if driver.status != "available":
                         driver.status = "available"
+                        driver.save()
+            except Provider.DoesNotExist:
+                pass
+            
+    def _set_flags(self, instance):
+        # Set customer in_ride
+        try:
+            customer = Customer.objects.get(user=instance.client)
+            if not customer.in_ride:
+                customer.in_ride = True
+                customer.save()
+        except Customer.DoesNotExist:
+            pass
+
+        # Set provider in_ride and driver status
+        if instance.provider:
+            try:
+                provider = Provider.objects.get(user=instance.provider)
+                if not provider.in_ride:
+                    provider.in_ride = True
+                    provider.save()
+
+                if hasattr(provider, "driver_profile"):
+                    driver = provider.driver_profile
+                    if driver.status != "in_ride":
+                        driver.status = "in_ride"
                         driver.save()
             except Provider.DoesNotExist:
                 pass
