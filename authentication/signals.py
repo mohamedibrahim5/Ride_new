@@ -120,37 +120,3 @@ def create_invoice_when_ride_finished(sender, instance, created, **kwargs):
             )
 
 
-@receiver(post_save, sender=RideStatus)
-def handle_ride_status_change(sender, instance, **kwargs):
-    if instance.status in ("finished", "cancelled"):
-        _reset_flags(instance)
-
-@receiver(post_delete, sender=RideStatus)
-def handle_ride_deleted(sender, instance, **kwargs):
-    _reset_flags(instance)
-
-def _reset_flags(instance):
-    # Reset customer in_ride
-    try:
-        customer = Customer.objects.get(user=instance.client)
-        if customer.in_ride:
-            customer.in_ride = False
-            customer.save()
-    except Customer.DoesNotExist:
-        pass
-
-    # Reset provider in_ride and driver status
-    if instance.provider:
-        try:
-            provider = Provider.objects.get(user=instance.provider)
-            if provider.in_ride:
-                provider.in_ride = False
-                provider.save()
-
-            if hasattr(provider, "driver_profile"):
-                driver = provider.driver_profile
-                if driver.status != "available":
-                    driver.status = "available"
-                    driver.save()
-        except Provider.DoesNotExist:
-            pass

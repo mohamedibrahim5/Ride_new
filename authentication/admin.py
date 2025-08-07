@@ -618,6 +618,40 @@ class RideStatusAdmin(admin.ModelAdmin):
 
     service_price_info.short_description = "Service Price Info"
 
+    def save_model(self, request, obj, form, change):
+        super().save_model(request, obj, form, change)
+        if obj.status in ("finished", "cancelled", "accepted"):
+            self._reset_flags(obj)
+
+    def delete_model(self, request, obj):
+        self._reset_flags(obj)
+        super().delete_model(request, obj)
+
+    def _reset_flags(self, instance):
+        # Reset customer in_ride
+        try:
+            customer = Customer.objects.get(user=instance.client)
+            if customer.in_ride:
+                customer.in_ride = False
+                customer.save()
+        except Customer.DoesNotExist:
+            pass
+
+        # Reset provider in_ride and driver status
+        if instance.provider:
+            try:
+                provider = Provider.objects.get(user=instance.provider)
+                if provider.in_ride:
+                    provider.in_ride = False
+                    provider.save()
+
+                if hasattr(provider, "driver_profile"):
+                    driver = provider.driver_profile
+                    if driver.status != "available":
+                        driver.status = "available"
+                        driver.save()
+            except Provider.DoesNotExist:
+                pass
 # --- Other existing admin registrations ---
 
 @admin.register(UserPoints)
