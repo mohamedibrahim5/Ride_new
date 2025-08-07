@@ -626,8 +626,14 @@ class RideStatusAdmin(admin.ModelAdmin):
             self._set_flags(obj)
             
     def delete_model(self, request, obj):
-        self._reset_flags(obj)
+        client_user = obj.client
+        provider_user = obj.provider
+
+        # Delete the ride status
         super().delete_model(request, obj)
+
+        # Now check and reset flags ONLY IF no other active rides exist
+        self._reset_flags_if_no_active_rides(client_user, provider_user)
 
     def _reset_flags(self, instance):
         # Reset customer in_ride
@@ -680,6 +686,43 @@ class RideStatusAdmin(admin.ModelAdmin):
                         driver.save()
             except Provider.DoesNotExist:
                 pass
+            
+    def _reset_flags_if_no_active_rides(self, client_user, provider_user):
+        # Helper: get active (not completed/canceled) ride statuses
+        def has_active_rides(user, is_provider=False):
+            filter_kwargs = {"provider": user} if is_provider else {"client": user}
+            return RideStatus.objects.filter(
+                **filter_kwargs,
+                status__in=["pending", "accepted", "arrived", "started"]
+            ).exists()
+
+        # Reset customer in_ride
+        try:
+            customer = Customer.objects.get(user=client_user)
+            if not has_active_rides(client_user) and customer.in_ride:
+                customer.in_ride = False
+                customer.save()
+        except Customer.DoesNotExist:
+            pass
+
+        # Reset provider in_ride and driver status
+        if provider_user:
+            try:
+                provider = Provider.objects.get(user=provider_user)
+                if not has_active_rides(provider_user, is_provider=True):
+                    if provider.in_ride:
+                        provider.in_ride = False
+                        provider.save()
+
+                    if hasattr(provider, "driver_profile"):
+                        driver = provider.driver_profile
+                        if driver.status != "available":
+                            driver.status = "available"
+                            driver.save()
+            except Provider.DoesNotExist:
+                pass
+
+
 # --- Other existing admin registrations ---
 
 @admin.register(UserPoints)
