@@ -372,11 +372,6 @@ class RatingInline(admin.StackedInline):
     verbose_name_plural = "Rating"
     readonly_fields = ('created_at', 'updated_at',)
 
-
-from django.utils.html import format_html
-from django.urls import path
-from .views import print_invoice_view  # ensure this view exists
-
 @admin.register(Invoice)
 class InvoiceAdmin(admin.ModelAdmin):
     list_display = (
