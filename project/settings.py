@@ -257,6 +257,7 @@ FCM_DJANGO_SETTINGS = {
 }
 
 # SimpleUI Settings
+SIMPLEUI_LOGIN_FORM = 'authentication.forms.PhoneLoginForm'  # Replace 'your_app' with your app name
 SIMPLEUI_HOME_INFO = False
 SIMPLEUI_ANALYSIS = False
 SIMPLEUI_HOME_QUICK = True

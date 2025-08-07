@@ -73,8 +73,6 @@ from utils.pdf_export import export_pdf
 
 admin.site.unregister(Group)
 
-admin.site.login_form = PhoneLoginForm
-
 class UserAdminForm(forms.ModelForm):
     password = forms.CharField(
         widget=forms.PasswordInput(),
@@ -1752,3 +1750,4 @@ def print_invoice_view(request, invoice_id):
     """
     return HttpResponse(html)
 
+admin.site.login_form = PhoneLoginForm
