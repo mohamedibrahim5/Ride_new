@@ -60,7 +60,6 @@ from django.shortcuts import render
 from firebase_admin import messaging
 import logging
 from django.utils.html import escape
-from .forms import PhoneLoginForm
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -1750,4 +1749,3 @@ def print_invoice_view(request, invoice_id):
     """
     return HttpResponse(html)
 
-admin.site.login_form = PhoneLoginForm
