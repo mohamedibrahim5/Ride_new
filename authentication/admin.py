@@ -373,11 +373,37 @@ class RatingInline(admin.StackedInline):
     readonly_fields = ('created_at', 'updated_at',)
 
 
+from django.utils.html import format_html
+from django.urls import path
+from .views import print_invoice_view  # ensure this view exists
+
 @admin.register(Invoice)
 class InvoiceAdmin(admin.ModelAdmin):
-    list_display = ('id', 'ride', 'issued_at', 'total_amount', 'tax', 'discount', 'final_amount', 'status', 'print_invoice_link')
+    list_display = (
+        'id',
+        'ride',
+        'client_name',
+        'client_phone',
+        'driver_name',
+        'driver_phone',
+        'service_name',
+        'issued_at',
+        'total_amount',
+        'tax',
+        'discount',
+        'final_amount',
+        'status',
+        'print_invoice_link',
+    )
     list_filter = ('status', 'issued_at')
-    search_fields = ('ride__id', 'ride__client__name', 'ride__provider__name')
+    search_fields = (
+        'ride__id',
+        'ride__client__name',
+        'ride__client__phone',
+        'ride__provider__name',
+        'ride__provider__phone',
+        'ride__service__name',
+    )
     date_hierarchy = 'issued_at'
     ordering = ('-issued_at',)
     readonly_fields = ('issued_at',)
@@ -393,13 +419,33 @@ class InvoiceAdmin(admin.ModelAdmin):
             'fields': ('issued_at',)
         }),
     )
-    
+
+    def client_name(self, obj):
+        return obj.ride.client.name if obj.ride and obj.ride.client else "-"
+    client_name.short_description = "Client Name"
+
+    def client_phone(self, obj):
+        return obj.ride.client.phone if obj.ride and obj.ride.client else "-"
+    client_phone.short_description = "Client Phone"
+
+    def driver_name(self, obj):
+        return obj.ride.provider.name if obj.ride and obj.ride.provider else "-"
+    driver_name.short_description = "Driver Name"
+
+    def driver_phone(self, obj):
+        return obj.ride.provider.phone if obj.ride and obj.ride.provider else "-"
+    driver_phone.short_description = "Driver Phone"
+
+    def service_name(self, obj):
+        return obj.ride.service.name if obj.ride and obj.ride.service else "-"
+    service_name.short_description = "Service"
+
     def print_invoice_link(self, obj):
         return format_html(
             '<a class="button" target="_blank" href="print/{}/">🖨️ Print</a>', obj.id
         )
     print_invoice_link.short_description = "Print"
-    
+
     def get_urls(self):
         urls = super().get_urls()
         custom_urls = [
