@@ -620,12 +620,9 @@ class RideStatusAdmin(admin.ModelAdmin):
 
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
         if db_field.name == "provider":
-            from .models import RideStatus
-
             current_provider_id = None
             service_id = None
 
-            # Detect if editing an existing record
             object_id = getattr(request.resolver_match, "kwargs", {}).get("object_id")
             if object_id:
                 try:
@@ -635,25 +632,18 @@ class RideStatusAdmin(admin.ModelAdmin):
                 except RideStatus.DoesNotExist:
                     pass
 
-            # Get service from GET params if adding new record
             if not service_id:
                 service_id = request.GET.get("service")
 
-            # Start with empty queryset to prevent showing unrelated providers
             qs = Provider.objects.none()
-
-            # If service selected, filter providers by service
-            if service_id:
-                qs = Provider.objects.filter(services__id=service_id)
-
-            # Always include current provider if editing
             if current_provider_id:
-                qs = qs | Provider.objects.filter(pk=current_provider_id)
+                qs = Provider.objects.filter(user_id=current_provider_id)
+            if service_id:
+                qs = qs | Provider.objects.filter(services__id=service_id)
 
             kwargs["queryset"] = qs.distinct()
 
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
-
 
 
     def save_model(self, request, obj, form, change):
