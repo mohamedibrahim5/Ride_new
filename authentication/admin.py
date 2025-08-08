@@ -618,34 +618,6 @@ class RideStatusAdmin(admin.ModelAdmin):
 
     service_price_info.short_description = "Service Price Info"
 
-    def formfield_for_foreignkey(self, db_field, request, **kwargs):
-        if db_field.name == "provider":
-            current_provider_id = None
-            service_id = None
-
-            object_id = getattr(request.resolver_match, "kwargs", {}).get("object_id")
-            if object_id:
-                try:
-                    ride = RideStatus.objects.get(pk=object_id)
-                    current_provider_id = ride.provider_id
-                    service_id = ride.service_id
-                except RideStatus.DoesNotExist:
-                    pass
-
-            if not service_id:
-                service_id = request.GET.get("service")
-
-            qs = Provider.objects.none()
-            if current_provider_id:
-                qs = Provider.objects.filter(user_id=current_provider_id)
-            if service_id:
-                qs = qs | Provider.objects.filter(services__id=service_id)
-
-            kwargs["queryset"] = qs.distinct()
-
-        return super().formfield_for_foreignkey(db_field, request, **kwargs)
-
-
     def save_model(self, request, obj, form, change):
         super().save_model(request, obj, form, change)
         if obj.status in ("finished", "cancelled"):
