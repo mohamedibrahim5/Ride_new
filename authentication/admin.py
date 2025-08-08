@@ -473,13 +473,13 @@ class PricingZoneAdmin(admin.ModelAdmin):
     )
     
     def display_boundaries(self, obj):
-        """Display a simplified version of the boundaries in the admin list."""
-        if obj.boundaries and isinstance(obj.boundaries, (list, dict)):
-            boundary_count = len(obj.boundaries) if isinstance(obj.boundaries, list) else 1
+        """Display all boundary points in the admin list."""
+        if obj.boundaries and isinstance(obj.boundaries, list):
+            boundary_count = len(obj.boundaries)
             if boundary_count > 0:
-                # Show the number of points and a sample of the first coordinate
-                sample = obj.boundaries[0] if isinstance(obj.boundaries[0], dict) else obj.boundaries
-                return f"{boundary_count} points (e.g., lat: {sample.get('lat', 'N/A')}, lng: {sample.get('lng', 'N/A')})"
+                # Show all coordinates
+                coords = ', '.join([f"lat: {b.get('lat', 'N/A')}, lng: {b.get('lng', 'N/A')}" for b in obj.boundaries])
+                return f"{boundary_count} points: {coords}"
         return "No boundaries"
 
     display_boundaries.short_description = 'Boundaries'

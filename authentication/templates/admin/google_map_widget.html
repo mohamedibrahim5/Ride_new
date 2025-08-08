@@ -1,3 +1,4 @@
+```html
 <!DOCTYPE html>
 <html>
 <head>
@@ -252,7 +253,7 @@
         <input type="hidden" id="boundaries-input" name="boundaries" value="">
     </div>
 
-    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDXSvQvWo_ay-Tgq7qIlXIgdn-vNNxOAFA&libraries=drawing,places&callback=initMap" async defer></script>
+    <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY_HERE&libraries=drawing,places&callback=initMap" async defer></script>
     <script>
         function initMap() {
             if (typeof google === 'undefined' || !google.maps) {
@@ -278,10 +279,9 @@
             const zoomToPolygonBtn = document.getElementById('zoom-to-polygon');
             const searchButton = document.getElementById('search-button');
             
-            // Initialize SearchBox and bind to map
             const searchBoxControl = new google.maps.places.SearchBox(searchBox);
             map.controls[google.maps.ControlPosition.TOP_LEFT].push(searchBox);
-            searchBoxControl.bindTo('bounds', map); // Sync search box with map bounds
+            searchBoxControl.bindTo('bounds', map);
 
             function updateCoordinateDisplay() {
                 const center = map.getCenter();
@@ -293,7 +293,6 @@
             map.addListener('zoom_changed', updateCoordinateDisplay);
             updateCoordinateDisplay();
             
-            // Handle place selection from autocomplete
             searchBoxControl.addListener('places_changed', function() {
                 const places = searchBoxControl.getPlaces();
                 if (places.length === 0) {
@@ -301,10 +300,10 @@
                     return;
                 }
                 const place = places[0];
-                console.log('Selected place:', place); // Debug log
+                console.log('Selected place:', place);
                 if (place.geometry && place.geometry.location) {
                     map.setCenter(place.geometry.location);
-                    map.setZoom(place.geometry.viewport ? 12 : 15); // Use viewport if available
+                    map.setZoom(place.geometry.viewport ? 12 : 15);
                     if (place.geometry.viewport) {
                         map.fitBounds(place.geometry.viewport);
                     }
@@ -324,8 +323,7 @@
                     map.setZoom(15);
                     searchBox.value = '';
                 } else if (input) {
-                    // Trigger Places API search for location names
-                    searchBoxControl.set('query', input); // This should trigger places_changed
+                    searchBoxControl.set('query', input);
                 } else {
                     alert('Please enter valid coordinates (lat, lng) or a location name.');
                 }
