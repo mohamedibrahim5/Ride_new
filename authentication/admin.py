@@ -620,26 +620,41 @@ class RideStatusAdmin(admin.ModelAdmin):
 
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
         if db_field.name == "provider":
-            # Get service from query params when editing/adding
-            service_id = request.GET.get("service") or None
+            service_id = None
+            current_provider_id = None
+            is_editing = False
 
-            # When editing an existing object, pull its service
-            if not service_id and hasattr(request, "resolver_match"):
-                object_id = request.resolver_match.kwargs.get("object_id")
-                if object_id:
-                    from .models import RideStatus
-                    try:
-                        ride = RideStatus.objects.get(pk=object_id)
-                        service_id = ride.service_id
-                    except RideStatus.DoesNotExist:
-                        pass
+            # Check if editing an existing object
+            object_id = request.resolver_match.kwargs.get("object_id") if hasattr(request, "resolver_match") else None
+            if object_id:
+                from .models import RideStatus
+                try:
+                    ride = RideStatus.objects.get(pk=object_id)
+                    service_id = ride.service_id
+                    if ride.provider_id:
+                        current_provider_id = ride.provider_id
+                    is_editing = True
+                except RideStatus.DoesNotExist:
+                    pass
 
+            # For adding a new record
+            if not service_id:
+                service_id = request.GET.get("service")
+
+            # Base queryset
+            qs = Provider.objects.all()
+
+            # If service is chosen, filter providers who offer it
             if service_id:
-                kwargs["queryset"] = Provider.objects.filter(
-                    services__id=service_id
-                ).distinct()
-            else:
-                kwargs["queryset"] = Provider.objects.none()  # Empty until service chosen
+                qs = qs.filter(services__id=service_id)
+
+            # If editing, always include current provider in queryset
+            if is_editing and current_provider_id:
+                qs = Provider.objects.filter(
+                    pk=current_provider_id
+                ) | qs  # union ensures old provider stays visible
+
+            kwargs["queryset"] = qs.distinct()
 
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
 
