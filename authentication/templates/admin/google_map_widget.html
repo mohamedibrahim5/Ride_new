@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Zone Boundary Editor</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(to bottom, #87CEEB, #FFD700);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow-x: hidden;
+            position: relative;
+        }
+
+        .background {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 320"><path fill="#ffffff" fill-opacity="0.3" d="M0,64L48,80C96,96,192,128,288,128C384,128,480,96,576,85.3C672,75,768,85,864,90.7C960,96,1056,96,1152,85.3C1248,75,1344,53,1392,42.7L1440,32V320H1392C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320H0Z"/></svg>') no-repeat center bottom,
+                        url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1440 320"><path fill="#87CEEB" fill-opacity="0.5" d="M0,160L48,176C96,192,192,224,288,213.3C384,203,480,149,576,117.3C672,85,768,75,864,74.7C960,75,1056,85,1152,74.7C1248,64,1344,32,1392,16L1440,0V320H1392C1344,320,1248,320,1152,320C1056,320,960,320,864,320C768,320,672,320,576,320C480,320,384,320,288,320C192,320,96,320,48,320H0Z"/></svg>') no-repeat center 20%,
+                        linear-gradient(to bottom, #87CEEB, #FFD700);
+            background-size: cover, cover, cover;
+            z-index: -1;
+        }
+
+        .google-map-widget {
+            width: 80%;
+            max-width: 800px;
+            margin: 20px auto;
+            border: 2px solid #ffffff;
+            border-radius: 15px;
+            padding: 20px;
+            background: rgba(255, 255, 255, 0.9);
+            box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+            backdrop-filter: blur(5px);
+            position: relative;
+            z-index: 1;
+            animation: fadeIn 1s ease-in;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .google-map-widget h2 {
+            margin: 0 0 20px;
+            font-size: 28px;
+            font-weight: 700;
+            color: #2c3e50;
+            text-align: center;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            background: linear-gradient(to right, #3498db, #8e44ad);
+            -webkit-background-clip: text;
+            color: transparent;
+        }
+
+        .google-map-widget #map {
+            height: 600px;
+            width: 100%;
+            border-radius: 10px;
+            border: 2px solid #ecf0f1;
+            box-shadow: inset 0 4px 8px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease;
+        }
+
+        .google-map-widget #map:hover {
+            transform: scale(1.01);
+        }
+
+        .google-map-widget .search-box-container {
+            margin-bottom: 20px;
+            width: 100%;
+            max-width: 500px;
+            margin-left: auto;
+            margin-right: auto;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .google-map-widget .search-box {
+            width: 100%;
+            padding: 12px 20px;
+            border: 2px solid #ecf0f1;
+            border-radius: 25px;
+            font-size: 16px;
+            box-sizing: border-box;
+            background: #ffffff;
+            transition: all 0.3s ease;
+        }
+
+        .google-map-widget .search-box:focus {
+            outline: none;
+            border-color: #3498db;
+            box-shadow: 0 0 10px rgba(52, 152, 219, 0.5);
+            transform: scale(1.02);
+        }
+
+        .google-map-widget .search-button {
+            padding: 12px 25px;
+            background: linear-gradient(45deg, #3498db, #8e44ad);
+            color: #ffffff;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            line-height: 1.5;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .google-map-widget .search-button:hover {
+            background: linear-gradient(45deg, #2980b9, #8e44ad);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        .google-map-widget .search-button:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .pac-container {
+            z-index: 1100 !important;
+            font-family: "Roboto", Arial, sans-serif;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .google-map-widget .map-controls {
+            margin-top: 20px;
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .google-map-widget .map-controls button {
+            padding: 12px 25px;
+            background: linear-gradient(45deg, #3498db, #8e44ad);
+            color: #ffffff;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            line-height: 1.5;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .google-map-widget .map-controls button:hover {
+            background: linear-gradient(45deg, #2980b9, #8e44ad);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        .google-map-widget .map-controls button:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .google-map-widget .coordinate-display {
+            margin-top: 15px;
+            font-size: 16px;
+            color: #2c3e50;
+            text-align: center;
+            background: rgba(255, 255, 255, 0.8);
+            padding: 10px 20px;
+            border-radius: 15px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        @media (max-width: 768px) {
+            .google-map-widget {
+                width: 90%;
+                padding: 15px;
+            }
+
+            .google-map-widget #map {
+                height: 400px;
+            }
+
+            .google-map-widget .map-controls {
+                flex-direction: column;
+            }
+
+            .google-map-widget .map-controls button {
+                width: 100%;
+            }
+
+            .google-map-widget h2 {
+                font-size: 22px;
+            }
+
+            .google-map-widget .search-box-container {
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            .google-map-widget .search-button {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="background"></div>
+    <div class="google-map-widget">
+        <h2>Zone Boundary Editor</h2>
+        
+        <div class="search-box-container">
+            <input type="text" id="search-box" class="search-box" placeholder="Search for a location or enter coordinates (lat,lng)">
+            <button type="button" id="search-button" class="search-button">Search</button>
+        </div>
+        
+        <div id="map"></div>
+        
+        <div class="coordinate-display">
+            Current center: <span id="current-coords">0, 0</span> | 
+            Zoom: <span id="current-zoom">2</span>
+        </div>
+        
+        <div class="map-controls">
+            <button type="button" id="draw-polygon" class="button">
+                <i class="fas fa-vector-square"></i> Draw Polygon
+            </button>
+            <button type="button" id="clear-polygon" class="button">
+                <i class="fas fa-trash"></i> Clear Polygon
+            </button>
+            <button type="button" id="zoom-to-polygon" class="button" style="display:none;">
+                <i class="fas fa-search-plus"></i> Zoom to Polygon
+            </button>
+        </div>
+        
+        <input type="hidden" id="boundaries-input" name="boundaries" value="">
+    </div>
+
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyDXSvQvWo_ay-Tgq7qIlXIgdn-vNNxOAFA&libraries=drawing,places&callback=initMap" async defer></script>
+    <script>
+        function initMap() {
+            if (typeof google === 'undefined' || !google.maps) {
+                console.error('Google Maps API failed to load. Check your API key and internet connection.');
+                alert('Failed to load Google Maps. Please ensure a valid API key is provided.');
+                return;
+            }
+
+            const map = new google.maps.Map(document.getElementById('map'), {
+                center: { lat: 20, lng: 0 },
+                zoom: 2,
+                mapTypeId: 'roadmap',
+                streetViewControl: false,
+                fullscreenControl: true,
+                mapTypeControl: true,
+                gestureHandling: 'greedy'
+            });
+            
+            const boundariesInput = document.getElementById('boundaries-input');
+            const searchBox = document.getElementById('search-box');
+            const currentCoords = document.getElementById('current-coords');
+            const currentZoom = document.getElementById('current-zoom');
+            const zoomToPolygonBtn = document.getElementById('zoom-to-polygon');
+            const searchButton = document.getElementById('search-button');
+            
+            const searchBoxControl = new google.maps.places.SearchBox(searchBox);
+            map.controls[google.maps.ControlPosition.TOP_LEFT].push(searchBox); // Ensure search box is part of map controls
+
+            function updateCoordinateDisplay() {
+                const center = map.getCenter();
+                currentCoords.textContent = `${center.lat().toFixed(4)}, ${center.lng().toFixed(4)}`;
+                currentZoom.textContent = map.getZoom();
+            }
+            
+            map.addListener('center_changed', updateCoordinateDisplay);
+            map.addListener('zoom_changed', updateCoordinateDisplay);
+            updateCoordinateDisplay();
+            
+            searchBoxControl.addListener('places_changed', function() {
+                const places = searchBoxControl.getPlaces();
+                if (places.length === 0) return;
+                
+                const place = places[0];
+                if (place.geometry && place.geometry.location) {
+                    map.setCenter(place.geometry.location);
+                    map.setZoom(place.geometry.viewport ? 12 : 15); // Adjust zoom based on viewport availability
+                } else {
+                    console.warn('No valid geometry found for place:', place);
+                    alert('No valid location found. Please try again.');
+                }
+            });
+            
+            function performSearch() {
+                const input = searchBox.value.trim();
+                const coords = input.split(',').map(coord => parseFloat(coord.trim()));
+                
+                if (coords.length === 2 && !isNaN(coords[0]) && !isNaN(coords[1]) && 
+                    coords[0] >= -90 && coords[0] <= 90 && coords[1] >= -180 && coords[1] <= 180) {
+                    map.setCenter({ lat: coords[0], lng: coords[1] });
+                    map.setZoom(15);
+                    searchBox.value = '';
+                } else if (input) {
+                    // Trigger Places API search if not coordinates
+                    searchBoxControl.set('query', input);
+                } else {
+                    alert('Please enter valid coordinates (lat, lng) or a location name.');
+                }
+            }
+
+            searchButton.addEventListener('click', performSearch);
+            searchBox.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') performSearch();
+            });
+            
+            const drawingManager = new google.maps.drawing.DrawingManager({
+                drawingMode: null,
+                drawingControl: false,
+                polygonOptions: {
+                    fillColor: '#3498db',
+                    fillOpacity: 0.5,
+                    strokeWeight: 2,
+                    strokeColor: '#8e44ad',
+                    editable: true,
+                    draggable: true,
+                    zIndex: 1
+                }
+            });
+            drawingManager.setMap(map);
+            
+            let currentPolygon = null;
+            
+            try {
+                const boundaries = JSON.parse(boundariesInput.value);
+                if (boundaries && boundaries.length > 0) {
+                    createPolygonFromBoundaries(boundaries);
+                    zoomToPolygonBtn.style.display = 'inline-block';
+                }
+            } catch (e) {
+                console.error('Error parsing boundaries:', e);
+            }
+            
+            function createPolygonFromBoundaries(boundaries) {
+                if (currentPolygon) {
+                    currentPolygon.setMap(null);
+                }
+                
+                currentPolygon = new google.maps.Polygon({
+                    paths: boundaries.map(coord => new google.maps.LatLng(coord.lat, coord.lng)),
+                    map: map,
+                    fillColor: '#3498db',
+                    fillOpacity: 0.5,
+                    strokeWeight: 2,
+                    strokeColor: '#8e44ad',
+                    editable: true,
+                    draggable: true,
+                    zIndex: 1
+                });
+                
+                zoomToPolygon();
+                
+                currentPolygon.addListener('mouseup', updateBoundaries);
+                currentPolygon.addListener('rightclick', function(event) {
+                    if (event.vertex !== undefined) {
+                        setTimeout(updateBoundaries, 10);
+                    }
+                });
+            }
+            
+            function zoomToPolygon() {
+                if (!currentPolygon) return;
+                
+                const bounds = new google.maps.LatLngBounds();
+                const paths = currentPolygon.getPaths();
+                paths.forEach(path => {
+                    path.forEach(latLng => bounds.extend(latLng));
+                });
+                map.fitBounds(bounds);
+            }
+            
+            document.getElementById('draw-polygon').addEventListener('click', function() {
+                if (currentPolygon) {
+                    currentPolygon.setMap(null);
+                    currentPolygon = null;
+                    boundariesInput.value = '[]';
+                    zoomToPolygonBtn.style.display = 'none';
+                }
+                drawingManager.setDrawingMode(google.maps.drawing.OverlayType.POLYGON);
+            });
+            
+            document.getElementById('clear-polygon').addEventListener('click', function() {
+                if (currentPolygon) {
+                    currentPolygon.setMap(null);
+                    currentPolygon = null;
+                    boundariesInput.value = '[]';
+                    zoomToPolygonBtn.style.display = 'none';
+                }
+                drawingManager.setDrawingMode(null);
+            });
+            
+            zoomToPolygonBtn.addEventListener('click', zoomToPolygon);
+            
+            google.maps.event.addListener(drawingManager, 'polygoncomplete', function(polygon) {
+                currentPolygon = polygon;
+                zoomToPolygonBtn.style.display = 'inline-block';
+                
+                updateBoundaries();
+                
+                polygon.addListener('mouseup', updateBoundaries);
+                polygon.addListener('rightclick', function(event) {
+                    if (event.vertex !== undefined) {
+                        setTimeout(updateBoundaries, 10);
+                    }
+                });
+                
+                drawingManager.setDrawingMode(null);
+            });
+            
+            function updateBoundaries() {
+                if (!currentPolygon) return;
+                
+                const paths = currentPolygon.getPaths();
+                const coordinates = [];
+                
+                paths.forEach(function(path) {
+                    path.forEach(function(latLng) {
+                        coordinates.push({
+                            lat: latLng.lat(),
+                            lng: latLng.lng()
+                        });
+                    });
+                });
+                
+                boundariesInput.value = JSON.stringify(coordinates);
+            }
+            
+            const resizeObserver = new ResizeObserver(() => {
+                google.maps.event.trigger(map, 'resize');
+                if (currentPolygon) {
+                    zoomToPolygon();
+                }
+            });
+            
+            resizeObserver.observe(document.getElementById('map'));
+        }
+
+        window.initMap = initMap;
+    </script>
+</body>
+</html>

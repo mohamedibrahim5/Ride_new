@@ -30,6 +30,7 @@ from authentication.models import (
     Rating,
     Invoice,
 )
+from .widgets import GoogleMapWidget
 from django import forms
 from django.utils.timezone import make_aware, get_default_timezone
 import pytz
@@ -343,8 +344,116 @@ admin.site.register(UserOtp)
 
 # admin.site.register(CustomerPlace)
 
+
+class GooglePolygonWidget(forms.Textarea):
+    class Media:
+        js = (
+            f'https://maps.googleapis.com/maps/api/js?key={settings.GOOGLE_MAPS_API_KEY}&libraries=drawing',
+        )
+
+    def render(self, name, value, attrs=None, renderer=None):
+        # Ensure value is JSON list
+        if not value or value in ("null", "None"):
+            value = "[]"
+        else:
+            try:
+                json.loads(value)
+            except Exception:
+                value = "[]"
+
+        html = super().render(name, value, attrs, renderer)
+
+        map_html = f"""
+        <div id="mapid" style="height: 500px; margin-top: 10px;"></div>
+        <script>
+        (function() {{
+            var map = new google.maps.Map(document.getElementById('mapid'), {{
+                center: {{lat: 30.0444, lng: 31.2357}}, // Default Cairo
+                zoom: 12
+            }});
+
+            var drawingManager = new google.maps.drawing.DrawingManager({{
+                drawingMode: google.maps.drawing.OverlayType.POLYGON,
+                drawingControl: true,
+                drawingControlOptions: {{
+                    position: google.maps.ControlPosition.TOP_CENTER,
+                    drawingModes: ['polygon']
+                }},
+                polygonOptions: {{
+                    editable: true,
+                    draggable: true
+                }}
+            }});
+            drawingManager.setMap(map);
+
+            var existingCoords = {value};
+            var drawnPolygon = null;
+
+            // Load existing polygon if present
+            if (Array.isArray(existingCoords) && existingCoords.length) {{
+                var path = existingCoords.map(function(coord) {{
+                    return {{lat: coord.lat, lng: coord.lng}};
+                }});
+                drawnPolygon = new google.maps.Polygon({{
+                    paths: path,
+                    editable: true,
+                    draggable: true
+                }});
+                drawnPolygon.setMap(map);
+
+                var bounds = new google.maps.LatLngBounds();
+                path.forEach(p => bounds.extend(p));
+                map.fitBounds(bounds);
+
+                attachPathListeners(drawnPolygon);
+            }}
+
+            function updateTextarea(polygon) {{
+                var coords = polygon.getPath().getArray().map(function(latlng) {{
+                    return {{lat: latlng.lat(), lng: latlng.lng()}};
+                }});
+                document.getElementById('id_{name}').value = JSON.stringify(coords);
+            }}
+
+            function attachPathListeners(polygon) {{
+                google.maps.event.addListener(polygon.getPath(), 'set_at', function() {{
+                    updateTextarea(polygon);
+                }});
+                google.maps.event.addListener(polygon.getPath(), 'insert_at', function() {{
+                    updateTextarea(polygon);
+                }});
+                google.maps.event.addListener(polygon.getPath(), 'remove_at', function() {{
+                    updateTextarea(polygon);
+                }});
+            }}
+
+            // Handle new polygon drawing
+            google.maps.event.addListener(drawingManager, 'overlaycomplete', function(event) {{
+                if (event.type === google.maps.drawing.OverlayType.POLYGON) {{
+                    if (drawnPolygon) drawnPolygon.setMap(null);
+                    drawnPolygon = event.overlay;
+                    updateTextarea(drawnPolygon);
+                    attachPathListeners(drawnPolygon);
+                }}
+            }});
+        }})();
+        </script>
+        """
+        return html + map_html
+
+
+class PricingZoneForm(forms.ModelForm):
+    class Meta:
+        model = PricingZone
+        fields = '__all__'
+        widgets = {
+            'boundaries': GoogleMapWidget(),
+        }
+
+
 @admin.register(PricingZone)
 class PricingZoneAdmin(admin.ModelAdmin):
+    form = PricingZoneForm
     list_display = ('name', 'is_active', 'created_at')
     list_filter = ('is_active', 'created_at')
     search_fields = ('name', 'description')
@@ -355,13 +464,14 @@ class PricingZoneAdmin(admin.ModelAdmin):
         }),
         (_('Zone Boundaries'), {
             'fields': ('boundaries',),
-            'description': _('Define zone boundaries as JSON array of coordinates: [{"lat": 30.0444, "lng": 31.2357}, ...]')
+            'description': _('Draw the zone boundaries on the map below.')
         }),
         (_('Timestamps'), {
             'fields': ('created_at',),
             'classes': ('collapse',)
         }),
     )
+
     
 class RatingInline(admin.StackedInline):
     model = Rating
