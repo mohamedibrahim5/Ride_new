@@ -620,43 +620,39 @@ class RideStatusAdmin(admin.ModelAdmin):
 
     def formfield_for_foreignkey(self, db_field, request, **kwargs):
         if db_field.name == "provider":
+            from .models import RideStatus
+
             service_id = None
             current_provider_id = None
-            is_editing = False
 
-            # Check if editing an existing object
+            # Detect if editing an existing record
             object_id = request.resolver_match.kwargs.get("object_id") if hasattr(request, "resolver_match") else None
             if object_id:
-                from .models import RideStatus
                 try:
                     ride = RideStatus.objects.get(pk=object_id)
                     service_id = ride.service_id
-                    if ride.provider_id:
-                        current_provider_id = ride.provider_id
-                    is_editing = True
+                    current_provider_id = ride.provider_id
                 except RideStatus.DoesNotExist:
                     pass
 
-            # For adding a new record
+            # For adding a new ride
             if not service_id:
                 service_id = request.GET.get("service")
 
-            # Base queryset
             qs = Provider.objects.all()
 
-            # If service is chosen, filter providers who offer it
+            # Filter by service if chosen
             if service_id:
                 qs = qs.filter(services__id=service_id)
 
-            # If editing, always include current provider in queryset
-            if is_editing and current_provider_id:
-                qs = Provider.objects.filter(
-                    pk=current_provider_id
-                ) | qs  # union ensures old provider stays visible
+            # Always include the current provider when editing
+            if current_provider_id:
+                qs = qs | Provider.objects.filter(pk=current_provider_id)
 
             kwargs["queryset"] = qs.distinct()
 
         return super().formfield_for_foreignkey(db_field, request, **kwargs)
+
 
     def save_model(self, request, obj, form, change):
         super().save_model(request, obj, form, change)
