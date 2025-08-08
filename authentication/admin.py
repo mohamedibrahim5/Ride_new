@@ -454,7 +454,7 @@ class PricingZoneForm(forms.ModelForm):
 @admin.register(PricingZone)
 class PricingZoneAdmin(admin.ModelAdmin):
     form = PricingZoneForm
-    list_display = ('name', 'is_active', 'created_at')
+    list_display = ('name', 'is_active', 'display_boundaries', 'created_at')
     list_filter = ('is_active', 'created_at')
     search_fields = ('name', 'description')
     readonly_fields = ('created_at',)
@@ -471,7 +471,18 @@ class PricingZoneAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
     )
+    
+    def display_boundaries(self, obj):
+        """Display a simplified version of the boundaries in the admin list."""
+        if obj.boundaries and isinstance(obj.boundaries, (list, dict)):
+            boundary_count = len(obj.boundaries) if isinstance(obj.boundaries, list) else 1
+            if boundary_count > 0:
+                # Show the number of points and a sample of the first coordinate
+                sample = obj.boundaries[0] if isinstance(obj.boundaries[0], dict) else obj.boundaries
+                return f"{boundary_count} points (e.g., lat: {sample.get('lat', 'N/A')}, lng: {sample.get('lng', 'N/A')})"
+        return "No boundaries"
 
+    display_boundaries.short_description = 'Boundaries'
     
 class RatingInline(admin.StackedInline):
     model = Rating
