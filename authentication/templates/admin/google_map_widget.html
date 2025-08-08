@@ -1,4 +1,3 @@
-```html
 <!DOCTYPE html>
 <html>
 <head>
@@ -85,17 +84,15 @@
         .google-map-widget .search-box-container {
             margin-bottom: 20px;
             width: 100%;
-            max-width: 500px;
+            max-width: 600px;
             margin-left: auto;
             margin-right: auto;
-            display: flex;
-            align-items: center;
-            gap: 10px;
+            position: relative;
         }
 
         .google-map-widget .search-box {
             width: 100%;
-            padding: 12px 20px;
+            padding: 12px 20px 12px 40px;
             border: 2px solid #ecf0f1;
             border-radius: 25px;
             font-size: 16px;
@@ -111,29 +108,27 @@
             transform: scale(1.02);
         }
 
-        .google-map-widget .search-button {
-            padding: 12px 25px;
-            background: linear-gradient(45deg, #3498db, #8e44ad);
-            color: #ffffff;
+        .google-map-widget .search-icon {
+            position: absolute;
+            left: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            padding: 8px;
+            background: none;
             border: none;
-            border-radius: 25px;
             cursor: pointer;
             font-size: 16px;
-            font-weight: 600;
-            line-height: 1.5;
-            transition: all 0.3s ease;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            color: #3498db;
+            transition: color 0.3s ease;
+            z-index: 1;
         }
 
-        .google-map-widget .search-button:hover {
-            background: linear-gradient(45deg, #2980b9, #8e44ad);
-            transform: translateY(-2px);
-            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.2);
+        .google-map-widget .search-icon:hover {
+            color: #2980b9;
         }
 
-        .google-map-widget .search-button:active {
-            transform: translateY(0);
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        .google-map-widget .search-icon:focus {
+            outline: none;
         }
 
         .pac-container {
@@ -210,13 +205,8 @@
                 font-size: 22px;
             }
 
-            .google-map-widget .search-box-container {
-                flex-direction: column;
-                gap: 10px;
-            }
-
-            .google-map-widget .search-button {
-                width: 100%;
+            .google-map-widget .search-icon {
+                padding: 6px;
             }
         }
     </style>
@@ -228,7 +218,7 @@
         
         <div class="search-box-container">
             <input type="text" id="search-box" class="search-box" placeholder="Search for a location or enter coordinates (lat,lng)">
-            <button type="button" id="search-button" class="search-button">Search</button>
+            <button type="button" id="search-icon" class="search-icon"><i class="fas fa-search"></i></button>
         </div>
         
         <div id="map"></div>
@@ -277,7 +267,7 @@
             const currentCoords = document.getElementById('current-coords');
             const currentZoom = document.getElementById('current-zoom');
             const zoomToPolygonBtn = document.getElementById('zoom-to-polygon');
-            const searchButton = document.getElementById('search-button');
+            const searchIcon = document.getElementById('search-icon');
             
             const searchBoxControl = new google.maps.places.SearchBox(searchBox);
             map.controls[google.maps.ControlPosition.TOP_LEFT].push(searchBox);
@@ -329,7 +319,7 @@
                 }
             }
 
-            searchButton.addEventListener('click', performSearch);
+            searchIcon.addEventListener('click', performSearch);
             searchBox.addEventListener('keypress', function(e) {
                 if (e.key === 'Enter') performSearch();
             });
