@@ -75,7 +75,7 @@ admin.site.unregister(Group)
 
 class UserAdminForm(forms.ModelForm):
     password = forms.CharField(
-        widget=forms.PasswordInput(),
+        widget=forms.PasswordInput(render_value=True),
         required=False,
         help_text=_("Leave empty to keep current password. Enter new password to change it.")
     )
@@ -112,10 +112,13 @@ class UserAdminForm(forms.ModelForm):
     def save(self, commit=True):
         user = super().save(commit=False)
         
-        # Handle password hashing
-        password = self.cleaned_data.get('password')
-        if password:
-            user.set_password(password)
+        # Handle password hashing only if password field was changed
+        if 'password' in self.changed_data:
+            password = self.cleaned_data.get('password')
+            if password:
+                user.set_password(password)
+            elif not user.pk:  # Only set unusable password for new users
+                user.set_unusable_password()
         
         if commit:
             user.save()
