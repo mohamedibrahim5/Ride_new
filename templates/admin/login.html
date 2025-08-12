@@ -1,0 +1,459 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls static admin_list %}
+
+{% block extrastyle %}
+{{ block.super }}
+<link rel="stylesheet" type="text/css" href="{% static "admin/css/login.css" %}">
+{{ form.media }}
+<style>
+    /* Prevent scrolling on the entire page */
+    html, body.login {
+        margin: 0;
+        padding: 0;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 70vh;
+        height: 70vh;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        overflow: hidden;
+    }
+
+    /* Animated background particles */
+    body.login::before {
+        content: '';
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 70%;
+        background-image: 
+            radial-gradient(circle at 20% 50%, rgba(255, 255, 255, 0.1) 0%, transparent 50%),
+            radial-gradient(circle at 80% 20%, rgba(255, 255, 255, 0.1) 0%, transparent 50%),
+            radial-gradient(circle at 40% 80%, rgba(255, 255, 255, 0.1) 0%, transparent 50%);
+        animation: float 20s ease-in-out infinite;
+        pointer-events: none;
+    }
+
+    @keyframes float {
+        0%, 100% { transform: translateY(0px) rotate(0deg); }
+        33% { transform: translateY(-30px) rotate(120deg); }
+        66% { transform: translateY(-60px) rotate(240deg); }
+    }
+
+    #container {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        height: 100vh;
+        margin: 0;
+        padding: 0;
+    }
+
+    .login-container {
+        background: rgba(255, 255, 255, 0.95);
+        backdrop-filter: blur(20px);
+        border-radius: 20px;
+        box-shadow: 
+            0 25px 45px rgba(0, 0, 0, 0.1),
+            0 0 0 1px rgba(255, 255, 255, 0.2);
+        padding: 60px 50px;
+        width: 100%;
+        max-width: 450px;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .login-container::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -50%;
+        width: 200%;
+        height: 100%;
+        background: linear-gradient(45deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+        transform: rotate(25deg);
+        animation: shine 3s infinite;
+    }
+
+    @keyframes shine {
+        0% { transform: translateX(-100%) rotate(25deg); }
+        100% { transform: translateX(100%) rotate(25deg); }
+    }
+
+    .login-header {
+        text-align: center;
+        margin-bottom: 40px;
+        position: relative;
+        z-index: 1;
+    }
+
+    .login-logo {
+        width: 80px;
+        height: 80px;
+        margin: 0 auto 20px;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        border-radius: 20px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
+        animation: pulse 2s ease-in-out infinite alternate;
+    }
+
+    @keyframes pulse {
+        from { transform: scale(1); }
+        to { transform: scale(1.05); }
+    }
+
+    .login-logo::before {
+        content: '🚗';
+        font-size: 36px;
+        filter: brightness(0) invert(1);
+    }
+
+    .login-title {
+        color: #2c3e50;
+        font-size: 28px;
+        font-weight: 700;
+        margin: 0 0 10px 0;
+        letter-spacing: -0.5px;
+    }
+
+    .login-subtitle {
+        color: #7f8c8d;
+        font-size: 16px;
+        margin: 0;
+        font-weight: 400;
+    }
+
+    .form-row {
+        margin-bottom: 25px;
+        position: relative;
+        z-index: 1;
+    }
+
+    .form-row label {
+        display: block;
+        color: #2c3e50;
+        font-weight: 600;
+        margin-bottom: 8px;
+        font-size: 14px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+
+    .form-input {
+        width: 100% !important;
+        padding: 16px 20px;
+        border: 2px solid #e8ecf4;
+        border-radius: 12px;
+        font-size: 16px;
+        transition: all 0.3s ease;
+        background: rgba(255, 255, 255, 0.9);
+        box-sizing: border-box;
+    }
+
+    .form-input:focus {
+        outline: none;
+        border-color: #667eea;
+        transform: translateY(-2px);
+        box-shadow: 
+            0 10px 25px rgba(102, 126, 234, 0.15),
+            0 0 0 3px rgba(102, 126, 234, 0.1);
+        background: rgba(255, 255, 255, 1);
+    }
+
+    .form-input::placeholder {
+        color: #a0aec0;
+        font-weight: 400;
+    }
+
+    .input-icon {
+        position: absolute;
+        left: 20px;
+        top: 50%;
+        transform: translateY(-50%);
+        color: #a0aec0;
+        font-size: 18px;
+        pointer-events: none;
+        transition: color 0.3s ease;
+    }
+
+    .form-row:focus-within .input-icon {
+        color: #667eea;
+    }
+
+    .submit-row {
+        margin-top: 35px;
+        text-align: center;
+        position: relative;
+        z-index: 1;
+    }
+
+    .login-submit {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        padding: 18px 40px;
+        font-size: 16px;
+        font-weight: 600;
+        border-radius: 12px;
+        cursor: pointer;
+        width: 100%;
+        transition: all 0.3s ease;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        position: relative;
+        overflow: hidden;
+    }
+
+    .login-submit::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+        transition: left 0.5s;
+    }
+
+    .login-submit:hover::before {
+        left: 100%;
+    }
+
+    .login-submit:hover {
+        transform: translateY(-3px);
+        box-shadow: 
+            0 15px 35px rgba(102, 126, 234, 0.4),
+            0 5px 15px rgba(0, 0, 0, 0.1);
+    }
+
+    .login-submit:active {
+        transform: translateY(-1px);
+    }
+
+    .errornote {
+        background: linear-gradient(135deg, #ff6b6b, #ee5a52);
+        color: white;
+        padding: 15px 20px;
+        border-radius: 10px;
+        margin-bottom: 25px;
+        font-weight: 500;
+        box-shadow: 0 5px 15px rgba(255, 107, 107, 0.3);
+        border: none;
+        animation: shake 0.5s ease-in-out;
+        position: relative;
+        z-index: 1;
+    }
+
+    @keyframes shake {
+        0%, 100% { transform: translateX(0); }
+        25% { transform: translateX(-5px); }
+        75% { transform: translateX(5px); }
+    }
+
+    .password-reset-link {
+        text-align: center;
+        margin-top: 25px;
+        position: relative;
+        z-index: 1;
+    }
+
+    .password-reset-link a {
+        color: #667eea;
+        text-decoration: none;
+        font-weight: 500;
+        font-size: 14px;
+        transition: color 0.3s ease;
+    }
+
+    .password-reset-link a:hover {
+        color: #764ba2;
+        text-decoration: underline;
+    }
+
+    /* Responsive Design */
+    @media (max-width: 480px) {
+        .login-container {
+            padding: 40px 30px;
+            margin: 0;
+            border-radius: 15px;
+        }
+
+        .login-title {
+            font-size: 24px;
+        }
+
+        .form-input {
+            padding: 14px 18px;
+            font-size: 15px;
+        }
+
+        .login-submit {
+            padding: 16px 35px;
+            font-size: 15px;
+        }
+    }
+
+    /* Loading animation */
+    .login-submit:disabled {
+        opacity: 0.7;
+        cursor: not-allowed;
+    }
+
+    .login-submit.loading::after {
+        content: '';
+        position: absolute;
+        width: 20px;
+        height: 20px;
+        top: 50%;
+        left: 50%;
+        margin-left: -10px;
+        margin-top: -10px;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        border-radius: 50%;
+        border-top-color: white;
+        animation: spin 1s ease-in-out infinite;
+    }
+
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+</style>
+{% endblock %}
+
+{% block bodyclass %}{{ block.super }} login{% endblock %}
+
+{% block usertools %}{% endblock %}
+{% block nav-global %}{% endblock %}
+{% block nav-sidebar %}{% endblock %}
+{% block content_title %}{% endblock %}
+{% block breadcrumbs %}{% endblock %}
+
+{% block content %}
+<div id="container">
+    <div class="login-container">
+        <div class="login-header">
+            <div class="login-logo"></div>
+            <h1 class="login-title">{% trans 'Welcome Back' %}</h1>
+            <p class="login-subtitle">{% trans 'Sign in to your admin account' %}</p>
+        </div>
+
+        <!-- Error Messages -->
+        {% if form.errors and not form.non_field_errors %}
+            <div class="errornote">
+                <strong>⚠️ {% if form.errors.items|length == 1 %}{% trans "Please correct the error below." %}{% else %}{% trans "Please correct the errors below." %}{% endif %}</strong>
+            </div>
+        {% endif %}
+
+        {% if form.non_field_errors %}
+            {% for error in form.non_field_errors %}
+                <div class="errornote">
+                    <strong>⚠️ {{ error }}</strong>
+                </div>
+            {% endfor %}
+        {% endif %}
+
+        {% if user.is_authenticated %}
+            <div class="errornote">
+                <strong>🔒 {% blocktrans trimmed %}
+                    You are authenticated as {{ username }}, but are not authorized to
+                    access this page. Would you like to login to a different account?
+                {% endblocktrans %}</strong>
+            </div>
+        {% endif %}
+
+        <!-- Login Form -->
+        <form action="{{ app_path }}" method="post" id="login-form">{% csrf_token %}
+            <div class="form-row">
+                {{ form.username.errors }}
+                <label for="id_username" class="required">
+                    📱 {% trans 'Phone Number' %}
+                </label>
+                <div style="position: relative;">
+                    <input 
+                        type="text" 
+                        name="username" 
+                        autofocus 
+                        maxlength="20" 
+                        required 
+                        id="id_username" 
+                        class="form-input"
+                        placeholder="{% trans 'Enter your phone number' %}"
+                        autocomplete="username"
+                    >
+                </div>
+            </div>
+
+            <div class="form-row">
+                {{ form.password.errors }}
+                <label for="id_password" class="required">
+                    🔒 {% trans 'Password' %}
+                </label>
+                <div style="position: relative;">
+                    <input 
+                        type="password" 
+                        name="password" 
+                        required 
+                        id="id_password" 
+                        class="form-input"
+                        placeholder="{% trans 'Enter your password' %}"
+                        autocomplete="current-password"
+                    >
+                </div>
+                <input type="hidden" name="next" value="{{ next }}">
+            </div>
+
+            <div class="submit-row">
+                <button type="submit" class="login-submit" id="login-button">
+                    {% trans 'Sign In' %}
+                </button>
+            </div>
+        </form>
+
+        {% url 'admin_password_reset' as password_reset_url %}
+        {% if password_reset_url %}
+            <div class="password-reset-link">
+                <a href="{{ password_reset_url }}">
+                    {% trans 'Forgot your password?' %}
+                </a>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('login-form');
+    const submitButton = document.getElementById('login-button');
+    
+    // Add loading animation on form submit
+    form.addEventListener('submit', function() {
+        submitButton.classList.add('loading');
+        submitButton.disabled = true;
+        submitButton.innerHTML = '{% trans "Signing In..." %}';
+    });
+    
+    // Add focus animations
+    const inputs = document.querySelectorAll('.form-input');
+    inputs.forEach(input => {
+        input.addEventListener('focus', function() {
+            this.parentElement.style.transform = 'scale(1.02)';
+        });
+        
+        input.addEventListener('blur', function() {
+            this.parentElement.style.transform = 'scale(1)';
+        });
+    });
+    
+    // Add shake animation for errors
+    const errorNotes = document.querySelectorAll('.errornote');
+    errorNotes.forEach(note => {
+        setTimeout(() => {
+            note.style.animation = 'shake 0.5s ease-in-out';
+        }, 100);
+    });
+});
+</script>
+{% endblock %}
