@@ -377,9 +377,9 @@ class VerifyOtpSerializer(serializers.Serializer):
         if not user_otp or user_otp.otp != otp:
             raise serializers.ValidationError({"otp": _("Invalid otp")})
 
-        if user.role == ROLE_CUSTOMER:
-            user.last_login = timezone.now()
-            attrs["token"] = Token.objects.get(user=user).key
+        # if user.role == ROLE_CUSTOMER:
+        user.last_login = timezone.now()
+        attrs["token"] = Token.objects.get(user=user).key
 
         user.is_active = True
 
