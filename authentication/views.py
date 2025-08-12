@@ -220,7 +220,7 @@ class VerifyOtpView(generics.GenericAPIView):
 
 
 class ResetPasswordView(generics.GenericAPIView):
-    permission_classes = [IsAuthenticated]
+    # permission_classes = [IsAuthenticated]
     serializer_class = ResetPasswordSerializer
 
     def post(self, request, *args, **kwargs):
