@@ -184,6 +184,10 @@ class ProviderSerializer(serializers.ModelSerializer):
         # Check for nested dict
         if not driver_profile_data and self.initial_data.get("driver_profile"):
             driver_profile_data = self.initial_data.get("driver_profile")
+
+        existing_profile = DriverProfile.objects.filter(license=driver_profile_data.get("license")).first()
+        if existing_profile:
+            raise serializers.ValidationError({"license": _("License already exists")})     
         if driver_profile_data:
             driver_profile = DriverProfile.objects.create(provider=provider, **driver_profile_data)
             # Handle car creation if data is present (flat keys or nested)
@@ -965,6 +969,10 @@ class ProviderDriverRegisterSerializer(serializers.ModelSerializer):
         if service_ids:
             services = Service.objects.filter(pk__in=service_ids)
             provider.services.set(services)
+
+        existing_profile = DriverProfile.objects.filter(license=driver_profile_data.get("license")).first()
+        if existing_profile:
+            raise serializers.ValidationError({"license": _("License already exists")})     
 
         # Create driver profile
         driver_profile = DriverProfile.objects.create(provider=provider, **driver_profile_data)
