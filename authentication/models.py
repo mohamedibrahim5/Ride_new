@@ -132,6 +132,17 @@ class Service(models.Model):
         verbose_name = _("Service")
         verbose_name_plural = _("Services")
 
+class NameOfCar(models.Model):
+    name = models.CharField(_("Name"), max_length=20, unique=True)
+    created_at = models.DateTimeField(_("Created At"), auto_now_add=True, null=True, blank=True)
+
+    def __str__(self):
+        return self.name
+    
+    class Meta:
+        verbose_name = _("Name Of Car")
+        verbose_name_plural = _("Names Of Cars")
+
 
 class ServiceImage(models.Model):
     service = models.ForeignKey(
@@ -153,6 +164,7 @@ class ServiceImage(models.Model):
 class Provider(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, verbose_name=_("User"))
     services = models.ManyToManyField(Service, verbose_name=_("Services"))
+    name_of_car = models.ForeignKey(NameOfCar, on_delete=models.CASCADE, verbose_name=_("Name Of Car"),blank=True,null=True)
     sub_service = models.CharField(_("Sub Service"), max_length=50, blank=True, null=True)
     is_verified = models.BooleanField(_("Is Verified"), default=False)
     in_ride = models.BooleanField(_("In Ride"), default=False)

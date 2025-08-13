@@ -7,6 +7,7 @@ from authentication.models import (
     User,
     UserOtp,
     Service,
+    NameOfCar,
     Provider,
     DriverCar,
     Customer,
@@ -443,6 +444,21 @@ class GooglePolygonWidget(forms.Textarea):
         </script>
         """
         return html + map_html
+
+
+@admin.register(NameOfCar)
+class NameOfCarAdmin(admin.ModelAdmin):
+    list_display = ('name',)
+    search_fields = ('name',)
+    list_filter = ('created_at',)
+    readonly_fields = ('created_at',)
+    
+    def model_list(self, obj):
+        # Assuming 'models' is a TextField or CharField containing comma-separated models
+        if obj.models:
+            return ", ".join([m.strip() for m in obj.models.split(',')])
+        return "-"
+    model_list.short_description = 'Models'
 
 
 class PricingZoneForm(forms.ModelForm):
@@ -1103,7 +1119,6 @@ class ProviderServicePricingAdmin(admin.ModelAdmin):
     def zone_name(self, obj):
         return obj.zone.name if obj.zone else _('Default Zone')
     zone_name.short_description = _('Zone')
-
 
 @admin.register(WhatsAppAPISettings)
 class WhatsAppAPISettingsAdmin(admin.ModelAdmin):

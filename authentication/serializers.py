@@ -8,6 +8,7 @@ from authentication.models import (
     User,
     UserOtp,
     Service,
+    NameOfCar,
     Provider,
     Customer,
     CustomerPlace,
@@ -124,73 +125,87 @@ class ServiceSerializer(serializers.ModelSerializer):
         model = Service
         fields = ["id", "name"]
 
+class NameOfCarSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = NameOfCar
+        fields = ["id", "name"]
+
+
 
 class ProviderSerializer(serializers.ModelSerializer):
     service_ids = serializers.ListField(
         child=serializers.IntegerField(), write_only=True, required=False
     )
+    name_of_car_id = serializers.IntegerField(write_only=True, required=False, allow_null=True)  # Changed to single ID
     user = UserSerializer(read_only=True)
     services = ServiceSerializer(many=True, read_only=True)
+    name_of_car = NameOfCarSerializer(read_only=True)  # Changed to singular, for ForeignKey
 
     class Meta:
         model = Provider
-        fields = ["id", "user", "service_ids", "services", "sub_service","onLine"]
+        fields = ["id", "user", "service_ids", "services", "sub_service", "onLine", "name_of_car_id", "name_of_car"]
 
     def validate(self, attrs):
         service_ids = attrs.get("service_ids", None)
         sub_service = attrs.get('sub_service')
-        
+        name_of_car_id = attrs.get("name_of_car_id", None)
+
+        # Validate name_of_car_id
+        if name_of_car_id is not None:
+            try:
+                name_of_car = NameOfCar.objects.get(pk=name_of_car_id)
+                attrs['name_of_car'] = name_of_car
+            except NameOfCar.DoesNotExist:
+                raise serializers.ValidationError({"name_of_car_id": _("Invalid Name of Car ID")})
+        else:
+            attrs['name_of_car'] = None  # Allow null for ForeignKey
+
+        # Validate sub_service
         if sub_service and service_ids:
-            # Check if maintenance service is in the service_ids
             services = Service.objects.filter(pk__in=service_ids)
-            print(f"Service IDs: {service_ids}")
-            print(f"Found services: {[s.name for s in services]}")
             has_maintenance = any('maintenance' in service.name.lower() for service in services)
-            print(f"Has maintenance: {has_maintenance}")
-            
             if not has_maintenance:
                 raise serializers.ValidationError({
                     "sub_service": _("Sub service can only be set when maintenance service is assigned.")
                 })
-        
+
         return attrs
 
     def create(self, validated_data):
         service_ids = validated_data.pop("service_ids", None)
+        name_of_car = validated_data.pop("name_of_car", None)  # Changed to singular
         user_data = extract_user_data(self.initial_data)
         user_serializer = UserSerializer(data=user_data)
         user_serializer.is_valid(raise_exception=True)
         user = user_serializer.save()
-        
-        
-        
+
+        # Create provider with name_of_car (singular)
+        provider = Provider.objects.create(user=user, name_of_car=name_of_car, **validated_data)
+
+        # Set services if provided
         if service_ids:
             services = Service.objects.filter(pk__in=service_ids)
-            if services is None or not services.exists():
+            if not services.exists():
                 raise serializers.ValidationError({"service_ids": _("Invalid service IDs")})
-
-            provider = Provider.objects.create(user=user, **validated_data)
             provider.services.set(services)
 
-        # Handle driver profile creation if data is present (flat keys or nested)
+        # Handle driver profile creation
         driver_profile_data = {}
-        # Check for flat keys
         driver_profile_fields = ["license", "status", "is_verified", "documents"]
         for f in driver_profile_fields:
             val = self.initial_data.get(f"driver_profile.{f}")
-            print(f"driver_profile.{f}: {val}")
             if val is not None:
                 driver_profile_data[f] = val
-        # Check for nested dict
         if not driver_profile_data and self.initial_data.get("driver_profile"):
             driver_profile_data = self.initial_data.get("driver_profile")
 
-        existing_profile = DriverProfile.objects.filter(license=driver_profile_data.get("license")).first()
-        if existing_profile:
-            raise serializers.ValidationError({"license": _("License already exists")})     
         if driver_profile_data:
+            existing_profile = DriverProfile.objects.filter(license=driver_profile_data.get("license")).first()
+            if existing_profile:
+                raise serializers.ValidationError({"license": _("License already exists")})
             driver_profile = DriverProfile.objects.create(provider=provider, **driver_profile_data)
-            # Handle car creation if data is present (flat keys or nested)
+
+            # Handle car creation
             car_data = {}
             car_fields = ["type", "model", "number", "color", "image"]
             for f in car_fields:
@@ -200,23 +215,37 @@ class ProviderSerializer(serializers.ModelSerializer):
             if not car_data and self.initial_data.get("car"):
                 car_data = self.initial_data.get("car")
             if car_data:
-                # ✅ Use serializer to handle uploaded_images
                 car_serializer = DriverCarSerializer(data=car_data)
                 car_serializer.is_valid(raise_exception=True)
                 car_serializer.save(driver_profile=driver_profile)
+
         return provider
 
-    def update(self, instance, validated_data):
+    def update(self, validated_data, instance):
         user_data = update_user_data(instance, self.initial_data)
         user_serializer = UserSerializer(instance.user, data=user_data, partial=True)
         user_serializer.is_valid(raise_exception=True)
         user_serializer.save()
-        services = validated_data.pop("services", None)
-        if services is not None:
+
+        service_ids = validated_data.pop("service_ids", None)
+        name_of_car = validated_data.pop("name_of_car", None)  # Changed to singular
+
+        # Update services if provided
+        if service_ids is not None:
+            services = Service.objects.filter(pk__in=service_ids)
+            if not services.exists():
+                raise serializers.ValidationError({"service_ids": _("Invalid service IDs")})
             instance.services.set(services)
-        return super().update(instance, validated_data)
 
+        # Update name_of_car (singular)
+        instance.name_of_car = name_of_car
 
+        # Update other fields
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+
+        return instance
 
 class DriverProfileSerializer(serializers.ModelSerializer):
     class Meta:

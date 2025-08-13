@@ -369,6 +369,11 @@ SIMPLEUI_CONFIG = {
                     'url': 'authentication/service/'
                 },
                 {
+                    'name': _('Names Of Cars'),
+                    'icon': 'fas fa-car',
+                    'url': 'authentication/nameofcar/'
+                },
+                {
                     'name': _('Service Pricings'),
                     'icon': 'fas fa-money-bill',
                     'url': 'authentication/providerservicepricing/'

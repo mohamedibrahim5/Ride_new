@@ -12,6 +12,7 @@ from authentication.views import (
     LogoutView,
     DeleteUserView,
     ServiceViewSet,
+    NameOfCarViewSet,
     DriverCarViewSet,
     CustomerPlaceViewSet,
     ProviderViewSet,
@@ -49,6 +50,7 @@ from rest_framework.routers import DefaultRouter
 
 router = DefaultRouter()
 router.register("services", ServiceViewSet, basename="services")
+router.register("names-of-cars", NameOfCarViewSet, basename="names-of-cars")
 router.register("providers", ProviderViewSet, basename="providers")
 router.register("driver-cars", DriverCarViewSet, basename="driver-cars")
 router.register("customer-places", CustomerPlaceViewSet, basename="customer-places")

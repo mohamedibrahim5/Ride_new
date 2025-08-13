@@ -15,7 +15,8 @@ from authentication.models import (
     Notification,
     Rating,
     ProviderServicePricing,
-    PricingZone
+    PricingZone,
+    NameOfCar
 )
 from authentication.serializers import (
     UserSerializer,
@@ -49,7 +50,8 @@ from authentication.serializers import (
     PricingZoneSerializer,
     RideHistorySerializer,
     PriceCalculationSerializer,
-    ProviderOnlineStatusSerializer
+    ProviderOnlineStatusSerializer,
+    NameOfCarSerializer
 )
 from authentication.choices import ROLE_CUSTOMER, ROLE_PROVIDER
 from authentication.permissions import IsAdminOrReadOnly, IsCustomer, IsCustomerOrAdmin, IsAdminOrCarAgency, IsStoreProvider, IsAdminOrOwnCarAgency, ProductImagePermission
@@ -377,6 +379,11 @@ class ServiceViewSet(viewsets.ModelViewSet):
     serializer_class = ServiceSerializer
     permission_classes = [IsAdminOrReadOnly]
 
+class NameOfCarViewSet(viewsets.ModelViewSet):
+    queryset = NameOfCar.objects.all()
+    serializer_class = NameOfCarSerializer
+    permission_classes = [IsAdminOrReadOnly]
+
 
 class DriverProfileViewSet(viewsets.ModelViewSet):
     queryset = DriverProfile.objects.select_related("provider__user")
@@ -672,6 +679,7 @@ class BroadcastRideRequestView(APIView):
         drop_lat = request.data.get("drop_lat")
         drop_lng = request.data.get("drop_lng")
         ride_type = request.data.get("ride_type", "one_way")
+        name_of_car_id = request.data.get("name_of_car_id", None)
         # Validate fields based on ride_type
         if ride_type == "two_way":
             if not (lat and lng and service_id and drop_lat and drop_lng):
@@ -702,7 +710,6 @@ class BroadcastRideRequestView(APIView):
                 coupon = None
                 couponMessage = "Coupon not found or inactive."
                 # return Response({"error": "Invalid coupon code."}, status=400)  
-       
         pricing = ProviderServicePricing.objects.filter(
             service_id=service_id,
         ).first() 
@@ -748,16 +755,30 @@ class BroadcastRideRequestView(APIView):
                         total_price = 0
                     print(f"Total price after coupon: {total_price}")
                 # Apply coupon discount if available
-                
-        
-        
-        providers = Provider.objects.filter(
+        # check if name_of_car_id is not None
+        if name_of_car_id:
+            name_of_car = NameOfCar.objects.filter(pk=name_of_car_id).first()
+            if name_of_car is None:
+                return Response({"error": "Invalid name of car ID."}, status=400)
+            providers = Provider.objects.filter(
+                is_verified=True,
+                services__id=service_id,
+                user__location2_lat__isnull=False,
+                user__location2_lng__isnull=False,
+                onLine=True,
+                name_of_car=name_of_car,
+            )
+        else :    
+            providers = Provider.objects.filter(
             is_verified=True,
             services__id=service_id,
             user__location2_lat__isnull=False,
             user__location2_lng__isnull=False,
             onLine=True
-        )
+            )
+       
+            
+        
 
         # Filter providers within 5 km using Haversine and only those available
         nearby_providers = []
