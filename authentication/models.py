@@ -156,6 +156,7 @@ class Provider(models.Model):
     sub_service = models.CharField(_("Sub Service"), max_length=50, blank=True, null=True)
     is_verified = models.BooleanField(_("Is Verified"), default=False)
     in_ride = models.BooleanField(_("In Ride"), default=False)
+    onLine = models.BooleanField(_("On Line"), default=True,null=True,blank=True)
 
     def __str__(self):
         return self.user.name

@@ -134,7 +134,7 @@ class ProviderSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Provider
-        fields = ["id", "user", "service_ids", "services", "sub_service"]
+        fields = ["id", "user", "service_ids", "services", "sub_service","onLine"]
 
     def validate(self, attrs):
         service_ids = attrs.get("service_ids", None)
@@ -1213,3 +1213,9 @@ class RideHistorySerializer(serializers.ModelSerializer):
         c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
         return round(R * c, 2)
+
+
+class ProviderOnlineStatusSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Provider
+        fields = ['onLine']

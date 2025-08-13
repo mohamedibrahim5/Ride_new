@@ -48,7 +48,8 @@ from authentication.serializers import (
     ProviderDriverRegisterSerializer,
     PricingZoneSerializer,
     RideHistorySerializer,
-    PriceCalculationSerializer
+    PriceCalculationSerializer,
+    ProviderOnlineStatusSerializer
 )
 from authentication.choices import ROLE_CUSTOMER, ROLE_PROVIDER
 from authentication.permissions import IsAdminOrReadOnly, IsCustomer, IsCustomerOrAdmin, IsAdminOrCarAgency, IsStoreProvider, IsAdminOrOwnCarAgency, ProductImagePermission
@@ -754,7 +755,8 @@ class BroadcastRideRequestView(APIView):
             is_verified=True,
             services__id=service_id,
             user__location2_lat__isnull=False,
-            user__location2_lng__isnull=False
+            user__location2_lng__isnull=False,
+            onLine=True
         )
 
         # Filter providers within 5 km using Haversine and only those available
@@ -2224,6 +2226,18 @@ class RideHistoryView(generics.ListAPIView):
         c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
         return round(R * c, 2)
+    
+
+class ProviderOnlineStatusUpdateView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request):
+        provider = get_object_or_404(Provider, user=request.user)
+        serializer = ProviderOnlineStatusSerializer(provider, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response({"status": "success", "onLine": serializer.data['onLine']})
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)    
 
 
 from django.http import HttpResponse

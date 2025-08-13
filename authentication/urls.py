@@ -40,7 +40,8 @@ from authentication.views import (
     ServiceAutocomplete,
     dashboard_logo,
     notification_test_view,
-    test_notification
+    test_notification,
+    ProviderOnlineStatusUpdateView
 )
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
@@ -104,5 +105,6 @@ urlpatterns = [
     # path('calculate-price/', CalculatePriceView.as_view(), name='calculate-price'),
 
 
-
+    # patch online and offline status provider 
+    path("provider/online-status/", ProviderOnlineStatusUpdateView.as_view(), name="provider-online-status"),
 ]
