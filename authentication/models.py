@@ -193,7 +193,7 @@ class Provider(models.Model):
 
 class DriverProfile(models.Model):
     provider = models.OneToOneField(Provider, on_delete=models.CASCADE, related_name="driver_profile", verbose_name=_("Provider"))
-    license = models.CharField(_("License"), max_length=20, unique=True)
+    license = models.CharField(_("License"), max_length=200, unique=True)
     status = models.CharField(_("Status"), max_length=20, choices=[("available", _("Available")), ("in_ride", _("In Ride"))], default="available")
     is_verified = models.BooleanField(_("Is Verified"), default=False)
     documents = models.FileField(_("Documents"), upload_to="driver/documents/", null=True, blank=True)
