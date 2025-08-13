@@ -290,6 +290,13 @@ class RideStatus(models.Model):
         choices=STATUS_CHOICES,
         default="pending"
     )
+    name_of_car_id = models.ForeignKey(
+        NameOfCar,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        verbose_name=_("Name of Car")
+    )
 
     pickup_lat = models.FloatField(_("Pickup Latitude"), null=True, blank=True)
     pickup_lng = models.FloatField(_("Pickup Longitude"), null=True, blank=True)

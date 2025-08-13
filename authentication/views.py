@@ -875,6 +875,7 @@ class BroadcastRideRequestView(APIView):
             distance_km=distance_km,
             duration_minutes=duration_minutes,
             total_price_before_discount=total_price_before_discount if coupon_code and coupon else None,
+            name_of_car_id = name_of_car_id if name_of_car_id else None,
         )    
         # Set customer.in_ride = True
         if hasattr(user, 'customer'):
@@ -1213,11 +1214,16 @@ class NearbyRideRequestsView(APIView):
         provider = getattr(user, 'provider', None)
         if not provider:
             return Response({"error": "You are not a provider."}, status=403)
+        
+        if provider.onLine is False:
+            return Response({"message": "You are not online."}, status=200)
 
         lat = user.location2_lat
         lng = user.location2_lng
         if lat is None or lng is None:
             return Response({"error": "Provider location is not set."}, status=400)
+        
+        
 
         service_ids = provider.services.values_list('id', flat=True)
 
@@ -1225,7 +1231,8 @@ class NearbyRideRequestsView(APIView):
             status="pending",
             service_id__in=service_ids,
             pickup_lat__isnull=False,
-            pickup_lng__isnull=False
+            pickup_lng__isnull=False,
+            name_of_car_id= provider.name_of_car_id if provider.name_of_car_id else None
         )
         if pending_rides:
             print(pending_rides)
