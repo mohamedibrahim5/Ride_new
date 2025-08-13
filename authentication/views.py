@@ -911,6 +911,39 @@ class ProviderRideResponseView(APIView):
         client_id = request.data.get("client_id")
         accepted = request.data.get("accepted")
 
+        # print her request user data to send driver location and driver car
+        print("asdmasdas")
+        print(dir(request.user))
+
+        providerUser = Provider.objects.filter(user_id=request.user.id).first()
+        if providerUser:
+            print('providerUser')
+            print(vars(providerUser))
+            # Access DriverProfile
+            driver_profile = getattr(providerUser, 'driver_profile', None)
+            if driver_profile:
+                print('driverProfile')
+                print(vars(driver_profile))
+                driver_car = getattr(driver_profile, 'car', None)
+                if driver_car:
+                    print('driverCar')
+                    print(vars(driver_car))
+                    driver_car_images = driver_car.images.all()
+                    if driver_car_images:
+                        print('driverCarImages')
+                        for image in driver_car_images:
+                            print(vars(image))
+                    else:    
+                        print('No DriverCarImages found for this car.')    
+                else:        
+                    print('No DriverCar found for this driver profile.')
+            else:   
+                print('No DriverProfile found for this provider.')     
+        else :
+            print('No Provider found for this user.')
+        
+        
+
         if not client_id or accepted is None:
             return Response({"error": "client_id and accepted are required."}, status=400)
 
@@ -959,7 +992,20 @@ class ProviderRideResponseView(APIView):
                         "accepted": accepted,
                         "provider_image": request.user.image.url if request.user.image else None,
                         "provider_phone": request.user.phone,
-                        "avarage_rating": request.user.average_rating
+                        "avarage_rating": request.user.average_rating,
+                        "car_details": {
+                            "type": driver_profile.car.type,
+                            "model": driver_profile.car.model,
+                            "number": driver_profile.car.number,
+                            "color": driver_profile.car.color,
+                            "images": [
+                                {"id": image.id, "url": image.image.url}
+                                for image in driver_profile.car.images.all()
+                                ]
+                    
+                        }
+                        if driver_profile and hasattr(driver_profile, 'car') and driver_profile.car
+                        else None
                     }
                 }
             )
@@ -1144,7 +1190,9 @@ class UpdateRideStatusView(APIView):
         # Prepare response with ride_id
         response_data = {
             "status": f"Ride updated to {status}.",
-            "ride_id": ride.id
+            "ride_id": ride.id,
+            # adding price of ride 
+            "price" :ride.total_price
         }
 
         return Response(response_data)
