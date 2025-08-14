@@ -251,6 +251,14 @@ class DriverProfileSerializer(serializers.ModelSerializer):
     class Meta:
         model = DriverProfile
         fields = ["id", "license", "status", "is_verified", "documents"]
+        
+    def validate(self, attrs):
+        # Extra validation for documents
+        if isinstance(attrs.get("documents"), list):
+            raise serializers.ValidationError({
+                "documents": "Only one file allowed to uploaded."
+            })
+        return attrs
 
 
 class DriverCarImageSerializer(serializers.ModelSerializer):
