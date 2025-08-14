@@ -252,13 +252,14 @@ class DriverProfileSerializer(serializers.ModelSerializer):
         model = DriverProfile
         fields = ["id", "license", "status", "is_verified", "documents"]
         
-    def validate(self, attrs):
-        # Extra validation for documents
-        if isinstance(attrs.get("documents"), list):
+    def to_internal_value(self, data):
+        # Prevent multi-file upload issue before DRF processes the file field
+        documents = data.get('documents')
+        if isinstance(documents, list):
             raise serializers.ValidationError({
-                "documents": "Only one file allowed to uploaded."
+                "documents": "Only one file can be uploaded."
             })
-        return attrs
+        return super().to_internal_value(data)
 
 
 class DriverCarImageSerializer(serializers.ModelSerializer):
