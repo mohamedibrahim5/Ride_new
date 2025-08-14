@@ -1,0 +1,42 @@
+.map-widget-container {
+    margin: 20px 0;
+    border: 1px solid #ddd;
+    padding: 15px;
+    border-radius: 5px;
+}
+
+.map-controls {
+    margin-bottom: 15px;
+}
+
+.map-control-btn {
+    padding: 5px 15px;
+    margin: 0 5px;
+    background: #f0f0f0;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+    cursor: pointer;
+}
+
+.map-control-btn.active {
+    background: #007bff;
+    color: white;
+    border-color: #0069d9;
+}
+
+.coordinate-display {
+    margin-top: 15px;
+}
+
+.coord-input {
+    width: 200px;
+    padding: 5px;
+    margin: 5px;
+    border: 1px solid #ddd;
+    background: #f9f9f9;
+}
+
+#map-container {
+    border: 1px solid #ddd;
+    border-radius: 3px;
+}

@@ -1,0 +1,130 @@
+{% load static %}
+<div style="margin: 20px 0; border: 1px solid #ddd; padding: 15px; border-radius: 5px;">
+    <div style="margin-bottom: 15px;">
+        <b>Select type:</b>
+        <button type="button" id="pickupBtn" class="btn btn-primary">Pickup</button>
+        <button type="button" id="dropBtn" class="btn btn-secondary">Drop</button>
+    </div>
+
+    <div id="map-container" style="width: 100%; height: 400px; border: 1px solid #ddd; border-radius: 3px;"></div>
+
+    <!-- Display Fields -->
+    <div style="margin-top: 15px;">
+        <div>
+            <label>Pickup Latitude:</label>
+            <input type="text" id="pickup_lat_display" value="{{ pickup_lat }}" readonly>
+            <label>Pickup Longitude:</label>
+            <input type="text" id="pickup_lng_display" value="{{ pickup_lng }}" readonly>
+        </div>
+        <div>
+            <label>Drop Latitude:</label>
+            <input type="text" id="drop_lat_display" value="{{ drop_lat }}" readonly>
+            <label>Drop Longitude:</label>
+            <input type="text" id="drop_lng_display" value="{{ drop_lng }}" readonly>
+        </div>
+    </div>
+
+    <!-- Hidden Fields -->
+    <input type="hidden" name="pickup_lat" id="id_pickup_lat" value="{{ pickup_lat }}">
+    <input type="hidden" name="pickup_lng" id="id_pickup_lng" value="{{ pickup_lng }}">
+    <input type="hidden" name="drop_lat" id="id_drop_lat" value="{{ drop_lat }}">
+    <input type="hidden" name="drop_lng" id="id_drop_lng" value="{{ drop_lng }}">
+</div>
+
+<script>
+let map;
+let pickupMarker = null;
+let dropMarker = null;
+let activeMarkerType = 'pickup';
+
+function initMap() {
+    const defaultCenter = { lat: 30.0444, lng: 31.2357 };
+
+    map = new google.maps.Map(document.getElementById('map-container'), {
+        center: defaultCenter,
+        zoom: 12
+    });
+
+    // Switch button styles
+    const pickupBtn = document.getElementById('pickupBtn');
+    const dropBtn = document.getElementById('dropBtn');
+
+    pickupBtn.addEventListener('click', function() {
+        activeMarkerType = 'pickup';
+        pickupBtn.className = 'btn btn-primary';
+        dropBtn.className = 'btn btn-secondary';
+    });
+
+    dropBtn.addEventListener('click', function() {
+        activeMarkerType = 'drop';
+        dropBtn.className = 'btn btn-primary';
+        pickupBtn.className = 'btn btn-secondary';
+    });
+
+    // Initialize from hidden fields
+    const pickupLat = parseFloat(document.getElementById('id_pickup_lat').value) || null;
+    const pickupLng = parseFloat(document.getElementById('id_pickup_lng').value) || null;
+    const dropLat = parseFloat(document.getElementById('id_drop_lat').value) || null;
+    const dropLng = parseFloat(document.getElementById('id_drop_lng').value) || null;
+
+    if (pickupLat && pickupLng) {
+        pickupMarker = createMarker(pickupLat, pickupLng, 'P', 'pickup');
+    }
+    if (dropLat && dropLng) {
+        dropMarker = createMarker(dropLat, dropLng, 'D', 'drop');
+    }
+
+    // Map click event
+    map.addListener('click', function(event) {
+        const lat = event.latLng.lat();
+        const lng = event.latLng.lng();
+
+        if (activeMarkerType === 'pickup') {
+            if (pickupMarker) {
+                pickupMarker.setPosition(event.latLng);
+            } else {
+                pickupMarker = createMarker(lat, lng, 'P', 'pickup');
+            }
+            updateCoordinates('pickup', lat, lng);
+        } else {
+            if (dropMarker) {
+                dropMarker.setPosition(event.latLng);
+            } else {
+                dropMarker = createMarker(lat, lng, 'D', 'drop');
+            }
+            updateCoordinates('drop', lat, lng);
+        }
+    });
+}
+
+function createMarker(lat, lng, label, type) {
+    const marker = new google.maps.Marker({
+        position: { lat, lng },
+        map: map,
+        label: label,
+        draggable: true
+    });
+
+    marker.addListener('dragend', function(event) {
+        updateCoordinates(type, event.latLng.lat(), event.latLng.lng());
+    });
+
+    return marker;
+}
+
+function updateCoordinates(type, lat, lng) {
+    if (type === 'pickup') {
+        document.getElementById('id_pickup_lat').value = lat;
+        document.getElementById('id_pickup_lng').value = lng;
+        document.getElementById('pickup_lat_display').value = lat.toFixed(6);
+        document.getElementById('pickup_lng_display').value = lng.toFixed(6);
+    } else {
+        document.getElementById('id_drop_lat').value = lat;
+        document.getElementById('id_drop_lng').value = lng;
+        document.getElementById('drop_lat_display').value = lat.toFixed(6);
+        document.getElementById('drop_lng_display').value = lng.toFixed(6);
+    }
+}
+
+window.initMap = initMap;
+</script>

@@ -62,6 +62,7 @@ from django.shortcuts import render
 from firebase_admin import messaging
 import logging
 from django.utils.html import escape
+from django.utils.safestring import mark_safe
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -664,9 +665,241 @@ class RatingAdmin(admin.ModelAdmin):
             full_star * value + empty_star * (5 - value)
         )
 
-# --- Customized RideStatus admin ---
+
+# --- Map Widget ---
+class PickupDropMapWidget(forms.Widget):
+    def render(self, name, value, attrs=None, renderer=None):
+        html = f"""
+        <div id="map-container" style="width: 100%; max-width: 1200px; margin:15px auto; border:1px solid #ddd; border-radius:6px; padding:15px; background-color: #f9f9f9;">
+            <div id="map" style="width:100%; height:600px; border-radius:4px; border:1px solid #ddd; margin-bottom:15px;"></div>
+            <div style="margin-bottom:15px;">
+                <span id="pickup_display" style="font-weight: bold; color: #007bff;">Pickup: Not set</span>
+                <span id="drop_display" style="font-weight: bold; color: #28a745; margin-left:20px;">Drop: Not set</span>
+            </div>
+            <div style="display: flex; justify-content: flex-start; align-items: center; margin-bottom:15px;">
+                <input type="text" id="search_input" placeholder="Search city or lat,lng (e.g., 30.0444,31.2357)" style="flex:1; max-width:400px; padding:8px; border:1px solid #ccc; border-radius:4px; font-size:14px;">
+                <button type="button" id="searchBtn" style="background:#ffc107;color:#333;padding:8px 16px;border:none;border-radius:4px;cursor:pointer; margin-left:10px; font-weight:bold;">Search</button>
+            </div>
+            <div style="display: flex; justify-content: center; margin-bottom:15px;">
+                <button type="button" id="pickupBtn" style="background:#007bff;color:white;padding:8px 16px;border:none;border-radius:4px;cursor:pointer; margin:0 5px; font-weight:bold;">Select Pickup</button>
+                <button type="button" id="dropBtn" style="background:#28a745;color:white;padding:8px 16px;border:none;border-radius:4px;cursor:pointer; margin:0 5px; font-weight:bold;">Select Drop</button>
+                <button type="button" id="clearBtn" style="background:#dc3545;color:white;padding:8px 16px;border:none;border-radius:4px;cursor:pointer; margin:0 5px; font-weight:bold;">Clear</button>
+            </div>
+        </div>
+
+        <script>
+        (function() {{
+            let map, pickupMarker, dropMarker;
+            let currentMode = null;
+
+            function updateDisplays() {{
+                let pickupText = "Pickup: ";
+                const pLat = document.getElementById("pickup_lat").value;
+                const pLng = document.getElementById("pickup_lng").value;
+                if (pLat && pLng) {{
+                    pickupText += parseFloat(pLat).toFixed(6) + ", " + parseFloat(pLng).toFixed(6);
+                }} else {{
+                    pickupText += "Not set";
+                }}
+                document.getElementById("pickup_display").innerText = pickupText;
+
+                let dropText = "Drop: ";
+                const dLat = document.getElementById("drop_lat").value;
+                const dLng = document.getElementById("drop_lng").value;
+                if (dLat && dLng) {{
+                    dropText += parseFloat(dLat).toFixed(6) + ", " + parseFloat(dLng).toFixed(6);
+                }} else {{
+                    dropText += "Not set";
+                }}
+                document.getElementById("drop_display").innerText = dropText;
+            }}
+
+            function initMap() {{
+                const defaultCenter = {{ lat: 30.0444, lng: 31.2357 }};
+                map = new google.maps.Map(document.getElementById("map"), {{
+                    center: defaultCenter,
+                    zoom: 12,
+                }});
+
+                // Load existing pickup
+                const pLat = parseFloat(document.getElementById("pickup_lat").value);
+                const pLng = parseFloat(document.getElementById("pickup_lng").value);
+                if (!isNaN(pLat) && !isNaN(pLng)) {{
+                    pickupMarker = new google.maps.Marker({{
+                        position: {{ lat: pLat, lng: pLng }},
+                        map: map,
+                        label: "P"
+                    }});
+                    map.setCenter({{ lat: pLat, lng: pLng }});
+                }}
+
+                // Load existing drop
+                const dLat = parseFloat(document.getElementById("drop_lat").value);
+                const dLng = parseFloat(document.getElementById("drop_lng").value);
+                if (!isNaN(dLat) && !isNaN(dLng)) {{
+                    dropMarker = new google.maps.Marker({{
+                        position: {{ lat: dLat, lng: dLng }},
+                        map: map,
+                        label: "D"
+                    }});
+                }}
+
+                updateDisplays();
+
+                map.addListener("click", function(e) {{
+                    const lat = e.latLng.lat();
+                    const lng = e.latLng.lng();
+
+                    if (currentMode === "pickup") {{
+                        if (pickupMarker) pickupMarker.setMap(null);
+                        pickupMarker = new google.maps.Marker({{
+                            position: e.latLng,
+                            map: map,
+                            label: "P"
+                        }});
+                        document.getElementById("pickup_lat").value = lat;
+                        document.getElementById("pickup_lng").value = lng;
+                        updateDisplays();
+                    }}
+
+                    if (currentMode === "drop") {{
+                        if (dropMarker) dropMarker.setMap(null);
+                        dropMarker = new google.maps.Marker({{
+                            position: e.latLng,
+                            map: map,
+                            label: "D"
+                        }});
+                        document.getElementById("drop_lat").value = lat;
+                        document.getElementById("drop_lng").value = lng;
+                        updateDisplays();
+                    }}
+                }});
+            }}
+
+            document.getElementById("pickupBtn").addEventListener("click", function() {{
+                currentMode = "pickup";
+                alert("Click on the map or search to select Pickup location.");
+            }});
+
+            document.getElementById("dropBtn").addEventListener("click", function() {{
+                currentMode = "drop";
+                alert("Click on the map or search to select Drop location.");
+            }});
+
+            document.getElementById("clearBtn").addEventListener("click", function() {{
+                if (pickupMarker) pickupMarker.setMap(null);
+                if (dropMarker) dropMarker.setMap(null);
+                document.getElementById("pickup_lat").value = "";
+                document.getElementById("pickup_lng").value = "";
+                document.getElementById("drop_lat").value = "";
+                document.getElementById("drop_lng").value = "";
+                updateDisplays();
+                currentMode = null;
+            }});
+
+            document.getElementById("searchBtn").addEventListener("click", function() {{
+                const query = document.getElementById("search_input").value.trim();
+                if (!query) return;
+
+                const latLngRegex = /^(-?\\d+\\.?\\d*),\\s*(-?\\d+\\.?\\d*)$/;
+                const match = query.match(latLngRegex);
+
+                if (match) {{
+                    const lat = parseFloat(match[1]);
+                    const lng = parseFloat(match[2]);
+                    if (!isNaN(lat) && !isNaN(lng)) {{
+                        const location = {{ lat, lng }};
+                        map.setCenter(location);
+                        map.setZoom(15);
+
+                        if (currentMode === "pickup") {{
+                            if (pickupMarker) pickupMarker.setMap(null);
+                            pickupMarker = new google.maps.Marker({{
+                                position: location,
+                                map: map,
+                                label: "P"
+                            }});
+                            document.getElementById("pickup_lat").value = lat;
+                            document.getElementById("pickup_lng").value = lng;
+                            updateDisplays();
+                        }} else if (currentMode === "drop") {{
+                            if (dropMarker) dropMarker.setMap(null);
+                            dropMarker = new google.maps.Marker({{
+                                position: location,
+                                map: map,
+                                label: "D"
+                            }});
+                            document.getElementById("drop_lat").value = lat;
+                            document.getElementById("drop_lng").value = lng;
+                            updateDisplays();
+                        }}
+                        return;
+                    }}
+                }}
+
+                // Geocode address
+                const geocoder = new google.maps.Geocoder();
+                geocoder.geocode({{ address: query }}, (results, status) => {{
+                    if (status === "OK") {{
+                        const location = results[0].geometry.location;
+                        map.setCenter(location);
+                        map.setZoom(15);
+
+                        if (currentMode === "pickup") {{
+                            if (pickupMarker) pickupMarker.setMap(null);
+                            pickupMarker = new google.maps.Marker({{
+                                position: location,
+                                map: map,
+                                label: "P"
+                            }});
+                            document.getElementById("pickup_lat").value = location.lat();
+                            document.getElementById("pickup_lng").value = location.lng();
+                            updateDisplays();
+                        }} else if (currentMode === "drop") {{
+                            if (dropMarker) dropMarker.setMap(null);
+                            dropMarker = new google.maps.Marker({{
+                                position: location,
+                                map: map,
+                                label: "D"
+                            }});
+                            document.getElementById("drop_lat").value = location.lat();
+                            document.getElementById("drop_lng").value = location.lng();
+                            updateDisplays();
+                        }}
+                    }} else {{
+                        alert("Search failed: " + status);
+                    }}
+                }});
+            }});
+
+            window.initMap = initMap;
+        }})();
+        </script>
+
+        <script async defer src="https://maps.googleapis.com/maps/api/js?key={settings.GOOGLE_MAPS_API_KEY}&callback=initMap"></script>
+        """
+        return mark_safe(html)
+
+
+
+class RideStatusForm(forms.ModelForm):
+    map = forms.CharField(widget=PickupDropMapWidget(), required=False, label="Pickup and Drop Locations")
+
+    class Meta:
+        model = RideStatus
+        fields = "__all__"
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields["pickup_lat"].widget = forms.HiddenInput(attrs={"id": "pickup_lat"})
+        self.fields["pickup_lng"].widget = forms.HiddenInput(attrs={"id": "pickup_lng"})
+        self.fields["drop_lat"].widget = forms.HiddenInput(attrs={"id": "drop_lat"})
+        self.fields["drop_lng"].widget = forms.HiddenInput(attrs={"id": "drop_lng"})
+        
+        
 @admin.register(RideStatus)
 class RideStatusAdmin(admin.ModelAdmin):
+    form = RideStatusForm
     list_display = (
         'id', 'client_name', 'provider_name', 'status_display',
         'service_name', 'pickup_coords', 'drop_coords', 'created_at', 'service_price_info','total_price','distance_km', 'duration_minutes'
