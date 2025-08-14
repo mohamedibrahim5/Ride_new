@@ -6,47 +6,591 @@
 <link rel="stylesheet" type="text/css" href="{% static "admin/css/login.css" %}">
 {{ form.media }}
 <style>
-    /* Prevent scrolling on the entire page */
+    * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+    }
+
     html, body.login {
         margin: 0;
         padding: 0;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        min-height: 70vh;
-        height: 70vh;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+        min-height: 100vh;
+        height: auto;
         font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        overflow: hidden;
+        overflow-x: hidden;
+        position: relative;
     }
 
-    /* Animated background particles */
-    body.login::before {
+    /* Hide default Django admin elements */
+    body.login #header {
+        display: none !important;
+    }
+
+    body.login #content {
+        margin: 0 !important;
+        padding: 0 !important;
+        width: 100% !important;
+        background: none !important;
+    }
+
+    body.login #container {
+        background: none !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        width: 100% !important;
+    }
+
+    /* Animated Background Elements */
+    .animated-bg {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 1;
+        overflow: hidden;
+        pointer-events: none;
+    }
+
+    /* Car and ride themed floating elements */
+    .floating-elements {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+    }
+
+    .car-element {
+        position: absolute;
+        opacity: 0.12;
+        animation: float-cars 25s infinite ease-in-out;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 24px;
+        color: rgba(255, 255, 255, 0.8);
+        filter: drop-shadow(0 4px 8px rgba(0,0,0,0.1));
+    }
+
+    /* Car icons using CSS */
+    .car-element.car1 {
+        top: 10%;
+        left: 8%;
+        width: 60px;
+        height: 30px;
+        background: linear-gradient(45deg, rgba(255, 255, 255, 0.8), rgba(240, 248, 255, 0.6));
+        border-radius: 15px 15px 8px 8px;
+        animation-delay: 0s;
+        animation-duration: 28s;
+    }
+
+    .car-element.car1::before {
+        content: '';
+        position: absolute;
+        bottom: -8px;
+        left: 8px;
+        width: 8px;
+        height: 8px;
+        background: rgba(100, 100, 100, 0.6);
+        border-radius: 50%;
+        box-shadow: 36px 0 rgba(100, 100, 100, 0.6);
+    }
+
+    .car-element.car1::after {
+        content: '';
+        position: absolute;
+        top: 6px;
+        left: 8px;
+        width: 12px;
+        height: 8px;
+        background: rgba(150, 200, 255, 0.7);
+        border-radius: 2px;
+        box-shadow: 20px 0 rgba(150, 200, 255, 0.7), 32px 0 rgba(150, 200, 255, 0.7);
+    }
+
+    .car-element.taxi {
+        top: 20%;
+        right: 12%;
+        width: 55px;
+        height: 28px;
+        background: linear-gradient(45deg, rgba(255, 235, 59, 0.8), rgba(255, 193, 7, 0.6));
+        border-radius: 12px 12px 6px 6px;
+        animation-delay: -7s;
+        animation-duration: 32s;
+    }
+
+    .car-element.taxi::before {
+        content: '';
+        position: absolute;
+        top: -6px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 20px;
+        height: 6px;
+        background: rgba(255, 193, 7, 0.9);
+        border-radius: 3px;
+    }
+
+    .car-element.taxi::after {
+        content: '';
+        position: absolute;
+        bottom: -6px;
+        left: 6px;
+        width: 6px;
+        height: 6px;
+        background: rgba(100, 100, 100, 0.7);
+        border-radius: 50%;
+        box-shadow: 37px 0 rgba(100, 100, 100, 0.7);
+    }
+
+    .car-element.bus {
+        bottom: 25%;
+        left: 15%;
+        width: 80px;
+        height: 35px;
+        background: linear-gradient(45deg, rgba(76, 175, 80, 0.7), rgba(139, 195, 74, 0.5));
+        border-radius: 8px;
+        animation-delay: -12s;
+        animation-duration: 35s;
+    }
+
+    .car-element.bus::before {
+        content: '';
+        position: absolute;
+        bottom: -8px;
+        left: 10px;
+        width: 8px;
+        height: 8px;
+        background: rgba(100, 100, 100, 0.8);
+        border-radius: 50%;
+        box-shadow: 25px 0 rgba(100, 100, 100, 0.8), 45px 0 rgba(100, 100, 100, 0.8);
+    }
+
+    .car-element.bus::after {
+        content: '';
+        position: absolute;
+        top: 4px;
+        left: 6px;
+        width: 8px;
+        height: 6px;
+        background: rgba(150, 200, 255, 0.8);
+        border-radius: 1px;
+        box-shadow: 12px 0 rgba(150, 200, 255, 0.8), 24px 0 rgba(150, 200, 255, 0.8), 36px 0 rgba(150, 200, 255, 0.8), 48px 0 rgba(150, 200, 255, 0.8), 60px 0 rgba(150, 200, 255, 0.8);
+    }
+
+    .car-element.motorcycle {
+        top: 60%;
+        right: 18%;
+        width: 45px;
+        height: 20px;
+        background: linear-gradient(45deg, rgba(244, 67, 54, 0.8), rgba(255, 87, 34, 0.6));
+        border-radius: 20px 8px 8px 20px;
+        animation-delay: -18s;
+        animation-duration: 26s;
+    }
+
+    .car-element.motorcycle::before {
+        content: '';
+        position: absolute;
+        bottom: -6px;
+        left: 2px;
+        width: 6px;
+        height: 6px;
+        background: rgba(100, 100, 100, 0.8);
+        border-radius: 50%;
+        box-shadow: 31px 0 rgba(100, 100, 100, 0.8);
+    }
+
+    .car-element.truck {
+        bottom: 15%;
+        right: 25%;
+        width: 70px;
+        height: 32px;
+        background: linear-gradient(45deg, rgba(96, 125, 139, 0.8), rgba(120, 144, 156, 0.6));
+        border-radius: 4px;
+        animation-delay: -5s;
+        animation-duration: 30s;
+    }
+
+    .car-element.truck::before {
+        content: '';
+        position: absolute;
+        left: -15px;
+        top: 8px;
+        width: 15px;
+        height: 16px;
+        background: rgba(96, 125, 139, 0.9);
+        border-radius: 4px 0 0 4px;
+    }
+
+    .car-element.truck::after {
+        content: '';
+        position: absolute;
+        bottom: -8px;
+        left: 8px;
+        width: 8px;
+        height: 8px;
+        background: rgba(100, 100, 100, 0.8);
+        border-radius: 50%;
+        box-shadow: 20px 0 rgba(100, 100, 100, 0.8), 40px 0 rgba(100, 100, 100, 0.8);
+    }
+
+    .car-element.electric-car {
+        top: 35%;
+        left: 25%;
+        width: 58px;
+        height: 26px;
+        background: linear-gradient(45deg, rgba(76, 175, 80, 0.8), rgba(129, 199, 132, 0.6));
+        border-radius: 18px 18px 6px 6px;
+        animation-delay: -15s;
+        animation-duration: 29s;
+    }
+
+    .car-element.electric-car::before {
+        content: '⚡';
+        position: absolute;
+        top: -8px;
+        left: 50%;
+        transform: translateX(-50%);
+        font-size: 12px;
+        color: rgba(255, 235, 59, 1);
+    }
+
+    .car-element.electric-car::after {
+        content: '';
+        position: absolute;
+        bottom: -6px;
+        left: 8px;
+        width: 6px;
+        height: 6px;
+        background: rgba(100, 100, 100, 0.7);
+        border-radius: 50%;
+        box-shadow: 36px 0 rgba(100, 100, 100, 0.7);
+    }
+
+    /* Road/Path elements */
+    .road-element {
+        position: absolute;
+        opacity: 0.08;
+        animation: road-move 40s linear infinite;
+    }
+
+    .road1 {
+        top: 30%;
+        left: -10%;
+        width: 120%;
+        height: 4px;
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.6), transparent);
+        animation-delay: 0s;
+    }
+
+    .road2 {
+        top: 70%;
+        left: -10%;
+        width: 120%;
+        height: 3px;
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+        animation-delay: -20s;
+    }
+
+    /* Traffic light element */
+    .traffic-light {
+        position: absolute;
+        top: 45%;
+        right: 8%;
+        width: 12px;
+        height: 32px;
+        background: rgba(100, 100, 100, 0.6);
+        border-radius: 6px;
+        animation: traffic-blink 3s infinite, float-cars 25s infinite ease-in-out;
+        animation-delay: -10s;
+        opacity: 0.15;
+    }
+
+    .traffic-light::before {
+        content: '';
+        position: absolute;
+        top: 3px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        animation: light-cycle 4s infinite;
+    }
+
+    @keyframes traffic-blink {
+        0%, 33% { opacity: 0.15; }
+        34%, 66% { opacity: 0.25; }
+        67%, 100% { opacity: 0.15; }
+    }
+
+    @keyframes light-cycle {
+        0%, 30% { background: rgba(244, 67, 54, 0.8); }
+        31%, 60% { background: rgba(255, 235, 59, 0.8); }
+        61%, 100% { background: rgba(76, 175, 80, 0.8); }
+    }
+
+    @keyframes float-cars {
+        0%, 100% {
+            transform: translateY(0px) rotate(0deg) scale(1);
+        }
+        25% {
+            transform: translateY(-20px) rotate(2deg) scale(1.05);
+        }
+        50% {
+            transform: translateY(-40px) rotate(-2deg) scale(0.95);
+        }
+        75% {
+            transform: translateY(-20px) rotate(1deg) scale(1.02);
+        }
+    }
+
+    @keyframes road-move {
+        0% { transform: translateX(0); }
+        100% { transform: translateX(100px); }
+    }
+
+    /* Dashboard gauge elements */
+    .gauge-element {
+        position: absolute;
+        width: 60px;
+        height: 30px;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        border-bottom: none;
+        border-radius: 30px 30px 0 0;
+        opacity: 0.1;
+        animation: float-cars 22s infinite ease-in-out;
+    }
+
+    .gauge1 {
+        top: 50%;
+        left: 5%;
+        animation-delay: -8s;
+    }
+
+    .gauge2 {
+        bottom: 35%;
+        right: 5%;
+        animation-delay: -16s;
+        transform: rotate(180deg);
+    }
+
+    .gauge-element::after {
+        content: '';
+        position: absolute;
+        bottom: 0;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 2px;
+        height: 20px;
+        background: rgba(255, 255, 255, 0.4);
+        animation: gauge-needle 3s ease-in-out infinite;
+        transform-origin: bottom center;
+    }
+
+    @keyframes gauge-needle {
+        0%, 100% { transform: translateX(-50%) rotate(-30deg); }
+        50% { transform: translateX(-50%) rotate(30deg); }
+    }
+
+    /* Particle system for exhaust/movement effects */
+    .particles {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+    }
+
+    .particle {
+        position: absolute;
+        background: rgba(255, 255, 255, 0.6);
+        border-radius: 50%;
+        pointer-events: none;
+        animation: particle-float 18s infinite linear;
+    }
+
+    .particle:nth-child(3n) {
+        background: rgba(102, 126, 234, 0.4);
+        animation-duration: 22s;
+    }
+
+    .particle:nth-child(3n+1) {
+        background: rgba(255, 193, 7, 0.3);
+        animation-duration: 20s;
+        animation-direction: reverse;
+    }
+
+    .particle:nth-child(3n+2) {
+        background: rgba(76, 175, 80, 0.3);
+        animation-duration: 24s;
+    }
+
+    @keyframes particle-float {
+        0% {
+            transform: translateY(100vh) rotate(0deg);
+            opacity: 0;
+        }
+        10% {
+            opacity: 1;
+        }
+        90% {
+            opacity: 1;
+        }
+        100% {
+            transform: translateY(-100px) rotate(360deg);
+            opacity: 0;
+        }
+    }
+
+    /* Grid pattern overlay (representing city streets) */
+    .grid-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-image: 
+            linear-gradient(rgba(255,255,255,0.06) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(255,255,255,0.06) 1px, transparent 1px);
+        background-size: 60px 60px;
+        animation: street-grid-move 35s linear infinite;
+        opacity: 0.7;
+    }
+
+    @keyframes street-grid-move {
+        0% { transform: translate(0, 0); }
+        100% { transform: translate(60px, 60px); }
+    }
+
+    /* GPS/Navigation elements */
+    .nav-element {
+        position: absolute;
+        width: 40px;
+        height: 40px;
+        border: 3px solid rgba(255, 255, 255, 0.3);
+        border-radius: 50%;
+        opacity: 0.12;
+        animation: float-cars 28s infinite ease-in-out, gps-pulse 4s infinite;
+    }
+
+    .nav-element::before {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 8px;
+        height: 8px;
+        background: rgba(76, 175, 80, 0.8);
+        border-radius: 50%;
+    }
+
+    .nav1 {
+        top: 15%;
+        left: 40%;
+        animation-delay: -6s;
+    }
+
+    .nav2 {
+        bottom: 40%;
+        left: 60%;
+        animation-delay: -20s;
+    }
+
+    @keyframes gps-pulse {
+        0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.4); }
+        50% { transform: scale(1.1); box-shadow: 0 0 0 10px rgba(76, 175, 80, 0); }
+    }
+
+    /* Gradient orbs (representing headlights/city lights) */
+    .gradient-orbs {
+        position: absolute;
+        width: 100%;
+        height: 100%;
+    }
+
+    .orb {
+        position: absolute;
+        border-radius: 50%;
+        filter: blur(40px);
+        opacity: 0.6;
+        animation: orb-float 20s infinite ease-in-out;
+    }
+
+    .orb:nth-child(1) {
+        width: 300px;
+        height: 300px;
+        background: radial-gradient(circle, rgba(255, 235, 59, 0.3), rgba(255, 193, 7, 0.2));
+        top: 10%;
+        left: -10%;
+        animation-delay: 0s;
+    }
+
+    .orb:nth-child(2) {
+        width: 250px;
+        height: 250px;
+        background: radial-gradient(circle, rgba(102, 126, 234, 0.4), rgba(118, 75, 162, 0.3));
+        top: 60%;
+        right: -10%;
+        animation-delay: -10s;
+    }
+
+    .orb:nth-child(3) {
+        width: 200px;
+        height: 200px;
+        background: radial-gradient(circle, rgba(76, 175, 80, 0.3), rgba(129, 199, 132, 0.2));
+        bottom: 10%;
+        left: 20%;
+        animation-delay: -5s;
+    }
+
+    @keyframes orb-float {
+        0%, 100% {
+            transform: translateY(0px) translateX(0px) scale(1);
+        }
+        25% {
+            transform: translateY(-100px) translateX(50px) scale(1.1);
+        }
+        50% {
+            transform: translateY(-50px) translateX(-30px) scale(0.9);
+        }
+        75% {
+            transform: translateY(-80px) translateX(20px) scale(1.05);
+        }
+    }
+
+    /* Additional background effects */
+    body.login::after {
         content: '';
         position: fixed;
         top: 0;
         left: 0;
         width: 100%;
-        height: 70%;
-        background-image: 
-            radial-gradient(circle at 20% 50%, rgba(255, 255, 255, 0.1) 0%, transparent 50%),
-            radial-gradient(circle at 80% 20%, rgba(255, 255, 255, 0.1) 0%, transparent 50%),
-            radial-gradient(circle at 40% 80%, rgba(255, 255, 255, 0.1) 0%, transparent 50%);
-        animation: float 20s ease-in-out infinite;
+        height: 100%;
+        background: 
+            radial-gradient(circle at 25% 25%, rgba(255, 235, 59, 0.08) 0%, transparent 50%),
+            radial-gradient(circle at 75% 75%, rgba(76, 175, 80, 0.08) 0%, transparent 50%),
+            radial-gradient(circle at 50% 50%, rgba(102, 126, 234, 0.05) 0%, transparent 70%);
+        z-index: 2;
         pointer-events: none;
+        animation: background-pulse 10s ease-in-out infinite;
     }
 
-    @keyframes float {
-        0%, 100% { transform: translateY(0px) rotate(0deg); }
-        33% { transform: translateY(-30px) rotate(120deg); }
-        66% { transform: translateY(-60px) rotate(240deg); }
+    @keyframes background-pulse {
+        0%, 100% { opacity: 0.3; }
+        50% { opacity: 0.8; }
     }
 
-    #container {
+    /* Main content styling */
+    #login-wrapper {
         display: flex;
         align-items: center;
         justify-content: center;
         min-height: 100vh;
-        height: 100vh;
-        margin: 0;
-        padding: 0;
+        position: relative;
+        z-index: 10;
+        padding: 20px;
     }
 
     .login-container {
@@ -54,13 +598,26 @@
         backdrop-filter: blur(20px);
         border-radius: 20px;
         box-shadow: 
-            0 25px 45px rgba(0, 0, 0, 0.1),
-            0 0 0 1px rgba(255, 255, 255, 0.2);
+            0 25px 45px rgba(0, 0, 0, 0.15),
+            0 0 0 1px rgba(255, 255, 255, 0.3),
+            inset 0 1px 0 rgba(255, 255, 255, 0.6);
         padding: 60px 50px;
         width: 100%;
         max-width: 450px;
         position: relative;
         overflow: hidden;
+        animation: container-entrance 0.8s ease-out;
+    }
+
+    @keyframes container-entrance {
+        0% {
+            opacity: 0;
+            transform: translateY(50px) scale(0.9);
+        }
+        100% {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }
     }
 
     .login-container::before {
@@ -70,9 +627,10 @@
         left: -50%;
         width: 200%;
         height: 100%;
-        background: linear-gradient(45deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+        background: linear-gradient(45deg, transparent, rgba(255, 255, 255, 0.15), transparent);
         transform: rotate(25deg);
         animation: shine 3s infinite;
+        z-index: 1;
     }
 
     @keyframes shine {
@@ -84,110 +642,177 @@
         text-align: center;
         margin-bottom: 40px;
         position: relative;
-        z-index: 1;
+        z-index: 2;
     }
 
     .login-logo {
-        width: 80px;
-        height: 80px;
-        margin: 0 auto 20px;
+        width: 90px;
+        height: 90px;
+        margin: 0 auto 25px;
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        border-radius: 20px;
+        border-radius: 50%;
         display: flex;
         align-items: center;
         justify-content: center;
-        box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
-        animation: pulse 2s ease-in-out infinite alternate;
+        box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
+        animation: logo-pulse 2s ease-in-out infinite alternate;
+        position: relative;
     }
 
-    @keyframes pulse {
+    .login-logo::after {
+        content: '';
+        position: absolute;
+        top: -5px;
+        left: -5px;
+        right: -5px;
+        bottom: -5px;
+        background: linear-gradient(135deg, #667eea, #764ba2, #f093fb);
+        border-radius: 50%;
+        z-index: -1;
+        opacity: 0.3;
+        animation: logo-glow 3s ease-in-out infinite;
+    }
+
+    @keyframes logo-pulse {
         from { transform: scale(1); }
-        to { transform: scale(1.05); }
+        to { transform: scale(1.03); }
+    }
+
+    @keyframes logo-glow {
+        0%, 100% { opacity: 0.3; transform: scale(1); }
+        50% { opacity: 0.6; transform: scale(1.1); }
     }
 
     .login-logo::before {
         content: '🚗';
-        font-size: 36px;
+        font-size: 42px;
         filter: brightness(0) invert(1);
+        z-index: 2;
     }
 
     .login-title {
         color: #2c3e50;
-        font-size: 28px;
+        font-size: 32px;
         font-weight: 700;
         margin: 0 0 10px 0;
-        letter-spacing: -0.5px;
+        animation: title-fade-in 1s ease-out 0.3s both;
     }
 
     .login-subtitle {
         color: #7f8c8d;
-        font-size: 16px;
+        font-size: 18px;
         margin: 0;
-        font-weight: 400;
+        animation: title-fade-in 1s ease-out 0.5s both;
     }
 
-    .form-row {
-        margin-bottom: 25px;
+    @keyframes title-fade-in {
+        0% {
+            opacity: 0;
+            transform: translateY(20px);
+        }
+        100% {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    .input-wrapper {
         position: relative;
-        z-index: 1;
+        width: 100%;
+        margin-bottom: 25px;
+        animation: input-slide-in 0.6s ease-out both;
+        z-index: 2;
     }
 
-    .form-row label {
-        display: block;
-        color: #2c3e50;
-        font-weight: 600;
-        margin-bottom: 8px;
-        font-size: 14px;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
+    .input-wrapper:nth-child(1) { animation-delay: 0.7s; }
+    .input-wrapper:nth-child(2) { animation-delay: 0.8s; }
+
+    @keyframes input-slide-in {
+        0% {
+            opacity: 0;
+            transform: translateX(-30px);
+        }
+        100% {
+            opacity: 1;
+            transform: translateX(0);
+        }
     }
 
-    .form-input {
-        width: 100% !important;
-        padding: 16px 20px;
+    .input-wrapper input {
+        width: 100%;
+        padding: 16px 50px 16px 50px;
         border: 2px solid #e8ecf4;
-        border-radius: 12px;
+        border-radius: 30px;
         font-size: 16px;
-        transition: all 0.3s ease;
         background: rgba(255, 255, 255, 0.9);
+        transition: all 0.3s ease;
+        outline: none;
         box-sizing: border-box;
     }
 
-    .form-input:focus {
-        outline: none;
-        border-color: #667eea;
+    .input-wrapper input:hover {
+        border-color: #ccd9ff;
         transform: translateY(-2px);
-        box-shadow: 
-            0 10px 25px rgba(102, 126, 234, 0.15),
-            0 0 0 3px rgba(102, 126, 234, 0.1);
-        background: rgba(255, 255, 255, 1);
+        box-shadow: 0 5px 15px rgba(102, 126, 234, 0.1);
     }
 
-    .form-input::placeholder {
+    .input-wrapper input:focus {
+        border-color: #667eea;
+        box-shadow: 0 10px 25px rgba(102, 126, 234, 0.15);
+        background: white;
+        transform: translateY(-2px);
+    }
+
+    .input-wrapper label {
+        position: absolute;
+        top: 50%;
+        left: 50px;
+        transform: translateY(-50%);
         color: #a0aec0;
-        font-weight: 400;
+        font-size: 15px;
+        pointer-events: none;
+        transition: 0.2s ease all;
+    }
+
+    .input-wrapper input:focus + label,
+    .input-wrapper input:not(:placeholder-shown) + label {
+        top: 8px;
+        left: 45px;
+        font-size: 12px;
+        color: #667eea;
     }
 
     .input-icon {
         position: absolute;
-        left: 20px;
         top: 50%;
+        left: 15px;
         transform: translateY(-50%);
-        color: #a0aec0;
         font-size: 18px;
-        pointer-events: none;
+        color: #a0aec0;
         transition: color 0.3s ease;
     }
 
-    .form-row:focus-within .input-icon {
+    .input-wrapper:hover .input-icon {
         color: #667eea;
     }
 
     .submit-row {
         margin-top: 35px;
         text-align: center;
+        animation: button-fade-in 0.6s ease-out 0.9s both;
         position: relative;
-        z-index: 1;
+        z-index: 2;
+    }
+
+    @keyframes button-fade-in {
+        0% {
+            opacity: 0;
+            transform: translateY(30px);
+        }
+        100% {
+            opacity: 1;
+            transform: translateY(0);
+        }
     }
 
     .login-submit {
@@ -197,7 +822,7 @@
         padding: 18px 40px;
         font-size: 16px;
         font-weight: 600;
-        border-radius: 12px;
+        border-radius: 30px;
         cursor: pointer;
         width: 100%;
         transition: all 0.3s ease;
@@ -214,7 +839,7 @@
         left: -100%;
         width: 100%;
         height: 100%;
-        background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+        background: linear-gradient(90deg, transparent, rgba(255,255,255,0.2), transparent);
         transition: left 0.5s;
     }
 
@@ -224,13 +849,21 @@
 
     .login-submit:hover {
         transform: translateY(-3px);
-        box-shadow: 
-            0 15px 35px rgba(102, 126, 234, 0.4),
-            0 5px 15px rgba(0, 0, 0, 0.1);
+        box-shadow: 0 15px 35px rgba(102, 126, 234, 0.4);
     }
 
     .login-submit:active {
         transform: translateY(-1px);
+    }
+
+    .login-submit:disabled {
+        opacity: 0.7;
+        cursor: not-allowed;
+        transform: none;
+    }
+
+    .login-submit.loading {
+        background: linear-gradient(135deg, #a0aec0, #718096);
     }
 
     .errornote {
@@ -240,118 +873,148 @@
         border-radius: 10px;
         margin-bottom: 25px;
         font-weight: 500;
-        box-shadow: 0 5px 15px rgba(255, 107, 107, 0.3);
-        border: none;
-        animation: shake 0.5s ease-in-out;
+        animation: error-shake 0.5s ease-in-out;
         position: relative;
-        z-index: 1;
+        z-index: 2;
     }
 
-    @keyframes shake {
+    @keyframes error-shake {
         0%, 100% { transform: translateX(0); }
         25% { transform: translateX(-5px); }
         75% { transform: translateX(5px); }
     }
 
-    .password-reset-link {
-        text-align: center;
-        margin-top: 25px;
-        position: relative;
-        z-index: 1;
+    /* Responsive design */
+    @media (max-width: 768px) {
+        .login-container {
+            margin: 20px;
+            padding: 40px 30px;
+        }
+        
+        .car-element {
+            opacity: 0.08;
+        }
+        
+        .orb {
+            opacity: 0.3;
+        }
+
+        .login-title {
+            font-size: 28px;
+        }
+
+        .login-subtitle {
+            font-size: 16px;
+        }
     }
 
-    .password-reset-link a {
-        color: #667eea;
-        text-decoration: none;
-        font-weight: 500;
-        font-size: 14px;
-        transition: color 0.3s ease;
-    }
-
-    .password-reset-link a:hover {
-        color: #764ba2;
-        text-decoration: underline;
-    }
-
-    /* Responsive Design */
     @media (max-width: 480px) {
         .login-container {
-            padding: 40px 30px;
-            margin: 0;
-            border-radius: 15px;
+            margin: 10px;
+            padding: 30px 20px;
+        }
+
+        .login-logo {
+            width: 70px;
+            height: 70px;
+        }
+
+        .login-logo::before {
+            font-size: 32px;
         }
 
         .login-title {
             font-size: 24px;
         }
 
-        .form-input {
-            padding: 14px 18px;
-            font-size: 15px;
+        .login-subtitle {
+            font-size: 14px;
+        }
+
+        .input-wrapper input {
+            padding: 14px 45px 14px 45px;
+            font-size: 14px;
         }
 
         .login-submit {
-            padding: 16px 35px;
-            font-size: 15px;
+            padding: 16px 30px;
+            font-size: 14px;
         }
-    }
-
-    /* Loading animation */
-    .login-submit:disabled {
-        opacity: 0.7;
-        cursor: not-allowed;
-    }
-
-    .login-submit.loading::after {
-        content: '';
-        position: absolute;
-        width: 20px;
-        height: 20px;
-        top: 50%;
-        left: 50%;
-        margin-left: -10px;
-        margin-top: -10px;
-        border: 2px solid rgba(255, 255, 255, 0.3);
-        border-radius: 50%;
-        border-top-color: white;
-        animation: spin 1s ease-in-out infinite;
-    }
-
-    @keyframes spin {
-        to { transform: rotate(360deg); }
     }
 </style>
 {% endblock %}
 
 {% block bodyclass %}{{ block.super }} login{% endblock %}
-
 {% block usertools %}{% endblock %}
 {% block nav-global %}{% endblock %}
 {% block nav-sidebar %}{% endblock %}
 {% block content_title %}{% endblock %}
 {% block breadcrumbs %}{% endblock %}
+{% block branding %}{% endblock %}
 
 {% block content %}
-<div id="container">
+<!-- Animated Background -->
+<div class="animated-bg">
+    <!-- Gradient Orbs (City Lights) -->
+    <div class="gradient-orbs">
+        <div class="orb"></div>
+        <div class="orb"></div>
+        <div class="orb"></div>
+    </div>
+    
+    <!-- Grid Overlay (Streets) -->
+    <div class="grid-overlay"></div>
+    
+    <!-- Car and Vehicle Elements -->
+    <div class="floating-elements">
+        <div class="car-element car1"></div>
+        <div class="car-element taxi"></div>
+        <div class="car-element bus"></div>
+        <div class="car-element motorcycle"></div>
+        <div class="car-element truck"></div>
+        <div class="car-element electric-car"></div>
+        
+        <!-- Road Elements -->
+        <div class="road-element road1"></div>
+        <div class="road-element road2"></div>
+        
+        <!-- Traffic Light -->
+        <div class="traffic-light"></div>
+        
+        <!-- Dashboard Gauges -->
+        <div class="gauge-element gauge1"></div>
+        <div class="gauge-element gauge2"></div>
+        
+        <!-- GPS/Navigation Elements -->
+        <div class="nav-element nav1"></div>
+        <div class="nav-element nav2"></div>
+    </div>
+    
+    <!-- Particle System -->
+    <div class="particles" id="particles"></div>
+</div>
+
+<div id="login-wrapper">
     <div class="login-container">
         <div class="login-header">
             <div class="login-logo"></div>
             <h1 class="login-title">{% trans 'Welcome Back' %}</h1>
-            <p class="login-subtitle">{% trans 'Sign in to your admin account' %}</p>
+            <p class="login-subtitle">{% trans 'Sign in to your ride dashboard' %}</p>
         </div>
 
-        <!-- Error Messages -->
         {% if form.errors and not form.non_field_errors %}
             <div class="errornote">
-                <strong>⚠️ {% if form.errors.items|length == 1 %}{% trans "Please correct the error below." %}{% else %}{% trans "Please correct the errors below." %}{% endif %}</strong>
+                <strong>⚠️ {% if form.errors.items|length == 1 %}
+                    {% trans "Please correct the error below." %}
+                {% else %}
+                    {% trans "Please correct the errors below." %}
+                {% endif %}</strong>
             </div>
         {% endif %}
 
         {% if form.non_field_errors %}
             {% for error in form.non_field_errors %}
-                <div class="errornote">
-                    <strong>⚠️ {{ error }}</strong>
-                </div>
+                <div class="errornote"><strong>⚠️ {{ error }}</strong></div>
             {% endfor %}
         {% endif %}
 
@@ -364,95 +1027,244 @@
             </div>
         {% endif %}
 
-        <!-- Login Form -->
         <form action="{{ app_path }}" method="post" id="login-form">{% csrf_token %}
-            <div class="form-row">
-                {{ form.username.errors }}
-                <label for="id_username" class="required">
-                    📱 {% trans 'Phone Number' %}
-                </label>
-                <div style="position: relative;">
-                    <input 
-                        type="text" 
-                        name="username" 
-                        autofocus 
-                        maxlength="20" 
-                        required 
-                        id="id_username" 
-                        class="form-input"
-                        placeholder="{% trans 'Enter your phone number' %}"
-                        autocomplete="username"
-                    >
-                </div>
+            <div class="input-wrapper">
+                <span class="input-icon">📱</span>
+                <input type="text" name="username" id="id_username" placeholder=" " 
+                       maxlength="20" required autocomplete="username"
+                       {% if form.username.value %}value="{{ form.username.value }}"{% endif %}>
+                <label for="id_username">{% trans 'Phone Number' %}</label>
+                {% if form.username.errors %}
+                    <div class="errornote" style="margin-top: 10px; margin-bottom: 0;">
+                        {% for error in form.username.errors %}{{ error }}{% endfor %}
+                    </div>
+                {% endif %}
             </div>
 
-            <div class="form-row">
-                {{ form.password.errors }}
-                <label for="id_password" class="required">
-                    🔒 {% trans 'Password' %}
-                </label>
-                <div style="position: relative;">
-                    <input 
-                        type="password" 
-                        name="password" 
-                        required 
-                        id="id_password" 
-                        class="form-input"
-                        placeholder="{% trans 'Enter your password' %}"
-                        autocomplete="current-password"
-                    >
-                </div>
+            <div class="input-wrapper">
+                <span class="input-icon">🔒</span>
+                <input type="password" name="password" id="id_password" placeholder=" " 
+                       required autocomplete="current-password">
+                <label for="id_password">{% trans 'Password' %}</label>
+                {% if form.password.errors %}
+                    <div class="errornote" style="margin-top: 10px; margin-bottom: 0;">
+                        {% for error in form.password.errors %}{{ error }}{% endfor %}
+                    </div>
+                {% endif %}
                 <input type="hidden" name="next" value="{{ next }}">
             </div>
 
             <div class="submit-row">
                 <button type="submit" class="login-submit" id="login-button">
-                    {% trans 'Sign In' %}
+                    {% trans 'Access Dashboard' %}
                 </button>
             </div>
         </form>
-
-        {% url 'admin_password_reset' as password_reset_url %}
-        {% if password_reset_url %}
-            <div class="password-reset-link">
-                <a href="{{ password_reset_url }}">
-                    {% trans 'Forgot your password?' %}
-                </a>
-            </div>
-        {% endif %}
     </div>
 </div>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    // Enhanced particle system for car exhaust and movement effects
+    function createVehicleParticles() {
+        const particlesContainer = document.getElementById('particles');
+        const particleCount = 30;
+        
+        for (let i = 0; i < particleCount; i++) {
+            const particle = document.createElement('div');
+            particle.className = 'particle';
+            
+            // Random positioning and sizing for vehicle-related particles
+            const size = Math.random() * 5 + 1;
+            const startX = Math.random() * window.innerWidth;
+            const delay = Math.random() * 20;
+            
+            particle.style.width = size + 'px';
+            particle.style.height = size + 'px';
+            particle.style.left = startX + 'px';
+            particle.style.animationDelay = -delay + 's';
+            
+            // Different particle types for different effects
+            if (i % 5 === 0) {
+                // Exhaust particles
+                particle.style.background = 'rgba(150, 150, 150, 0.4)';
+                particle.style.borderRadius = '30%';
+            } else if (i % 7 === 0) {
+                // Sparkle particles (headlight reflections)
+                particle.style.background = 'rgba(255, 255, 255, 0.8)';
+                particle.style.boxShadow = '0 0 10px rgba(255, 255, 255, 0.5)';
+            }
+            
+            particlesContainer.appendChild(particle);
+        }
+    }
+
+    createVehicleParticles();
+
+    // Form submission handling with enhanced car dashboard theme
     const form = document.getElementById('login-form');
     const submitButton = document.getElementById('login-button');
+    const originalText = submitButton.innerHTML;
     
-    // Add loading animation on form submit
     form.addEventListener('submit', function() {
         submitButton.classList.add('loading');
         submitButton.disabled = true;
-        submitButton.innerHTML = '{% trans "Signing In..." %}';
+        submitButton.innerHTML = '🚗 {% trans "Starting Engine..." %}';
+        
+        // Don't prevent form submission - let Django handle authentication
     });
-    
-    // Add focus animations
-    const inputs = document.querySelectorAll('.form-input');
+
+    // Enhanced input interactions
+    const inputs = document.querySelectorAll('input[type="text"], input[type="password"]');
     inputs.forEach(input => {
         input.addEventListener('focus', function() {
             this.parentElement.style.transform = 'scale(1.02)';
+            this.parentElement.style.zIndex = '5';
         });
         
         input.addEventListener('blur', function() {
             this.parentElement.style.transform = 'scale(1)';
+            this.parentElement.style.zIndex = '2';
         });
     });
-    
-    // Add shake animation for errors
-    const errorNotes = document.querySelectorAll('.errornote');
-    errorNotes.forEach(note => {
-        setTimeout(() => {
-            note.style.animation = 'shake 0.5s ease-in-out';
-        }, 100);
+
+    // Dynamic vehicle particle generation
+    setInterval(() => {
+        const currentParticles = document.querySelectorAll('.particle').length;
+        if (currentParticles < 40) {
+            const particle = document.createElement('div');
+            particle.className = 'particle';
+            
+            const size = Math.random() * 4 + 1;
+            const startX = Math.random() * window.innerWidth;
+            
+            particle.style.width = size + 'px';
+            particle.style.height = size + 'px';
+            particle.style.left = startX + 'px';
+            
+            // Vehicle-themed particle colors
+            const particleTypes = [
+                'rgba(255, 235, 59, 0.6)', // Yellow (taxi colors)
+                'rgba(76, 175, 80, 0.5)',  // Green (electric/eco)
+                'rgba(102, 126, 234, 0.4)', // Blue (main theme)
+                'rgba(255, 255, 255, 0.7)', // White (headlights)
+                'rgba(244, 67, 54, 0.4)'    // Red (brake lights)
+            ];
+            
+            particle.style.background = particleTypes[Math.floor(Math.random() * particleTypes.length)];
+            
+            document.getElementById('particles').appendChild(particle);
+            
+            // Remove particle after animation
+            setTimeout(() => {
+                if (particle.parentNode) {
+                    particle.parentNode.removeChild(particle);
+                }
+            }, 24000);
+        }
+    }, 1500);
+
+    // Enhanced mouse interaction for car elements
+    let mouseTimeout;
+    document.addEventListener('mousemove', (e) => {
+        clearTimeout(mouseTimeout);
+        
+        mouseTimeout = setTimeout(() => {
+            const cars = document.querySelectorAll('.car-element');
+            const mouseX = e.clientX / window.innerWidth;
+            const mouseY = e.clientY / window.innerHeight;
+            
+            cars.forEach((car, index) => {
+                const speed = (index + 1) * 0.3;
+                const x = (mouseX - 0.5) * speed * 10;
+                const y = (mouseY - 0.5) * speed * 10;
+                
+                car.style.transform += ` translate(${x}px, ${y}px)`;
+            });
+            
+            // Also affect gauge needles
+            const gauges = document.querySelectorAll('.gauge-element::after');
+            gauges.forEach((gauge, index) => {
+                const rotation = (mouseX - 0.5) * 60; // -30 to +30 degrees
+                if (gauge.style) {
+                    gauge.style.transform += ` rotate(${rotation}deg)`;
+                }
+            });
+        }, 16); // ~60fps throttling
+    });
+
+    // Auto-focus username field if empty
+    const usernameInput = document.getElementById('id_username');
+    if (usernameInput && !usernameInput.value) {
+        setTimeout(() => usernameInput.focus(), 500);
+    }
+
+    // Enhanced click effects with car-themed burst
+    document.addEventListener('click', function(e) {
+        // Create car-themed burst effect at click location
+        const burstElements = ['🚗', '🚕', '🚙', '🚌', '🏍️'];
+        
+        for (let i = 0; i < 3; i++) {
+            setTimeout(() => {
+                const burstParticle = document.createElement('div');
+                burstParticle.className = 'particle';
+                burstParticle.style.width = '20px';
+                burstParticle.style.height = '20px';
+                burstParticle.style.left = (e.clientX - 10) + 'px';
+                burstParticle.style.top = (e.clientY - 10) + 'px';
+                burstParticle.style.background = 'transparent';
+                burstParticle.innerHTML = burstElements[Math.floor(Math.random() * burstElements.length)];
+                burstParticle.style.fontSize = '16px';
+                burstParticle.style.pointerEvents = 'none';
+                burstParticle.style.animation = 'particle-float 2s ease-out forwards';
+                
+                document.getElementById('particles').appendChild(burstParticle);
+                
+                setTimeout(() => {
+                    if (burstParticle.parentNode) {
+                        burstParticle.parentNode.removeChild(burstParticle);
+                    }
+                }, 2000);
+            }, i * 150);
+        }
+    });
+
+    // Simulate dashboard activity with periodic animations
+    setInterval(() => {
+        // Random gauge needle movement
+        const gauges = document.querySelectorAll('.gauge-element');
+        gauges.forEach(gauge => {
+            const randomRotation = Math.random() * 60 - 30; // -30 to +30 degrees
+            gauge.style.setProperty('--needle-rotation', randomRotation + 'deg');
+        });
+        
+        // Occasional car honk effect (visual only)
+        if (Math.random() < 0.1) { // 10% chance every interval
+            const cars = document.querySelectorAll('.car-element');
+            const randomCar = cars[Math.floor(Math.random() * cars.length)];
+            if (randomCar) {
+                randomCar.style.animation = 'none';
+                setTimeout(() => {
+                    randomCar.style.animation = '';
+                }, 100);
+            }
+        }
+    }, 3000);
+
+    // Add keyboard navigation enhancement
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && e.target.type !== 'submit') {
+            const inputs = Array.from(document.querySelectorAll('input[type="text"], input[type="password"]'));
+            const currentIndex = inputs.indexOf(e.target);
+            
+            if (currentIndex !== -1 && currentIndex < inputs.length - 1) {
+                e.preventDefault();
+                inputs[currentIndex + 1].focus();
+            } else if (currentIndex === inputs.length - 1) {
+                e.preventDefault();
+                document.getElementById('login-button').click();
+            }
+        }
     });
 });
 </script>
