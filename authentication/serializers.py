@@ -200,6 +200,10 @@ class ProviderSerializer(serializers.ModelSerializer):
             driver_profile_data = self.initial_data.get("driver_profile")
 
         if driver_profile_data:
+            if isinstance(driver_profile_data.get("documents"), list):
+                raise serializers.ValidationError({
+                    "documents": "Only one file can be uploaded."
+                })
             existing_profile = DriverProfile.objects.filter(license=driver_profile_data.get("license")).first()
             if existing_profile:
                 raise serializers.ValidationError({"license": _("License already exists")})
