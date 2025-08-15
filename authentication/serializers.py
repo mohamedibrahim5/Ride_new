@@ -149,6 +149,40 @@ class ProviderSerializer(serializers.ModelSerializer):
         service_ids = attrs.get("service_ids", None)
         sub_service = attrs.get('sub_service')
         name_of_car_id = attrs.get("name_of_car_id", None)
+        requires_driver_profile = service_ids and 5 in service_ids
+
+        # Validate service_ids
+        if service_ids:
+            try:
+                Service.objects.get(pk__in=service_ids)
+            except Service.DoesNotExist:
+                raise serializers.ValidationError({"service_ids": _("Invalid service IDs")})
+            
+        user_data = extract_user_data(self.initial_data)
+        phone = user_data.get("phone")
+        if phone and User.objects.filter(phone=phone).exists():
+            raise serializers.ValidationError({"phone": _("Phone number already exists")})
+
+        # If service ID 5, require driver_profile and car
+        if requires_driver_profile:
+            if not self.initial_data.get("driver_profile"):
+                raise serializers.ValidationError({"driver_profile": _("Driver profile is required")})
+            if not self.initial_data.get("car"):
+                raise serializers.ValidationError({"car": _("Car is required")}) 
+            # validae sending all data of car when service id 5
+            if self.initial_data.get("car"):
+                car_data = self.initial_data.get("car")
+                # validate her type and model and number and color and uploaded_images not null
+                if not car_data.get("type") or not car_data.get("model") or not car_data.get("number") or not car_data.get("color") or not car_data.get("uploaded_images"):
+                    raise serializers.ValidationError({"car": _("All Car data is required")})
+    
+            
+        # validate driver_profile license
+        if self.initial_data.get("driver_profile"):
+            license = self.initial_data.get("driver_profile").get("license")
+            if license and DriverProfile.objects.filter(license=license).exists():
+                raise serializers.ValidationError({"license": _("License number already exists")}) 
+            
 
         # Validate name_of_car_id
         if name_of_car_id is not None:
