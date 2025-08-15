@@ -875,7 +875,7 @@ class BroadcastRideRequestView(APIView):
             distance_km=distance_km,
             duration_minutes=duration_minutes,
             total_price_before_discount=total_price_before_discount if coupon_code and coupon else None,
-            name_of_car_id = name_of_car_id if name_of_car_id else None,
+            name_of_car_id = name_of_car if name_of_car else None,
         )    
         # Set customer.in_ride = True
         if hasattr(user, 'customer'):
