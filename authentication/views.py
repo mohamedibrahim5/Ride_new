@@ -862,7 +862,8 @@ class BroadcastRideRequestView(APIView):
                         "ride_data": json.dumps(client_data)
                     }
                 )
-        ride = RideStatus.objects.create(
+        if name_of_car_id :  
+            ride = RideStatus.objects.create(
             client=user,
             provider=None,  # not selected yet
             status="pending",
@@ -875,8 +876,24 @@ class BroadcastRideRequestView(APIView):
             distance_km=distance_km,
             duration_minutes=duration_minutes,
             total_price_before_discount=total_price_before_discount if coupon_code and coupon else None,
-            name_of_car_id = name_of_car if name_of_car else None,
-        )    
+            name_of_car_id =   name_of_car if name_of_car else None,
+        )  
+        else:
+            ride = RideStatus.objects.create(
+            client=user,
+            provider=None,  # not selected yet
+            status="pending",
+            service_id=service_id,
+            pickup_lat=lat,
+            pickup_lng=lng,
+            drop_lat=drop_lat,
+            drop_lng=drop_lng,
+            total_price=total_price,
+            distance_km=distance_km,
+            duration_minutes=duration_minutes,
+            total_price_before_discount=total_price_before_discount if coupon_code and coupon else None,
+        )   
+          
         # Set customer.in_ride = True
         if hasattr(user, 'customer'):
             user.customer.in_ride = True
