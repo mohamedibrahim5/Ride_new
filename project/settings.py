@@ -148,6 +148,10 @@ if DEBUG:
 
     REDIS_URL = f"redis://{REDIS_USER}:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
 
+    # CELERY_BROKER_URL = "redis://127.0.0.1:6379/0"
+    # CELERY_RESULT_BACKEND = "redis://127.0.0.1:6379/0"
+    # CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
+
     CHANNEL_LAYERS = {
         "default": {
             "BACKEND": "channels_redis.core.RedisChannelLayer",
@@ -265,7 +269,7 @@ SIMPLEUI_LOGO = '/media/dashboard_logos/logo.png'  # Updated path
 
 SIMPLEUI_CONFIG = {
     'system_keep': False,
-    'menu_display': [_('Authentication'), _('Products'), _('Points'), _('Purchases'), _('Car Rentals'),  _('Services'),_('Ride'), _('Configuration') ,_('Coupons'),_('Notifications')],
+    'menu_display': [_('Authentication'), _('Products'), _('Points'), _('Purchases'), _('Car Rentals'),  _('Services'),_('Ride'), _('Configuration') ,_('Coupons'),_('Notifications'), _('Scheduled Rides')],
     'dynamic': True,
     'menus': [
         {
@@ -296,6 +300,11 @@ SIMPLEUI_CONFIG = {
                     'name': _('Driver Cars'),
                     'icon': 'fas fa-car',
                     'url': 'authentication/drivercar/'
+                },
+                {
+                    'name': _('Restaurants'),
+                    'icon': 'fas fa-store',
+                    'url': 'authentication/restaurantmodel/'
                 },
                 {
                     'name': _('Tokens'),
@@ -374,6 +383,11 @@ SIMPLEUI_CONFIG = {
                     'url': 'authentication/service/'
                 },
                 {
+                    'name': _('Sub Services'),
+                    'icon': 'fas fa-concierge-bell',
+                    'url': 'authentication/subservice/'
+                },
+                {
                     'name': _('Names Of Cars'),
                     'icon': 'fas fa-car',
                     'url': 'authentication/nameofcar/'
@@ -446,6 +460,11 @@ SIMPLEUI_CONFIG = {
                     'name': _('Notifications'),
                     'icon': 'fas fa-bell',
                     'url': 'authentication/notification/'
+                },
+                {
+                    'name': _('Scheduled Rides'),
+                    'icon': 'fas fa-clock',
+                    'url': 'authentication/scheduledride/'
                 }
             ]
         },
@@ -453,6 +472,24 @@ SIMPLEUI_CONFIG = {
             'name': _('Dashboard Settings'),
             'icon': 'fas fa-tachometer-alt',
             'url': '/admin/authentication/platformsettings/',
+        },
+        {
+            'name': _('Scheduled Rides'),
+            'icon': 'fas fa-clock',
+            'models': [
+                {
+                    'name': _('Scheduled Rides'),
+                    'icon': 'fas fa-clock',
+                    'url': 'authentication/scheduledride/'
+                },
+                # adding scheduled ride rating
+                {
+                    'name': _('Scheduled Ride Ratings'),
+                    'icon': 'fas fa-star',
+                    'url': 'authentication/scheduledriderating/'
+                }
+               
+            ]
         }
         
     ]

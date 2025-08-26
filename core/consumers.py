@@ -256,6 +256,7 @@ class ApplyConsumer(AsyncWebsocketConsumer):
 
     # Attach all send_* methods
     async def send_apply(self, event): await self.send_json(event)
+    async def send_apply_scheduled_ride(self, event): await self.send_json(event)
     async def send_not(self, event): await self.send_json(event)
     async def send_acceptance(self, event): await self.send_json(event)
     async def send_cancel(self, event): await self.send_json(event)

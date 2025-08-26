@@ -132,6 +132,17 @@ class Service(models.Model):
         verbose_name = _("Service")
         verbose_name_plural = _("Services")
 
+class SubService(models.Model):
+    name = models.CharField(_("Name"), max_length=20, unique=True)
+    created_at = models.DateTimeField(_("Created At"), auto_now_add=True, null=True, blank=True)
+
+    def __str__(self):
+        return self.name
+    
+    class Meta:
+        verbose_name = _("Sub Service")
+        verbose_name_plural = _("Sub Services")
+
 class NameOfCar(models.Model):
     name = models.CharField(_("Name"), max_length=20, unique=True)
     created_at = models.DateTimeField(_("Created At"), auto_now_add=True, null=True, blank=True)
@@ -161,14 +172,31 @@ class ServiceImage(models.Model):
         verbose_name_plural = _("Service Images")
 
 
+class RestaurantModel(models.Model):
+    restaurant_name = models.CharField(_("Restaurant Name"), max_length=200)
+    restaurant_id_image = models.ImageField(_("Restaurant Logo"), upload_to="restaurant/logo/")
+    restaurant_license = models.FileField(_("Restaurant License"), upload_to="restaurant/license/")
+    created_at = models.DateTimeField(_("Created At"), auto_now_add=True)
+
+    def __str__(self):
+        return self.restaurant_name
+    
+    class Meta:
+        verbose_name = _("Restaurant")
+        verbose_name_plural = _("Restaurants")
+
+
+
 class Provider(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, verbose_name=_("User"))
     services = models.ManyToManyField(Service, verbose_name=_("Services"))
+    sub_services = models.ManyToManyField(SubService, verbose_name=_("Sub Services"),blank=True,null=True)
     name_of_car = models.ForeignKey(NameOfCar, on_delete=models.CASCADE, verbose_name=_("Name Of Car"),blank=True,null=True)
     sub_service = models.CharField(_("Sub Service"), max_length=50, blank=True, null=True)
     is_verified = models.BooleanField(_("Is Verified"), default=False)
     in_ride = models.BooleanField(_("In Ride"), default=False)
     onLine = models.BooleanField(_("On Line"), default=True,null=True,blank=True)
+    restaurant = models.ForeignKey(RestaurantModel, on_delete=models.CASCADE, verbose_name=_("Restaurant"),blank=True,null=True)
 
     def __str__(self):
         return self.user.name
@@ -611,9 +639,81 @@ class Rating(models.Model):
     def __str__(self):
         return f"Rating for Ride #{self.ride.id}"        
 
+
+class ScheduledRide(models.Model):
+    STATUS_PENDING = "pending"
+    STATUS_ACCEPTED = "accepted"
+    STATUS_STARTED = "started"
+    STATUS_FINISHED = "finished"
+    STATUS_CANCELLED = "cancelled"
+
+    STATUS_CHOICES = [
+        (STATUS_PENDING, _("Pending")),
+        (STATUS_ACCEPTED, _("Accepted")),
+        (STATUS_STARTED, _("Started")),
+        (STATUS_FINISHED, _("Finished")),
+        (STATUS_CANCELLED, _("Cancelled")),
+    ]
+
+    client = models.ForeignKey(User, on_delete=models.CASCADE, related_name="scheduled_as_client", verbose_name=_("Client"))
+    provider = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True, related_name="scheduled_as_provider", verbose_name=_("Provider"))
+    service = models.ForeignKey(Service, on_delete=models.CASCADE, verbose_name=_("Service"))
+    sub_service = models.ForeignKey(SubService, on_delete=models.CASCADE, related_name="scheduled_rides", verbose_name=_("Sub Service"), null=True, blank=True)
+    pickup_lat = models.FloatField(_("Pickup Latitude"))
+    pickup_lng = models.FloatField(_("Pickup Longitude"))
+    drop_lat = models.FloatField(_("Drop Latitude"), null=True, blank=True)
+    drop_lng = models.FloatField(_("Drop Longitude"), null=True, blank=True)
+    scheduled_time = models.DateTimeField(_("Scheduled Time"))
+    status = models.CharField(_("Status"), max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING)
+    total_price = models.DecimalField(_("Total Price"), max_digits=10, decimal_places=2, null=True, blank=True)
+    distance_km = models.FloatField(_("Distance (km)"), null=True, blank=True)
+    duration_minutes = models.FloatField(_("Duration (minutes)"), null=True, blank=True)
+    created_at = models.DateTimeField(_("Created At"), auto_now_add=True)
+
+    class Meta:
+        verbose_name = _("Scheduled Ride")
+        verbose_name_plural = _("Scheduled Rides")
+        ordering = ["-scheduled_time"]
+
+    def __str__(self):
+        return f"ScheduledRide #{self.id} at {self.scheduled_time}"
+
+
+class ScheduledRideRating(models.Model):
+    ride = models.OneToOneField(
+        ScheduledRide,
+        on_delete=models.CASCADE,
+        related_name='rating',
+        verbose_name=_("Scheduled Ride")
+    )
+    driver_rating = models.PositiveSmallIntegerField(
+        _("Driver Rating"),
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(1), MaxValueValidator(5)]
+    )
+    customer_rating = models.PositiveSmallIntegerField(
+        _("Customer Rating"),
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(1), MaxValueValidator(5)]
+    )
+    driver_comment = models.TextField(_("Driver Comment"), blank=True)
+    customer_comment = models.TextField(_("Customer Comment"), blank=True)
+    created_at = models.DateTimeField(_("Created At"), auto_now_add=True)
+    updated_at = models.DateTimeField(_("Updated At"), auto_now=True)
+
+    class Meta:
+        verbose_name = _("Scheduled Ride Rating")
+        verbose_name_plural = _("Scheduled Ride Ratings")
+
+    def __str__(self):
+        return f"ScheduledRideRating for Ride #{self.ride.id}"
+
+
 class ProviderServicePricing(models.Model):
     service = models.ForeignKey(Service, on_delete=models.CASCADE, related_name="provider_pricings")
-    sub_service = models.CharField(_("Sub Service"), max_length=50, blank=True, null=True)
+    sub_service = models.ForeignKey(SubService, on_delete=models.CASCADE, related_name="provider_pricings", verbose_name=_("Sub Service"), null=True, blank=True)
     zone = models.ForeignKey(PricingZone, on_delete=models.CASCADE, related_name="pricings", verbose_name=_("Pricing Zone"), null=True, blank=True)
     
     # Application fees
@@ -717,11 +817,11 @@ class ProviderServicePricing(models.Model):
                 'sub_service': _(f"Sub Service is required for maintenance service pricing.")
             })
         # If service is not maintenance, sub_service must be blank
-        if self.service.name.lower() != "maintenance service" and self.sub_service:
-            from django.core.exceptions import ValidationError
-            raise ValidationError({
-                'sub_service': _(f"Sub Service should only be set for maintenance service pricing.")
-            })
+        # if self.service.name.lower() != "maintenance service" and self.sub_service:
+        #     from django.core.exceptions import ValidationError
+        #     raise ValidationError({
+        #         'sub_service': _(f"Sub Service should only be set for maintenance service pricing.")
+        #     })
         super().clean()
 
     def save(self, *args, **kwargs):

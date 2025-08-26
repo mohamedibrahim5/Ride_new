@@ -1,4 +1,31 @@
 from django.contrib import admin
+from .models import ScheduledRide, ScheduledRideRating
+@admin.register(ScheduledRideRating)
+class ScheduledRideRatingAdmin(admin.ModelAdmin):
+    list_display = ('ride', 'driver_rating', 'customer_rating', 'created_at')
+    search_fields = ('ride__client__name', 'ride__provider__name')
+    readonly_fields = ('created_at', 'updated_at')
+
+
+class ScheduledRideRatingInline(admin.StackedInline):
+    model = ScheduledRideRating
+    extra = 0
+    max_num = 1
+    can_delete = False
+    verbose_name = "Rating"
+    verbose_name_plural = "Rating"
+    readonly_fields = ('created_at', 'updated_at',)
+
+
+@admin.register(ScheduledRide)
+class ScheduledRideAdmin(admin.ModelAdmin):
+    list_display = (
+        'id', 'client', 'provider', 'service', 'scheduled_time', 'status', 'created_at'
+    )
+    list_filter = ('status', 'service')
+    search_fields = ('client__name', 'provider__name')
+    readonly_fields = ('created_at',)
+    inlines = [ScheduledRideRatingInline]
 from django.contrib.auth.models import Group
 from django.utils.translation import gettext_lazy as _
 from django.utils.html import format_html
@@ -7,6 +34,7 @@ from authentication.models import (
     User,
     UserOtp,
     Service,
+    SubService,
     NameOfCar,
     Provider,
     DriverCar,
@@ -28,6 +56,7 @@ from authentication.models import (
     Coupon,
     Notification,
     DriverCarImage,
+    RestaurantModel,
     Rating,
     Invoice,
 )
@@ -1252,10 +1281,33 @@ class ServiceAdmin(admin.ModelAdmin):
     list_display = ['name', 'created_at']
     search_fields = ['name']
     ordering = ['-created_at']
-    
+
+@admin.register(SubService)
+class SubServiceAdmin(admin.ModelAdmin):
+    list_display = ['name', 'created_at']
+    search_fields = ['name']
+    ordering = ['-created_at']
+
+@admin.register(RestaurantModel)
+class RestaurantModelAdmin(admin.ModelAdmin):
+    # add her the user name and phone
+    list_display = ['provider_name','restaurant_name',  'restaurant_license','restaurant_id_image','created_at']
+    search_fields = ['restaurant_name']
+    ordering = ['-created_at']
+
+    # add here the provider name when model of provider is restaurant = models.ForeignKey(RestaurantModel, on_delete=models.CASCADE, verbose_name=_("Restaurant"),blank=True,null=True) 
+    def provider_name(self, obj):
+        provider = getattr(obj, 'provider_set', None)
+        if provider is None:
+            return '-'
+        first_provider = provider.first()
+        return first_provider.user.name if first_provider else '-'
+    provider_name.short_description = _('Provider Name')
+    provider_name.admin_order_field = 'provider__user__name'
+
 
 # DriverProfileResource and Admin
-
+    
 @admin.register(CarAgency)
 class CarAgencyAdmin(admin.ModelAdmin):
     list_display = ("provider_name", "brand", "model", "color", "price_per_hour", "available", "created_at")

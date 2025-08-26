@@ -42,7 +42,12 @@ from authentication.views import (
     dashboard_logo,
     notification_test_view,
     test_notification,
-    ProviderOnlineStatusUpdateView
+    ProviderOnlineStatusUpdateView,
+    SubServiceViewSet,
+    ScheduleRideView,
+    ProviderScheduledRideAcceptView,
+    UpdateScheduledRideStatusView,
+    MyScheduledRidesView,
 )
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
@@ -50,6 +55,7 @@ from rest_framework.routers import DefaultRouter
 
 router = DefaultRouter()
 router.register("services", ServiceViewSet, basename="services")
+router.register("sub-services", SubServiceViewSet, basename="sub-services")
 router.register("names-of-cars", NameOfCarViewSet, basename="names-of-cars")
 router.register("providers", ProviderViewSet, basename="providers")
 router.register("driver-cars", DriverCarViewSet, basename="driver-cars")
@@ -97,6 +103,9 @@ urlpatterns = [
     path('notifications/unread-count/', UnreadNotificationCountView.as_view(), name='unread-notification-count'),
 
     path('rides/<int:ride_id>/rate/', RateRideView.as_view(), name='rate-ride'),
+    # Explicit endpoints for clarity (both use RateRideView and enforce role at runtime)
+    path('rides/<int:ride_id>/rate/driver/', RateRideView.as_view(), name='rate-driver'),
+    path('rides/<int:ride_id>/rate/customer/', RateRideView.as_view(), name='rate-customer'),
     path('rides/<int:ride_id>/rating/', RideRatingView.as_view(), name='ride-rating'),
     path('provider-autocomplete/', ProviderAutocomplete.as_view(), name='provider-autocomplete'),
     path('service-autocomplete/', ServiceAutocomplete.as_view(), name='service-autocomplete'),
@@ -104,6 +113,10 @@ urlpatterns = [
     path('test-notifications/', notification_test_view, name='notification_test'),
     
     path('test-notification/', test_notification, name='test_notification'),
+    path('schedule-ride/', ScheduleRideView.as_view(), name='schedule-ride'),
+    path('scheduled-ride/accept/', ProviderScheduledRideAcceptView.as_view(), name='scheduled-ride-accept'),
+    path('scheduled-ride/update-status/', UpdateScheduledRideStatusView.as_view(), name='scheduled-ride-update-status'),
+    path('my-scheduled-rides/', MyScheduledRidesView.as_view(), name='my-scheduled-rides'),
     # path('calculate-price/', CalculatePriceView.as_view(), name='calculate-price'),
 
 

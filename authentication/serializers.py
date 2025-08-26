@@ -8,6 +8,7 @@ from authentication.models import (
     User,
     UserOtp,
     Service,
+    SubService,
     NameOfCar,
     Provider,
     Customer,
@@ -23,6 +24,8 @@ from authentication.models import (
     ProviderServicePricing,
     PricingZone,
     DriverCarImage,
+    ScheduledRideRating,
+    RestaurantModel,
 )
 from authentication.utils import send_sms, extract_user_data, update_user_data
 from django.utils.translation import gettext_lazy as _
@@ -32,7 +35,7 @@ from django.utils import timezone
 from fcm_django.models import FCMDevice
 from django.contrib.gis.geos import Point
 from django.db.models import Avg
-from .models import CarAgency, CarAvailability, CarRental, ProductImage
+from .models import CarAgency, CarAvailability, CarRental, ProductImage, ScheduledRide
 import math
 
 
@@ -125,31 +128,74 @@ class ServiceSerializer(serializers.ModelSerializer):
         model = Service
         fields = ["id", "name"]
 
+class SubServiceSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SubService
+        fields = ["id", "name"]
+
 class NameOfCarSerializer(serializers.ModelSerializer):
     class Meta:
         model = NameOfCar
         fields = ["id", "name"]
 
 
+class RestaurantModelSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = RestaurantModel
+        fields = ["id", "restaurant_name", "restaurant_id_image", "restaurant_license"]
 
 class ProviderSerializer(serializers.ModelSerializer):
     service_ids = serializers.ListField(
         child=serializers.IntegerField(), write_only=True, required=False
     )
+    sub_service_ids = serializers.ListField(
+        child=serializers.IntegerField(), write_only=True, required=False
+    )
+    addCar = serializers.BooleanField(write_only=True, required=False, default=False)
+    addRestaurant = serializers.BooleanField(write_only=True, required=False, default=False)
     name_of_car_id = serializers.IntegerField(write_only=True, required=False, allow_null=True)  # Changed to single ID
     user = UserSerializer(read_only=True)
     services = ServiceSerializer(many=True, read_only=True)
+    sub_services = SubServiceSerializer(many=True, read_only=True)
     name_of_car = NameOfCarSerializer(read_only=True)  # Changed to singular, for ForeignKey
+    driver_profile = serializers.SerializerMethodField(read_only=True)
+    car = serializers.SerializerMethodField(read_only=True)
+    customer_ratings = serializers.SerializerMethodField(read_only=True)
+    customer_ratings_scheduled_rides = serializers.SerializerMethodField(read_only=True)
+    restaurant = RestaurantModelSerializer(read_only=True)
 
     class Meta:
         model = Provider
-        fields = ["id", "user", "service_ids", "services", "sub_service", "onLine", "name_of_car_id", "name_of_car"]
+        fields = [
+            "id",
+            "user",
+            "service_ids",
+            "services",
+            "sub_service_ids",
+            "sub_services",
+            "onLine",
+            "addCar",
+            "name_of_car_id",
+            "name_of_car",
+            "driver_profile",
+            "car",
+            "customer_ratings",
+            "customer_ratings_scheduled_rides",
+            "addRestaurant",
+            "restaurant",
+
+        ]
 
     def validate(self, attrs):
         service_ids = attrs.get("service_ids", None)
-        sub_service = attrs.get('sub_service')
+        sub_service_ids = attrs.get('sub_service_ids', None)
         name_of_car_id = attrs.get("name_of_car_id", None)
-        requires_driver_profile = service_ids and 5 in service_ids
+        # requires_driver_profile = service_ids and 5 in service_ids
+        # Changed: Check for addCar key instead of service ID 5
+        requires_driver_profile = bool(attrs.get("addCar", False)) is True
+        requires_restaurant = bool(attrs.get("addRestaurant", False)) is True
+
+        print(f"requires_driver_profile: {requires_driver_profile}")
 
         # Validate service_ids
         if service_ids:
@@ -157,6 +203,11 @@ class ProviderSerializer(serializers.ModelSerializer):
                 Service.objects.get(pk__in=service_ids)
             except Service.DoesNotExist:
                 raise serializers.ValidationError({"service_ids": _("Invalid service IDs")})
+        if sub_service_ids:
+            try:
+                SubService.objects.get(pk__in=sub_service_ids)
+            except SubService.DoesNotExist:
+                raise serializers.ValidationError({"sub_service_ids": _("Invalid sub service IDs")})
             
         user_data = extract_user_data(self.initial_data)
         phone = user_data.get("phone")
@@ -175,6 +226,23 @@ class ProviderSerializer(serializers.ModelSerializer):
                 # validate her type and model and number and color and uploaded_images not null
                 if not car_data.get("type") or not car_data.get("model") or not car_data.get("number") or not car_data.get("color") or not car_data.get("uploaded_images"):
                     raise serializers.ValidationError({"car": _("All Car data is required")})
+
+        # add restaurant her and assign it to provider
+        if requires_restaurant:
+            if not self.initial_data.get("restaurant_name"):
+                raise serializers.ValidationError({"restaurant_name": _("Restaurant Name is required")})
+            if not self.initial_data.get("restaurant_id_image"):
+                raise serializers.ValidationError({"restaurant_id_image": _("Restaurant ID Image is required")})
+            if not self.initial_data.get("restaurant_license"):
+                raise serializers.ValidationError({"restaurant_license": _("Restaurant License is required")})
+            restaurant = RestaurantModel.objects.create(
+                restaurant_name=self.initial_data.get("restaurant_name"),
+                restaurant_id_image=self.initial_data.get("restaurant_id_image"),
+                restaurant_license=self.initial_data.get("restaurant_license")
+            )
+            attrs['restaurant'] = restaurant
+
+
     
             
         # validate driver_profile license
@@ -195,18 +263,23 @@ class ProviderSerializer(serializers.ModelSerializer):
             attrs['name_of_car'] = None  # Allow null for ForeignKey
 
         # Validate sub_service
-        if sub_service and service_ids:
-            services = Service.objects.filter(pk__in=service_ids)
-            has_maintenance = any('maintenance' in service.name.lower() for service in services)
-            if not has_maintenance:
-                raise serializers.ValidationError({
-                    "sub_service": _("Sub service can only be set when maintenance service is assigned.")
-                })
+        # if sub_service_ids and service_ids:
+        #     services = Service.objects.filter(pk__in=service_ids)
+        #     has_maintenance = any('maintenance' in service.name.lower() for service in services)
+        #     if not has_maintenance:
+        #         raise serializers.ValidationError({
+        #             "sub_service": _("Sub service can only be set when maintenance service is assigned.")
+        #         })
+
+        
 
         return attrs
 
     def create(self, validated_data):
         service_ids = validated_data.pop("service_ids", None)
+        sub_service_ids = validated_data.pop("sub_service_ids", None)
+        validated_data.pop("addCar", None)
+        validated_data.pop("addRestaurant", None)
         name_of_car = validated_data.pop("name_of_car", None)  # Changed to singular
         user_data = extract_user_data(self.initial_data)
         user_serializer = UserSerializer(data=user_data)
@@ -222,6 +295,11 @@ class ProviderSerializer(serializers.ModelSerializer):
             if not services.exists():
                 raise serializers.ValidationError({"service_ids": _("Invalid service IDs")})
             provider.services.set(services)
+        if sub_service_ids:
+            sub_services = SubService.objects.filter(pk__in=sub_service_ids)
+            if not sub_services.exists():
+                raise serializers.ValidationError({"sub_service_ids": _("Invalid sub service IDs")})
+            provider.sub_services.set(sub_services)
 
         # Handle driver profile creation
         driver_profile_data = {}
@@ -266,6 +344,9 @@ class ProviderSerializer(serializers.ModelSerializer):
         user_serializer.save()
 
         service_ids = validated_data.pop("service_ids", None)
+        sub_service_ids = validated_data.pop("sub_service_ids", None)
+        validated_data.pop("addCar", None)
+        validated_data.pop("addRestaurant", None)
         name_of_car = validated_data.pop("name_of_car", None)  # Changed to singular
 
         # Update services if provided
@@ -274,6 +355,11 @@ class ProviderSerializer(serializers.ModelSerializer):
             if not services.exists():
                 raise serializers.ValidationError({"service_ids": _("Invalid service IDs")})
             instance.services.set(services)
+        if sub_service_ids:
+            sub_services = SubService.objects.filter(pk__in=sub_service_ids)
+            if not sub_services.exists():
+                raise serializers.ValidationError({"sub_service_ids": _("Invalid sub service IDs")})
+            instance.sub_services.set(sub_services)
 
         # Update name_of_car (singular)
         instance.name_of_car = name_of_car
@@ -284,6 +370,72 @@ class ProviderSerializer(serializers.ModelSerializer):
         instance.save()
 
         return instance
+
+    def get_driver_profile(self, obj):
+        try:
+            profile = getattr(obj, 'driver_profile', None)
+            if not profile:
+                return None
+            # Importing here avoids forward reference issues at class load time
+            return DriverProfileSerializer(profile).data
+        except Exception:
+            return None
+
+    def get_car(self, obj):
+        try:
+            profile = getattr(obj, 'driver_profile', None)
+            if not profile:
+                return None
+            car = getattr(profile, 'car', None)
+            if not car:
+                return None
+            return DriverCarSerializer(car).data
+        except Exception:
+            return None
+
+    def get_customer_ratings(self, obj):
+        try:
+            # Ratings given by customers about this provider (driver)
+            ratings_qs = Rating.objects.filter(
+                ride__provider=obj.user,
+                customer_rating__isnull=False
+            ).select_related('ride__client').order_by('-created_at')
+
+            results = []
+            for r in ratings_qs:
+                client = r.ride.client if r.ride and r.ride.client_id else None
+                results.append({
+                    "ride_id": r.ride_id,
+                    "client_id": getattr(client, 'id', None),
+                    "client_name": getattr(client, 'name', None),
+                    "value": r.customer_rating,
+                    "comment": r.customer_comment,
+                    "created_at": r.created_at,
+                })
+            return results
+        except Exception:
+            return []
+
+    def get_customer_ratings_scheduled_rides(self, obj):
+        try:
+            ratings_qs = ScheduledRideRating.objects.filter(
+                ride__provider=obj.user,
+                customer_rating__isnull=False
+            ).select_related('ride__client').order_by('-created_at')
+            results = []
+            for r in ratings_qs:
+                client = r.ride.client if r.ride and r.ride.client_id else None
+                results.append({
+                    "ride_id": r.ride_id,
+                    "client_id": getattr(client, 'id', None),
+                    "client_name": getattr(client, 'name', None),
+                    "value": r.customer_rating,
+                    "comment": r.customer_comment,
+                    "created_at": r.created_at,
+                })
+            return results
+        except Exception:
+            return []
 
 class DriverProfileSerializer(serializers.ModelSerializer):
     class Meta:
@@ -958,10 +1110,10 @@ class ProviderServicePricingSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({
                 'sub_service': _("Sub Service is required for maintenance service pricing.")
             })
-        if service and service.name.lower() != "maintenance service" and sub_service:
-            raise serializers.ValidationError({
-                'sub_service': _("Sub Service should only be set for maintenance service pricing.")
-            })
+        # if service and service.name.lower() != "maintenance service" and sub_service:
+        #     raise serializers.ValidationError({
+        #         'sub_service': _("Sub Service should only be set for maintenance service pricing.")
+        #     })
         return attrs
 
 
@@ -995,7 +1147,7 @@ class ProviderDriverRegisterSerializer(serializers.ModelSerializer):
     car = DriverCarSerializer(write_only=True)
 
     # Add these two for response
-    driver_profile_data = DriverProfileSerializer(source='driverprofile', read_only=True)
+    driver_profile_data = DriverProfileSerializer(source='driver_profile', read_only=True)
     car_data = serializers.SerializerMethodField()
 
     class Meta:
@@ -1007,7 +1159,7 @@ class ProviderDriverRegisterSerializer(serializers.ModelSerializer):
 
     def get_car_data(self, obj):
         try:
-            return DriverCarSerializer(obj.driverprofile.car).data
+            return DriverCarSerializer(obj.driver_profile.car).data
         except:
             return None
 
@@ -1295,3 +1447,124 @@ class ProviderOnlineStatusSerializer(serializers.ModelSerializer):
     class Meta:
         model = Provider
         fields = ['onLine']
+
+
+class ScheduledRideSerializer(serializers.ModelSerializer):
+    client_name = serializers.CharField(source='client.name', read_only=True)
+    provider_name = serializers.CharField(source='provider.name', read_only=True)
+    service_name = serializers.CharField(source='service.name', read_only=True)
+    sub_service_name = serializers.CharField(source='sub_service.name', read_only=True)
+
+    class Meta:
+        model = ScheduledRide
+        fields = [
+            'id', 'client', 'client_name', 'provider', 'provider_name', 'service', 'service_name',
+            'sub_service', 'sub_service_name',
+            'pickup_lat', 'pickup_lng', 'drop_lat', 'drop_lng', 'scheduled_time', 'status', 
+            'total_price', 'distance_km', 'duration_minutes', 'created_at'
+        ]
+        read_only_fields = ['client', 'status', 'created_at', 'total_price', 'distance_km', 'duration_minutes']
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        from django.utils import timezone
+        scheduled_time = attrs.get('scheduled_time')
+        provider = attrs.get('provider')
+        request = self.context.get('request')
+
+        if not scheduled_time or scheduled_time <= timezone.now():
+            raise serializers.ValidationError({'scheduled_time': _('Scheduled time must be in the future.')})
+
+        # Check user doesn't have more than 3 active scheduled rides
+        if request and request.user:
+            active_rides_count = ScheduledRide.objects.filter(
+                client=request.user,
+                status__in=[ScheduledRide.STATUS_ACCEPTED, ScheduledRide.STATUS_STARTED]
+            ).count()
+            if active_rides_count >= 3:
+                raise serializers.ValidationError({
+                    'scheduled_time': _('You cannot have more than 3 active scheduled rides. Please cancel or complete existing rides first.')
+                })
+
+        if provider:
+            # Ensure provider is a provider user
+            if not hasattr(provider, 'provider'):
+                raise serializers.ValidationError({'provider': _('Selected user is not a provider.')})
+            # Check provider has no conflicting accepted scheduled ride within 1 hour window
+            window_start = scheduled_time - timezone.timedelta(minutes=60)
+            window_end = scheduled_time + timezone.timedelta(minutes=60)
+            conflict = ScheduledRide.objects.filter(
+                provider=provider,
+                status__in=[ScheduledRide.STATUS_ACCEPTED, ScheduledRide.STATUS_STARTED],
+                scheduled_time__range=(window_start, window_end)
+            ).exists()
+            if conflict:
+                raise serializers.ValidationError({'provider': _('Provider is not available around this time.')})
+
+        return attrs
+
+    def create(self, validated_data):
+        request = self.context.get('request')
+        validated_data['client'] = request.user
+        
+        # Calculate price, distance, and duration
+        service = validated_data.get('service')
+        sub_service = validated_data.get('sub_service')
+        pickup_lat = validated_data.get('pickup_lat')
+        pickup_lng = validated_data.get('pickup_lng')
+        drop_lat = validated_data.get('drop_lat')
+        drop_lng = validated_data.get('drop_lng')
+        
+        if service and pickup_lat and pickup_lng:
+            # Calculate distance and duration
+            distance_km = 0
+            duration_minutes = 0
+            
+            if drop_lat and drop_lng:
+                # Calculate distance between pickup and drop
+                distance_km = self._calculate_distance(pickup_lat, pickup_lng, drop_lat, drop_lng)
+            else:
+                # For one-way rides, use a default distance or calculate from user location
+                user_location_lat = request.user.location2_lat
+                user_location_lng = request.user.location2_lng
+                if user_location_lat and user_location_lng:
+                    distance_km = self._calculate_distance(pickup_lat, pickup_lng, user_location_lat, user_location_lng)
+            
+            duration_minutes = (distance_km / 30) * 60  # Assuming 30 km/h average speed
+            
+            # Get pricing for the service and location
+            print(f"Service: {service}, Sub Service: {sub_service}")
+            pricing = ProviderServicePricing.get_pricing_for_location(
+                service=service,
+                sub_service=sub_service,
+                lat=pickup_lat,
+                lng=pickup_lng
+            )
+            
+            if pricing:
+                total_price = pricing.calculate_price(
+                    distance_km=distance_km,
+                    duration_minutes=duration_minutes,
+                    pickup_time=validated_data.get('scheduled_time')
+                )
+                validated_data['total_price'] = total_price
+                validated_data['distance_km'] = distance_km
+                validated_data['duration_minutes'] = duration_minutes
+            else :
+                raise serializers.ValidationError({'sub_service': _('Sub Service not found.')})
+        
+        return ScheduledRide.objects.create(**validated_data)
+    
+    def _calculate_distance(self, lat1, lon1, lat2, lon2):
+        """Calculate distance between two points in kilometers"""
+        import math
+        R = 6371.0  # Radius of Earth in kilometers
+        phi1 = math.radians(lat1)
+        phi2 = math.radians(lat2)
+        d_phi = math.radians(lat2 - lat1)
+        d_lambda = math.radians(lon2 - lon1)
+
+        a = math.sin(d_phi / 2)**2 + math.cos(phi1) * math.cos(phi2) * math.sin(d_lambda / 2)**2
+        c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+
+        return round(R * c, 2)

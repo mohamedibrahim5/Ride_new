@@ -16,7 +16,9 @@ from authentication.models import (
     Rating,
     ProviderServicePricing,
     PricingZone,
-    NameOfCar
+    NameOfCar,
+    SubService,
+    ScheduledRide
 )
 from authentication.serializers import (
     UserSerializer,
@@ -51,7 +53,9 @@ from authentication.serializers import (
     RideHistorySerializer,
     PriceCalculationSerializer,
     ProviderOnlineStatusSerializer,
-    NameOfCarSerializer
+    NameOfCarSerializer,
+    SubServiceSerializer,
+    ScheduledRideSerializer
 )
 from authentication.choices import ROLE_CUSTOMER, ROLE_PROVIDER
 from authentication.permissions import IsAdminOrReadOnly, IsCustomer, IsCustomerOrAdmin, IsAdminOrCarAgency, IsStoreProvider, IsAdminOrOwnCarAgency, ProductImagePermission
@@ -379,6 +383,13 @@ class ServiceViewSet(viewsets.ModelViewSet):
     serializer_class = ServiceSerializer
     permission_classes = [IsAdminOrReadOnly]
 
+
+class SubServiceViewSet(viewsets.ModelViewSet):
+    queryset = SubService.objects.all()
+    serializer_class = SubServiceSerializer
+    permission_classes = [IsAdminOrReadOnly]
+
+
 class NameOfCarViewSet(viewsets.ModelViewSet):
     queryset = NameOfCar.objects.all()
     serializer_class = NameOfCarSerializer
@@ -429,9 +440,9 @@ class ProviderViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         service_id = self.request.query_params.get("service_id")
-        sub_service = self.request.query_params.get("sub_service")
+        sub_service_id = self.request.query_params.get("sub_service_id")
         
-        print(f"Debug - service_id: {service_id}, sub_service: {sub_service}")
+        print(f"Debug - service_id: {service_id}, sub_service_id: {sub_service_id}")
         
         # First, let's see all providers with maintenance service
         all_maintenance_providers = Provider.objects.filter(
@@ -445,20 +456,23 @@ class ProviderViewSet(viewsets.ModelViewSet):
             services__id=service_id,
             is_verified=True,
         ).select_related("user")
+
+        if sub_service_id:
+            queryset = queryset.filter(sub_services__id=sub_service_id)
         
         print(f"Providers with service_id {service_id} and verified: {queryset.count()}")
         
-        # Filter by sub_service if provided and service is maintenance
-        if sub_service and service_id:
-            try:
-                service = Service.objects.get(pk=service_id)
-                print(f"Service found: {service.name}")
-                if 'maintenance' in service.name.lower():
-                    queryset = queryset.filter(sub_service=sub_service)
-                    print(f"After sub_service filter: {queryset.count()}")
-            except Service.DoesNotExist:
-                print(f"Service with ID {service_id} not found")
-                pass
+        # # Filter by sub_service if provided and service is maintenance
+        # if sub_service and service_id:
+        #     try:
+        #         service = Service.objects.get(pk=service_id)
+        #         print(f"Service found: {service.name}")
+        #         if 'maintenance' in service.name.lower():
+        #             queryset = queryset.filter(sub_service=sub_service)
+        #             print(f"After sub_service filter: {queryset.count()}")
+        #     except Service.DoesNotExist:
+        #         print(f"Service with ID {service_id} not found")
+        #         pass
         
         return queryset
     
@@ -1833,24 +1847,40 @@ class UnreadNotificationCountView(generics.GenericAPIView):
 from rest_framework.views import APIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from authentication.models import RideStatus, Rating, Customer, Provider
+from authentication.models import RideStatus, ScheduledRide, Rating, ScheduledRideRating, Customer, Provider
 from authentication.serializers import RatingSerializer
 from django.db.models import Avg
 from rest_framework import status
+from channels.layers import get_channel_layer
+from asgiref.sync import async_to_sync
 
 class RateRideView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request, ride_id):
+        ride = None
+        ride_type = None
+        
+        # Try to find the ride in RideStatus first
         try:
             ride = RideStatus.objects.get(id=ride_id, status='finished')
+            ride_type = 'ridestatus'
         except RideStatus.DoesNotExist:
-            return Response({"error": "Ride not found or not completed."}, status=404)
+            # Try to find in ScheduledRide
+            try:
+                ride = ScheduledRide.objects.get(id=ride_id, status='finished')
+                ride_type = 'scheduledride'
+            except ScheduledRide.DoesNotExist:
+                return Response({"error": "Ride not found or not completed."}, status=404)
 
         if request.user not in [ride.client, ride.provider]:
             return Response({"error": "You are not part of this ride."}, status=403)
 
-        rating, created = Rating.objects.get_or_create(ride=ride)
+        # Get or create rating based on ride type
+        if ride_type == 'ridestatus':
+            rating, created = Rating.objects.get_or_create(ride=ride)
+        else:  # scheduledride
+            rating, created = ScheduledRideRating.objects.get_or_create(ride=ride)
 
         # Prevent duplicate ratings
         if request.user == ride.client and rating.driver_rating is not None:
@@ -1930,6 +1960,298 @@ class RateRideView(APIView):
         return Response(serializer.errors, status=400)
 
     def update_user_ratings(self, user):
+        """Update user's average ratings for both ride types"""
+        if isinstance(user, Provider):
+            # Calculate average driver ratings from both Rating and ScheduledRideRating
+            ride_ratings = Rating.objects.filter(
+                ride__provider=user, 
+                driver_rating__isnull=False
+            ).values_list('driver_rating', flat=True)
+            
+            scheduled_ratings = ScheduledRideRating.objects.filter(
+                ride__provider=user, 
+                driver_rating__isnull=False
+            ).values_list('driver_rating', flat=True)
+            
+            # Combine all ratings
+            all_ratings = list(ride_ratings) + list(scheduled_ratings)
+            if all_ratings:
+                user.average_rating = sum(all_ratings) / len(all_ratings)
+                user.total_ratings = len(all_ratings)
+                user.save(update_fields=['average_rating', 'total_ratings'])
+            
+        elif isinstance(user, Customer):
+            # Calculate average customer ratings from both Rating and ScheduledRideRating
+            ride_ratings = Rating.objects.filter(
+                ride__client=user, 
+                customer_rating__isnull=False
+            ).values_list('customer_rating', flat=True)
+            
+            scheduled_ratings = ScheduledRideRating.objects.filter(
+                ride__client=user, 
+                customer_rating__isnull=False
+            ).values_list('customer_rating', flat=True)
+            
+            # Combine all ratings
+            all_ratings = list(ride_ratings) + list(scheduled_ratings)
+            if all_ratings:
+                user.average_rating = sum(all_ratings) / len(all_ratings)
+                user.total_ratings = len(all_ratings)
+                user.save(update_fields=['average_rating', 'total_ratings'])
+
+
+
+                
+
+class ScheduleRideView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        if not hasattr(request.user, 'customer'):
+            return Response({"detail": "Only customers can schedule rides."}, status=403)
+        serializer = ScheduledRideSerializer(data=request.data, context={'request': request})
+        serializer.is_valid(raise_exception=True)
+        scheduled = serializer.save()
+
+        # Notify provider if chosen
+        if scheduled.provider:
+            create_notification(
+                user=scheduled.provider,
+                title="Scheduled Ride Request",
+                message=f"You have a scheduled ride request from {request.user.name} at {scheduled.scheduled_time}",
+                notification_type='ride_request',
+                data={'scheduled_ride_id': scheduled.id}
+            )
+            async_to_sync(get_channel_layer().group_send)(
+                f"user_{scheduled.provider.id}",
+                {
+                    "type": "send_apply_scheduled_ride",
+                    "data": {
+                        "type": "scheduled_ride",
+                        "scheduled_ride_id": scheduled.id,
+                        "client_id": request.user.id,
+                        "client_name": request.user.name,
+                        "scheduled_time": scheduled.scheduled_time.isoformat(),
+                        "total_price": scheduled.total_price,
+                    }
+                }
+            )
+        return Response(ScheduledRideSerializer(scheduled).data, status=201)
+
+
+class ProviderScheduledRideAcceptView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        scheduled_ride_id = request.data.get('scheduled_ride_id')
+        accept = request.data.get('accept', True)
+
+        from authentication.models import ScheduledRide as SR
+        try:
+            sr = SR.objects.select_related('client', 'provider').get(id=scheduled_ride_id)
+        except SR.DoesNotExist:
+            return Response({"detail": "Scheduled ride not found."}, status=404)
+
+        if sr.provider and sr.provider != request.user:
+            return Response({"detail": "You are not assigned to this scheduled ride."}, status=403)
+
+        # If no provider assigned yet, assign current provider on accept
+        if accept:
+            sr.provider = request.user
+            sr.status = SR.STATUS_ACCEPTED
+            sr.save()
+
+            print("sr.scheduled_time", sr.scheduled_time)
+
+            # Schedule Celery task to start the ride at the scheduled time
+            # try:
+            #     from authentication.tasks import start_scheduled_ride
+            #     start_scheduled_ride.apply_async((sr.id,), eta=sr.scheduled_time)
+            # except Exception:
+            #     pass
+
+            # why print connection refused 
+
+            try:
+                from authentication.tasks import send_notification_and_socket_to_client_and_provider
+                print("send_notification_and_socket_to_client_and_provider", sr.scheduled_time)
+                send_notification_and_socket_to_client_and_provider(sr.id)
+            except Exception as e:
+                print("error in send_notification_and_socket_to_client_and_provider", e)
+            
+                pass
+
+            # Notify client
+            create_notification(
+                user=sr.client,
+                title="Scheduled Ride Accepted",
+                message=f"Your scheduled ride at {sr.scheduled_time} was accepted by {request.user.name}",
+                notification_type='ride_accepted',
+                data={'scheduled_ride_id': sr.id}
+            )
+            async_to_sync(get_channel_layer().group_send)(
+                f"user_{sr.client.id}",
+                {
+                    "type": "send_acceptance",
+                    "data": {
+                        "type": "scheduled_ride",
+                        "scheduled_ride_id": sr.id,
+                        "provider_id": request.user.id,
+                        "provider_name": request.user.name,
+                    }
+                }
+            )
+            return Response({"status": "accepted", "scheduled_ride_id": sr.id})
+        else:
+            sr.status = SR.STATUS_CANCELLED
+            sr.save()
+            return Response({"status": "declined", "scheduled_ride_id": sr.id})
+
+
+class MyScheduledRidesView(APIView):
+    permission_classes = [IsAuthenticated]
+    filterset_fields = ['status', 'role']
+
+    def get(self, request):
+        user = request.user
+        
+        # Get scheduled rides where user is either client or provider
+        scheduled_rides = ScheduledRide.objects.filter(
+            models.Q(client=user) | models.Q(provider=user)
+        ).select_related(
+            'client', 'provider', 'service'
+        ).order_by('-scheduled_time')
+        
+        # Filter by status if provided
+        status = request.query_params.get('status')
+        if status:
+            scheduled_rides = scheduled_rides.filter(status=status)
+        
+        # Filter by role (customer/driver rides)
+        role = request.query_params.get('role')
+        if role == 'customer':
+            scheduled_rides = scheduled_rides.filter(client=user)
+        elif role == 'driver':
+            scheduled_rides = scheduled_rides.filter(provider=user)
+        
+        serializer = ScheduledRideSerializer(scheduled_rides, many=True)
+        return Response({
+            'scheduled_rides': serializer.data,
+            'total_count': scheduled_rides.count()
+        })
+
+
+class UpdateScheduledRideStatusView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        scheduled_ride_id = request.data.get('scheduled_ride_id')
+        new_status = request.data.get('status')
+        
+        valid_statuses = [
+            ScheduledRide.STATUS_STARTED,
+            ScheduledRide.STATUS_FINISHED,
+            ScheduledRide.STATUS_CANCELLED
+        ]
+        
+        if not scheduled_ride_id or new_status not in valid_statuses:
+            return Response({
+                "error": "scheduled_ride_id and valid status are required. Valid statuses: started, finished, cancelled"
+            }, status=400)
+
+        from authentication.models import ScheduledRide as SR
+        try:
+            scheduled_ride = SR.objects.select_related('client', 'provider').get(id=scheduled_ride_id)
+        except SR.DoesNotExist:
+            return Response({"error": "Scheduled ride not found."}, status=404)
+
+        # Only the assigned provider can update status
+        if scheduled_ride.provider != request.user:
+            return Response({"error": "You are not assigned to this scheduled ride."}, status=403)
+
+        # Validate status transitions
+        if scheduled_ride.status == SR.STATUS_PENDING:
+            return Response({"error": "Cannot update status of pending scheduled ride."}, status=400)
+        
+        if scheduled_ride.status == SR.STATUS_FINISHED:
+            return Response({"error": "Cannot update status of finished scheduled ride."}, status=400)
+        
+        if scheduled_ride.status == SR.STATUS_CANCELLED:
+            return Response({"error": "Cannot update status of cancelled scheduled ride."}, status=400)
+
+        # Update status
+        old_status = scheduled_ride.status
+        scheduled_ride.status = new_status
+        scheduled_ride.save()
+
+        # Handle status-specific logic
+        if new_status == SR.STATUS_FINISHED:
+            # Mark provider as available again
+            provider_profile = getattr(request.user, 'provider', None)
+            if provider_profile:
+                provider_profile.in_ride = False
+                provider_profile.save()
+                if hasattr(provider_profile, 'driver_profile'):
+                    provider_profile.driver_profile.status = 'available'
+                    provider_profile.driver_profile.save()
+
+        # Create notification for client
+        status_messages = {
+            SR.STATUS_STARTED: "Your scheduled ride has started.",
+            SR.STATUS_FINISHED: "Your scheduled ride has been completed.",
+            SR.STATUS_CANCELLED: "Your scheduled ride has been cancelled by the provider."
+        }
+        
+        notification_message = status_messages.get(new_status, f"Your scheduled ride status has been updated to {new_status}.")
+        
+        create_notification(
+            user=scheduled_ride.client,
+            title="Scheduled Ride Status Update",
+            message=notification_message,
+            notification_type='ride_status',
+            data={
+                'scheduled_ride_id': scheduled_ride.id,
+                'status': new_status,
+                'updated_by': request.user.id
+            }
+        )
+
+        # Send WebSocket notification
+        async_to_sync(get_channel_layer().group_send)(
+            f"user_{scheduled_ride.client.id}",
+            {
+                "type": "scheduled_ride_status_update",
+                "data": {
+                    "scheduled_ride_id": scheduled_ride.id,
+                    "status": new_status,
+                    "message": notification_message
+                }
+            }
+        )
+
+        # Send push notification
+        fcm_tokens = list(scheduled_ride.client.fcmdevice_set.values_list('registration_id', flat=True))
+        for token in fcm_tokens:
+            send_fcm_notification(
+                token=token,
+                title="Scheduled Ride Status Update",
+                body=notification_message,
+                data={
+                    "type": "scheduled_ride_status_update",
+                    "scheduled_ride_id": str(scheduled_ride.id),
+                    "status": new_status
+                }
+            )
+
+        return Response({
+            "status": "success",
+            "scheduled_ride_id": scheduled_ride.id,
+            "old_status": old_status,
+            "new_status": new_status,
+            "message": f"Scheduled ride status updated from {old_status} to {new_status}"
+        })
+
+    def update_user_ratings(self, user):
         """Update the average rating for a user"""
         if hasattr(user, 'customer'):
             ratings = Rating.objects.filter(ride__client=user).exclude(customer_rating__isnull=True)
@@ -1969,9 +2291,9 @@ class ProviderServicePricingViewSet(viewsets.ModelViewSet):
     filterset_fields = ['provider', 'service', 'sub_service', 'zone', 'is_active']
     search_fields = ['provider__user__name', 'service__name', 'sub_service', 'zone__name']
 
-def get_provider_service_pricing(provider, service):
+def get_provider_service_pricing(provider, service, sub_service=None):
     try:
-        return ProviderServicePricing.objects.get(provider=provider, service=service)
+        return ProviderServicePricing.objects.get(provider=provider, service=service, sub_service=sub_service)
     except ProviderServicePricing.DoesNotExist:
         return None
 
