@@ -18,8 +18,8 @@ DEBUG = True
 ALLOWED_HOSTS = ['*']
 
 CSRF_TRUSTED_ORIGINS = [
-    "https://ridenew-production-d802.up.railway.app",
-    "http://ridenew-production-d802.up.railway.app",
+    "https://ridenew-production-a6fe.up.railway.app",
+    "https://ridenew-production-a6fe.up.railway.app",
 ]
 
 INSTALLED_APPS = [
