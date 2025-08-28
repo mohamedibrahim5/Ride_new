@@ -971,9 +971,16 @@ class CarAgencySerializer(serializers.ModelSerializer):
 
 
 class CarAvailabilitySerializer(serializers.ModelSerializer):
+    carData = CarAgencySerializer(source='car', read_only=True)
     class Meta:
         model = CarAvailability
-        fields = '__all__'
+        fields = [
+            'id',
+            'car',
+            'carData',
+            'start_time',
+            'end_time',
+        ]
 
 
 
