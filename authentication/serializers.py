@@ -1558,7 +1558,7 @@ class ScheduledRideSerializer(serializers.ModelSerializer):
                 validated_data['distance_km'] = distance_km
                 validated_data['duration_minutes'] = duration_minutes
             else :
-                raise serializers.ValidationError({'sub_service': _('Sub Service not found.')})
+                raise serializers.ValidationError({'pricing': _('Pricing of this service is not found.')})
         
         return ScheduledRide.objects.create(**validated_data)
     
