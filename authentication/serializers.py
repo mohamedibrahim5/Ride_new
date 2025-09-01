@@ -1103,10 +1103,10 @@ class ProviderServicePricingSerializer(serializers.ModelSerializer):
             "car request",
             "food delivery"
         ]
-        if value.name.lower() not in allowed_services:
-            raise serializers.ValidationError(
-                _("Pricing can only be set for maintenance service, delivery service, car request, or food delivery.")
-            )
+        # if value.name.lower() not in allowed_services:
+        #     raise serializers.ValidationError(
+        #         _("Pricing can only be set for maintenance service, delivery service, car request, or food delivery.")
+        #     )
         return value
 
     def validate(self, attrs):
