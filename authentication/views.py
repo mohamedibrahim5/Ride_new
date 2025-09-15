@@ -1022,6 +1022,10 @@ class ProviderRideResponseView(APIView):
                         "provider_id": request.user.id,
                         "provider_name": request.user.name,
                         "accepted": accepted,
+                        "pickup_lat": ride.pickup_lat,
+                        "pickup_lng": ride.pickup_lng,
+                        "drop_lat": ride.drop_lat,
+                        "drop_lng": ride.drop_lng,
                         "provider_image": request.user.image.url if request.user.image else None,
                         "provider_phone": request.user.phone,
                         "avarage_rating": request.user.average_rating,
@@ -1194,6 +1198,11 @@ class UpdateRideStatusView(APIView):
                     "status": status,
                     "ride_id": ride.id,
                     "provider_id": ride.provider.id if ride.provider else None,
+                    "service_id": ride.service.id if ride.service else None,
+                    "pickup_lat": ride.pickup_lat,
+                    "pickup_lng": ride.pickup_lng,
+                    "drop_lat": ride.drop_lat,
+                    "drop_lng": ride.drop_lng,
                     "message": notification_body
                 }
             }
@@ -2022,17 +2031,39 @@ class ScheduleRideView(APIView):
                 notification_type='ride_request',
                 data={'scheduled_ride_id': scheduled.id}
             )
+            # Prepare full scheduled ride payload
+            try:
+                import json
+                from django.core.serializers.json import DjangoJSONEncoder
+                scheduled_payload = ScheduledRideSerializer(scheduled).data
+                scheduled_payload = json.loads(json.dumps(scheduled_payload, cls=DjangoJSONEncoder))
+            except Exception:
+                scheduled_payload = {
+                    "id": scheduled.id,
+                    "client": scheduled.client.id,
+                    "provider": getattr(scheduled.provider, 'id', None),
+                    "service": scheduled.service.id if scheduled.service else None,
+                    "sub_service": scheduled.sub_service.id if scheduled.sub_service else None,
+                    "pickup_lat": scheduled.pickup_lat,
+                    "pickup_lng": scheduled.pickup_lng,
+                    "drop_lat": scheduled.drop_lat,
+                    "drop_lng": scheduled.drop_lng,
+                    "scheduled_time": scheduled.scheduled_time.isoformat() if scheduled.scheduled_time else None,
+                    "status": scheduled.status,
+                    "total_price": float(scheduled.total_price) if scheduled.total_price is not None else None,
+                    "distance_km": scheduled.distance_km,
+                    "duration_minutes": scheduled.duration_minutes,
+                    "created_at": scheduled.created_at.isoformat() if scheduled.created_at else None,
+                }
             async_to_sync(get_channel_layer().group_send)(
                 f"user_{scheduled.provider.id}",
                 {
                     "type": "send_apply_scheduled_ride",
                     "data": {
                         "type": "scheduled_ride",
-                        "scheduled_ride_id": scheduled.id,
+                        "scheduled_ride": scheduled_payload,
                         "client_id": request.user.id,
                         "client_name": request.user.name,
-                        "scheduled_time": scheduled.scheduled_time.isoformat(),
-                        "total_price": scheduled.total_price,
                     }
                 }
             )
@@ -2089,13 +2120,44 @@ class ProviderScheduledRideAcceptView(APIView):
                 notification_type='ride_accepted',
                 data={'scheduled_ride_id': sr.id}
             )
+            service_data = ServiceSerializer(sr.service).data
+            print("service_data", service_data)
+
+            # i want to getting all data from service and passing to async_to_sync(get_channel_layer() 
+            
+            # Prepare full scheduled ride payload
+            try:
+                # Ensure JSON-serializable payload (Decimal, datetime, etc.)
+                import json
+                from django.core.serializers.json import DjangoJSONEncoder
+                scheduled_payload = ScheduledRideSerializer(sr).data
+                scheduled_payload = json.loads(json.dumps(scheduled_payload, cls=DjangoJSONEncoder))
+            except Exception:
+                scheduled_payload = {
+                    "id": sr.id,
+                    "client": sr.client.id,
+                    "provider": getattr(sr.provider, 'id', None),
+                    "service": sr.service.id if sr.service else None,
+                    "sub_service": sr.sub_service.id if sr.sub_service else None,
+                    "pickup_lat": sr.pickup_lat,
+                    "pickup_lng": sr.pickup_lng,
+                    "drop_lat": sr.drop_lat,
+                    "drop_lng": sr.drop_lng,
+                    "scheduled_time": sr.scheduled_time.isoformat() if sr.scheduled_time else None,
+                    "status": sr.status,
+                    "total_price": float(sr.total_price) if sr.total_price is not None else None,
+                    "distance_km": sr.distance_km,
+                    "duration_minutes": sr.duration_minutes,
+                    "created_at": sr.created_at.isoformat() if sr.created_at else None,
+                }
+
             async_to_sync(get_channel_layer().group_send)(
                 f"user_{sr.client.id}",
                 {
                     "type": "send_acceptance",
                     "data": {
                         "type": "scheduled_ride",
-                        "scheduled_ride_id": sr.id,
+                        "scheduled_ride": scheduled_payload,
                         "provider_id": request.user.id,
                         "provider_name": request.user.name,
                     }
@@ -2217,11 +2279,37 @@ class UpdateScheduledRideStatusView(APIView):
         )
 
         # Send WebSocket notification
+        # Include full scheduled ride payload for clients
+        try:
+            import json
+            from django.core.serializers.json import DjangoJSONEncoder
+            scheduled_payload = ScheduledRideSerializer(scheduled_ride).data
+            scheduled_payload = json.loads(json.dumps(scheduled_payload, cls=DjangoJSONEncoder))
+        except Exception:
+            scheduled_payload = {
+                "id": scheduled_ride.id,
+                "client": scheduled_ride.client.id,
+                "provider": getattr(scheduled_ride.provider, 'id', None),
+                "service": scheduled_ride.service.id if scheduled_ride.service else None,
+                "sub_service": scheduled_ride.sub_service.id if scheduled_ride.sub_service else None,
+                "pickup_lat": scheduled_ride.pickup_lat,
+                "pickup_lng": scheduled_ride.pickup_lng,
+                "drop_lat": scheduled_ride.drop_lat,
+                "drop_lng": scheduled_ride.drop_lng,
+                "scheduled_time": scheduled_ride.scheduled_time.isoformat() if scheduled_ride.scheduled_time else None,
+                "status": scheduled_ride.status,
+                "total_price": float(scheduled_ride.total_price) if scheduled_ride.total_price is not None else None,
+                "distance_km": scheduled_ride.distance_km,
+                "duration_minutes": scheduled_ride.duration_minutes,
+                "created_at": scheduled_ride.created_at.isoformat() if scheduled_ride.created_at else None,
+            }
         async_to_sync(get_channel_layer().group_send)(
             f"user_{scheduled_ride.client.id}",
             {
                 "type": "scheduled_ride_status_update",
                 "data": {
+                    "type": "scheduled_ride",
+                    "scheduled_ride": scheduled_payload,
                     "scheduled_ride_id": scheduled_ride.id,
                     "status": new_status,
                     "message": notification_message
