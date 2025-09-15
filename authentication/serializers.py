@@ -1103,10 +1103,10 @@ class ProviderServicePricingSerializer(serializers.ModelSerializer):
             "car request",
             "food delivery"
         ]
-        if value.name.lower() not in allowed_services:
-            raise serializers.ValidationError(
-                _("Pricing can only be set for maintenance service, delivery service, car request, or food delivery.")
-            )
+        # if value.name.lower() not in allowed_services:
+        #     raise serializers.ValidationError(
+        #         _("Pricing can only be set for maintenance service, delivery service, car request, or food delivery.")
+        #     )
         return value
 
     def validate(self, attrs):
@@ -1558,7 +1558,7 @@ class ScheduledRideSerializer(serializers.ModelSerializer):
                 validated_data['distance_km'] = distance_km
                 validated_data['duration_minutes'] = duration_minutes
             else :
-                raise serializers.ValidationError({'sub_service': _('Sub Service not found.')})
+                raise serializers.ValidationError({'pricing': _('Pricing of this service is not found.')})
         
         return ScheduledRide.objects.create(**validated_data)
     
