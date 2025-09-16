@@ -436,6 +436,10 @@ class CarAgency(models.Model):
     price_per_hour = models.DecimalField(_("Price per Hour"), max_digits=10, decimal_places=2)
     available = models.BooleanField(_("Available"), default=False)
     image = models.ImageField(_("Image"), upload_to="car_agency/images/", null=True, blank=True)
+    # Buying options
+    for_sale = models.BooleanField(_("For Sale"), default=False)
+    sale_price = models.DecimalField(_("Sale Price"), max_digits=12, decimal_places=2, null=True, blank=True)
+    is_sold = models.BooleanField(_("Is Sold"), default=False)
     created_at = models.DateTimeField(_("Created At"), auto_now_add=True)
     
     def __str__(self):
@@ -553,6 +557,47 @@ class CarRental(models.Model):
         verbose_name = _("Car Rental")
         verbose_name_plural = _("Car Rentals")
 
+class CarPurchase(models.Model):
+    STATUS_PENDING = "pending"
+    STATUS_CONFIRMED = "confirmed"
+    STATUS_COMPLETED = "completed"
+    STATUS_CANCELLED = "cancelled"
+
+    STATUS_CHOICES = [
+        (STATUS_PENDING, _("Pending")),
+        (STATUS_CONFIRMED, _("Confirmed")),
+        (STATUS_COMPLETED, _("Completed")),
+        (STATUS_CANCELLED, _("Cancelled")),
+    ]
+
+    customer = models.ForeignKey(Customer, on_delete=models.CASCADE, related_name="car_purchases", verbose_name=_("Customer"))
+    listing = models.ForeignKey('CarSaleListing', on_delete=models.CASCADE, related_name="purchases", verbose_name=_("Listing"), null=True, blank=True)
+    price = models.DecimalField(_("Price"), max_digits=12, decimal_places=2)
+    status = models.CharField(_("Status"), max_length=20, choices=STATUS_CHOICES, default=STATUS_PENDING)
+    created_at = models.DateTimeField(_("Created At"), auto_now_add=True)
+
+    class Meta:
+        verbose_name = _("Car Purchase")
+        verbose_name_plural = _("Car Purchases")
+
+    def __str__(self):
+        return f"{self.customer.user.name} buys {self.listing.brand} {self.listing.model}"
+
+    def save(self, *args, **kwargs):
+        is_new = self._state.adding
+        old_status = None
+        if not is_new:
+            old_status = CarPurchase.objects.get(pk=self.pk).status
+        # Auto-set price from listing if not provided
+        if not self.price and getattr(self, 'listing', None):
+            self.price = self.listing.price
+        super().save(*args, **kwargs)
+        if (is_new and self.status == self.STATUS_COMPLETED) or (not is_new and old_status != self.status and self.status == self.STATUS_COMPLETED):
+            if not self.listing.is_sold:
+                self.listing.is_sold = True
+                self.listing.is_active = False
+                self.listing.save(update_fields=["is_sold", "is_active"])
+
     
 
 class ProductImage(models.Model):
@@ -566,6 +611,56 @@ class ProductImage(models.Model):
     class Meta:
         verbose_name = _("Product Image")
         verbose_name_plural = _("Product Images")
+
+
+class CarSaleListing(models.Model):
+    TRANSMISSION_CHOICES = [
+        ("manual", _("Manual")),
+        ("automatic", _("Automatic")),
+    ]
+    FUEL_CHOICES = [
+        ("gasoline", _("Gasoline")),
+        ("diesel", _("Diesel")),
+        ("hybrid", _("Hybrid")),
+        ("electric", _("Electric")),
+    ]
+
+    provider = models.ForeignKey('Provider', on_delete=models.CASCADE, related_name='car_sale_listings', verbose_name=_('Provider'))
+    title = models.CharField(_("Title"), max_length=120)
+    brand = models.CharField(_("Brand"), max_length=50)
+    model = models.CharField(_("Model"), max_length=50)
+    year = models.PositiveIntegerField(_("Year"), null=True, blank=True)
+    mileage_km = models.PositiveIntegerField(_("Mileage (km)"), null=True, blank=True)
+    transmission = models.CharField(_("Transmission"), max_length=10, choices=TRANSMISSION_CHOICES, null=True, blank=True)
+    fuel_type = models.CharField(_("Fuel Type"), max_length=10, choices=FUEL_CHOICES, null=True, blank=True)
+    color = models.CharField(_("Color"), max_length=20, null=True, blank=True)
+    price = models.DecimalField(_("Price"), max_digits=12, decimal_places=2)
+    description = models.TextField(_("Description"), blank=True)
+    is_active = models.BooleanField(_("Is Active"), default=True)
+    is_sold = models.BooleanField(_("Is Sold"), default=False)
+    created_at = models.DateTimeField(_("Created At"), auto_now_add=True)
+
+    class Meta:
+        verbose_name = _("Car Sale Listing")
+        verbose_name_plural = _("Car Sale Listings")
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.title} - {self.brand} {self.model}"
+
+    def save(self, *args, **kwargs):
+        if self.is_sold:
+            self.is_active = False
+        super().save(*args, **kwargs)
+
+
+class CarSaleImage(models.Model):
+    listing = models.ForeignKey(CarSaleListing, related_name='images', on_delete=models.CASCADE, verbose_name=_('Listing'))
+    image = models.ImageField(upload_to='car_sale/images/', verbose_name=_('Image'))
+
+    class Meta:
+        verbose_name = _("Car Sale Image")
+        verbose_name_plural = _("Car Sale Images")
 
 
 class Notification(models.Model):

@@ -35,7 +35,7 @@ from django.utils import timezone
 from fcm_django.models import FCMDevice
 from django.contrib.gis.geos import Point
 from django.db.models import Avg
-from .models import CarAgency, CarAvailability, CarRental, ProductImage, ScheduledRide
+from .models import CarAgency, CarAvailability, CarRental, ProductImage, ScheduledRide, CarPurchase, CarSaleListing, CarSaleImage
 import math
 
 
@@ -847,6 +847,53 @@ class ProductImageSerializer(serializers.ModelSerializer):
         fields = ['id', 'product', 'image']
         read_only_fields = ['product']
 
+
+class CarSaleImageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CarSaleImage
+        fields = ['id', 'image']
+
+
+class CarSaleListingSerializer(serializers.ModelSerializer):
+    images = CarSaleImageSerializer(many=True, read_only=True)
+    uploaded_images = serializers.ListField(child=serializers.ImageField(), write_only=True, required=False)
+    provider = ProviderSerializer(read_only=True)
+
+    class Meta:
+        model = CarSaleListing
+        fields = [
+            'id', 'provider', 'title', 'brand', 'model', 'year', 'mileage_km',
+            'transmission', 'fuel_type', 'color', 'price', 'description',
+            'is_active', 'is_sold', 'images', 'uploaded_images', 'created_at'
+        ]
+        read_only_fields = ['provider', 'is_sold', 'created_at']
+
+    def to_internal_value(self, data):
+        uploaded_images = data.get('uploaded_images')
+        if uploaded_images and not isinstance(uploaded_images, list):
+            if hasattr(data, 'setlist'):
+                data.setlist('uploaded_images', [uploaded_images])
+            else:
+                data['uploaded_images'] = [uploaded_images]
+        return super().to_internal_value(data)
+
+    def create(self, validated_data):
+        images_data = validated_data.pop('uploaded_images', [])
+        request = self.context.get('request')
+        listing = CarSaleListing.objects.create(provider=request.user.provider, **validated_data)
+        for image in images_data:
+            CarSaleImage.objects.create(listing=listing, image=image)
+        return listing
+
+    def update(self, instance, validated_data):
+        images_data = validated_data.pop('uploaded_images', [])
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        for image in images_data:
+            CarSaleImage.objects.create(listing=instance, image=image)
+        return instance
+
 class ProductSerializer(serializers.ModelSerializer):
     images = ProductImageSerializer(many=True, read_only=True)
     provider_name = serializers.CharField(source='provider.user.name', read_only=True)
@@ -1064,6 +1111,63 @@ class CarRentalSerializer(serializers.ModelSerializer):
         validated_data['customer'] = self.context['request'].user.customer
         rental = CarRental.objects.create(**validated_data)
         return rental
+
+
+class CarPurchaseSerializer(serializers.ModelSerializer):
+    listing = CarSaleListingSerializer(read_only=True)
+    listing_id = serializers.PrimaryKeyRelatedField(source='listing', queryset=CarSaleListing.objects.filter(is_active=True, is_sold=False), write_only=True)
+    customer = CustomerSerializer(read_only=True)
+
+    class Meta:
+        model = CarPurchase
+        fields = [
+            'id',
+            'customer',
+            'listing',
+            'listing_id',
+            'price',
+            'status',
+            'created_at',
+        ]
+        read_only_fields = ['customer', 'price', 'created_at']
+
+    def validate(self, attrs):
+        listing = attrs.get('listing') if 'listing' in attrs else getattr(self.instance, 'listing', None)
+        if not listing:
+            raise serializers.ValidationError({'listing_id': _('Listing is required.')})
+        if not listing.is_active or listing.is_sold:
+            raise serializers.ValidationError({'listing_id': _('This listing is not available for purchase.')})
+        # Prevent duplicate or conflicting purchases
+        request = self.context.get('request')
+        customer = getattr(getattr(request, 'user', None), 'customer', None)
+        if customer:
+            # Has this customer already created a non-cancelled purchase for this listing?
+            exists_for_customer = CarPurchase.objects.filter(
+                listing=listing,
+                customer=customer,
+                status__in=[CarPurchase.STATUS_PENDING, CarPurchase.STATUS_CONFIRMED, CarPurchase.STATUS_COMPLETED]
+            )
+            if self.instance:
+                exists_for_customer = exists_for_customer.exclude(pk=self.instance.pk)
+            if exists_for_customer.exists():
+                raise serializers.ValidationError({'listing_id': _('You have already placed a purchase for this listing.')})
+
+        # Is there any active purchase for this listing (by anyone) that would block new one?
+        conflicting = CarPurchase.objects.filter(
+            listing=listing,
+            status__in=[CarPurchase.STATUS_PENDING, CarPurchase.STATUS_CONFIRMED, CarPurchase.STATUS_COMPLETED]
+        )
+        if self.instance:
+            conflicting = conflicting.exclude(pk=self.instance.pk)
+        if conflicting.exists():
+            raise serializers.ValidationError({'listing_id': _('This listing already has an active purchase and cannot be bought again.')})
+        attrs['price'] = listing.price
+        return attrs
+
+    def create(self, validated_data):
+        request = self.context.get('request')
+        validated_data['customer'] = request.user.customer
+        return CarPurchase.objects.create(**validated_data)
 
 class ProviderServicePricingSerializer(serializers.ModelSerializer):
     zone_name = serializers.CharField(source='zone.name', read_only=True)

@@ -12,13 +12,15 @@ from authentication.models import (
     CarAgency, 
     CarAvailability, 
     CarRental,
+    CarPurchase,
     Notification,
     Rating,
     ProviderServicePricing,
     PricingZone,
     NameOfCar,
     SubService,
-    ScheduledRide
+    ScheduledRide,
+    CarSaleListing
 )
 from authentication.serializers import (
     UserSerializer,
@@ -41,6 +43,7 @@ from authentication.serializers import (
     CarAgencySerializer,
     CarAvailabilitySerializer,
     CarRentalSerializer,
+    CarPurchaseSerializer,
     DriverProfileSerializer,
     ProductImageSerializer,
     ProviderDriverRegisterSerializer,
@@ -55,7 +58,8 @@ from authentication.serializers import (
     ProviderOnlineStatusSerializer,
     NameOfCarSerializer,
     SubServiceSerializer,
-    ScheduledRideSerializer
+    ScheduledRideSerializer,
+    CarSaleListingSerializer
 )
 from authentication.choices import ROLE_CUSTOMER, ROLE_PROVIDER
 from authentication.permissions import IsAdminOrReadOnly, IsCustomer, IsCustomerOrAdmin, IsAdminOrCarAgency, IsStoreProvider, IsAdminOrOwnCarAgency, ProductImagePermission
@@ -1021,6 +1025,7 @@ class ProviderRideResponseView(APIView):
                         "ride_id": ride.id, 
                         "provider_id": request.user.id,
                         "provider_name": request.user.name,
+                        "provider_phone": request.user.phone,
                         "accepted": accepted,
                         "pickup_lat": ride.pickup_lat,
                         "pickup_lng": ride.pickup_lng,
@@ -1818,6 +1823,96 @@ class CarRentalViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(customer=self.request.user.customer)
+class CarSaleListingViewSet(viewsets.ModelViewSet):
+    queryset = CarSaleListing.objects.select_related('provider__user').prefetch_related('images').all()
+    serializer_class = CarSaleListingSerializer
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    filterset_fields = ['brand', 'model', 'fuel_type', 'transmission', 'is_active']
+    search_fields = ['title', 'brand', 'model', 'description']
+
+    def get_permissions(self):
+        if self.action in ['create', 'update', 'partial_update', 'destroy']:
+            return [IsAdminOrCarAgency()]
+        return [AllowAny()]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        if self.request.user.is_staff:
+            return qs
+        provider = getattr(self.request.user, 'provider', None)
+        if provider and self.action in ['list', 'retrieve']:
+            return qs.filter(is_active=True)
+        if provider and self.action in ['update', 'partial_update', 'destroy']:
+            return qs.filter(provider=provider)
+        return qs.filter(is_active=True)
+
+
+from .permissions import IsProvider
+
+class CarPurchaseViewSet(viewsets.ModelViewSet):
+    queryset = CarPurchase.objects.select_related('listing__provider__user', 'customer__user').all()
+    serializer_class = CarPurchaseSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_permissions(self):
+        if self.action in ['create']:
+            return [IsAuthenticated(), IsCustomer()]
+        if self.action in ['update', 'partial_update', 'destroy']:
+            return [IsAuthenticated(), IsProvider()]
+        return [IsAuthenticated()]
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_staff:
+            return self.queryset
+        if hasattr(user, 'customer'):
+            return self.queryset.filter(customer=user.customer)
+        provider = getattr(user, 'provider', None)
+        if provider:
+            return self.queryset.filter(listing__provider=provider)
+        return CarPurchase.objects.none()
+
+    def perform_create(self, serializer):
+        serializer.save()
+
+    def _ensure_provider_owns_listing(self, instance):
+        user = self.request.user
+        if user.is_staff:
+            return True
+        provider = getattr(user, 'provider', None)
+        return bool(provider and instance.listing and instance.listing.provider_id == provider.id)
+
+    def update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if not self._ensure_provider_owns_listing(instance):
+            return Response({"detail": "Not allowed."}, status=status.HTTP_403_FORBIDDEN)
+        response = super().update(request, *args, **kwargs)
+        instance.refresh_from_db()
+        if instance.status == CarPurchase.STATUS_CONFIRMED and instance.listing:
+            if not instance.listing.is_sold:
+                instance.listing.is_sold = True
+                instance.listing.is_active = False
+                instance.listing.save(update_fields=["is_sold", "is_active"])
+        if instance.status == CarPurchase.STATUS_CANCELLED:
+            instance.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        return response
+
+    def partial_update(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if not self._ensure_provider_owns_listing(instance):
+            return Response({"detail": "Not allowed."}, status=status.HTTP_403_FORBIDDEN)
+        response = super().partial_update(request, *args, **kwargs)
+        instance.refresh_from_db()
+        if instance.status == CarPurchase.STATUS_CONFIRMED and instance.listing:
+            if not instance.listing.is_sold:
+                instance.listing.is_sold = True
+                instance.listing.is_active = False
+                instance.listing.save(update_fields=["is_sold", "is_active"])
+        if instance.status == CarPurchase.STATUS_CANCELLED:
+            instance.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        return response
 
 from .pagination import SimplePagination
 
@@ -2022,6 +2117,12 @@ class ScheduleRideView(APIView):
         serializer.is_valid(raise_exception=True)
         scheduled = serializer.save()
 
+
+        try:
+            driver_profile = DriverProfile.objects.get(provider__user=scheduled.provider)
+        except DriverProfile.DoesNotExist:
+            driver_profile = None
+
         # Notify provider if chosen
         if scheduled.provider:
             create_notification(
@@ -2055,6 +2156,33 @@ class ScheduleRideView(APIView):
                     "duration_minutes": scheduled.duration_minutes,
                     "created_at": scheduled.created_at.isoformat() if scheduled.created_at else None,
                 }
+            # Serialize driver profile (JSON safe)
+            driver_profile_payload = None
+            driver_car_payload = None
+            if driver_profile:
+                try:
+                    driver_profile_payload = DriverProfileSerializer(driver_profile).data
+                except Exception:
+                    driver_profile_payload = {
+                        'id': driver_profile.id,
+                        'license': driver_profile.license,
+                        'status': driver_profile.status,
+                        'is_verified': driver_profile.is_verified,
+                    }
+                # Attach driver's car details if available
+                try:
+                    if hasattr(driver_profile, 'car') and driver_profile.car:
+                        driver_car_payload = DriverCarSerializer(driver_profile.car).data
+                except Exception:
+                    car = getattr(driver_profile, 'car', None)
+                    if car:
+                        driver_car_payload = {
+                            'type': car.type,
+                            'model': car.model,
+                            'number': car.number,
+                            'color': car.color,
+                        }
+
             async_to_sync(get_channel_layer().group_send)(
                 f"user_{scheduled.provider.id}",
                 {
@@ -2064,6 +2192,9 @@ class ScheduleRideView(APIView):
                         "scheduled_ride": scheduled_payload,
                         "client_id": request.user.id,
                         "client_name": request.user.name,
+                        "provider_phone": request.user.phone,
+                        "driver_profile": driver_profile_payload,
+                        "driver_car": driver_car_payload
                     }
                 }
             )
@@ -2160,6 +2291,7 @@ class ProviderScheduledRideAcceptView(APIView):
                         "scheduled_ride": scheduled_payload,
                         "provider_id": request.user.id,
                         "provider_name": request.user.name,
+                        "provider_phone": request.user.phone,
                     }
                 }
             )
@@ -2312,7 +2444,8 @@ class UpdateScheduledRideStatusView(APIView):
                     "scheduled_ride": scheduled_payload,
                     "scheduled_ride_id": scheduled_ride.id,
                     "status": new_status,
-                    "message": notification_message
+                    "message": notification_message,
+                    "provider_phone": request.user.phone,
                 }
             }
         )

@@ -47,6 +47,9 @@ from authentication.models import (
     CarAgency,
     CarAvailability,
     CarRental,
+    CarPurchase,
+    CarSaleListing,
+    CarSaleImage,
     DriverProfile,
     ProductImage,
     ProviderServicePricing,
@@ -1310,9 +1313,9 @@ class RestaurantModelAdmin(admin.ModelAdmin):
     
 @admin.register(CarAgency)
 class CarAgencyAdmin(admin.ModelAdmin):
-    list_display = ("provider_name", "brand", "model", "color", "price_per_hour", "available", "created_at")
-    list_filter = ("provider", "brand", "color", "available", "created_at")
-    list_editable = ("available",)
+    list_display = ("provider_name", "brand", "model", "color", "price_per_hour", "available", "for_sale", "sale_price", "is_sold", "created_at")
+    list_filter = ("provider", "brand", "color", "available", "for_sale", "is_sold", "created_at")
+    list_editable = ("available", "for_sale", "sale_price")
     search_fields = ("provider__user__name", "brand", "model", "color")
     readonly_fields = ("created_at",)
     ordering = ("-created_at",)
@@ -1321,6 +1324,31 @@ class CarAgencyAdmin(admin.ModelAdmin):
         return obj.provider.user.name if obj.provider else '-'
     provider_name.short_description = _('Provider Name')
     provider_name.admin_order_field = 'provider__user__name'
+
+class CarSaleImageInline(admin.TabularInline):
+    model = CarSaleImage
+    extra = 0
+    readonly_fields = ['image_preview']
+    fields = ['image', 'image_preview']
+
+    def image_preview(self, obj):
+        if obj.image:
+            return format_html('<img src="{}" width="100" height="60" style="object-fit:cover;" />', obj.image.url)
+        return "-"
+    image_preview.short_description = "Preview"
+
+@admin.register(CarSaleListing)
+class CarSaleListingAdmin(admin.ModelAdmin):
+    list_display = ("provider_name", "title", "brand", "model", "year", "mileage_km", "price", "is_active", "is_sold", "created_at")
+    list_filter = ("brand", "model", "fuel_type", "transmission", "is_active", "is_sold", "created_at")
+    search_fields = ("title", "brand", "model", "provider__user__name")
+    list_editable = ("is_active",)
+    readonly_fields = ("created_at",)
+    inlines = [CarSaleImageInline]
+
+    def provider_name(self, obj):
+        return obj.provider.user.name if obj.provider else '-'
+    provider_name.short_description = _('Provider')
 
 @admin.register(CarAvailability)
 class CarAvailabilityAdmin(admin.ModelAdmin):
@@ -1335,6 +1363,33 @@ class CarAvailabilityAdmin(admin.ModelAdmin):
     def car_model(self, obj):
         return obj.car.model
     car_model.short_description = _('Model')
+
+@admin.register(CarPurchase)
+class CarPurchaseAdmin(admin.ModelAdmin):
+    list_display = ("customer_name", "listing_display", "price", "status_colored", "created_at")
+    list_filter = ("status", "created_at", "listing__provider")
+    search_fields = ("customer__user__name", "listing__brand", "listing__model")
+    readonly_fields = ("price", "created_at")
+    ordering = ("-created_at",)
+
+    def customer_name(self, obj):
+        return obj.customer.user.name
+    customer_name.short_description = _('Customer Name')
+
+    def listing_display(self, obj):
+        return f"{obj.listing.brand} {obj.listing.model} ({obj.listing.color})"
+    listing_display.short_description = _('Listing')
+
+    def status_colored(self, obj):
+        colors = {
+            'pending': 'orange',
+            'confirmed': 'blue',
+            'completed': 'green',
+            'cancelled': 'red',
+        }
+        color = colors.get(obj.status, 'black')
+        return format_html('<span style="color: {};"></span> {}', color, obj.get_status_display())
+    status_colored.short_description = _('Status')
 
 @admin.register(CarRental)
 class CarRentalAdmin(admin.ModelAdmin):

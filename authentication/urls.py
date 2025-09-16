@@ -27,6 +27,8 @@ from authentication.views import (
     CarAgencyViewSet, 
     CarAvailabilityViewSet, 
     CarRentalViewSet,
+    CarPurchaseViewSet,
+    CarSaleListingViewSet,
     DriverProfileViewSet, 
     NearbyRideRequestsView,
     DriverLocationUpdateView,
@@ -66,6 +68,8 @@ router.register(r'points', UserPointsViewSet, basename='points')
 router.register(r'cars', CarAgencyViewSet)
 router.register(r'availability', CarAvailabilityViewSet)
 router.register(r'rentals', CarRentalViewSet)
+router.register(r'car-purchases', CarPurchaseViewSet, basename='car-purchase')
+router.register(r'car-sales', CarSaleListingViewSet, basename='car-sale')
 router.register("driver-profiles", DriverProfileViewSet, basename="driver-profiles")
 router.register("service-pricing", ProviderServicePricingViewSet, basename="service-pricing")
 # router.register("pricing-zones", PricingZoneViewSet, basename="pricing-zones")
