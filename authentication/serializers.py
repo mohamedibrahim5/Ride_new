@@ -933,10 +933,14 @@ class PurchaseSerializer(serializers.ModelSerializer):
         
 class CarAgencySerializer(serializers.ModelSerializer):
     actual_free_times = serializers.SerializerMethodField()
+    provider = ProviderSerializer(read_only=True)
 
     class Meta:
         model = CarAgency
         fields = '__all__'
+
+    def get_provider(self, obj):
+        return ProviderSerializer(obj.provider).data
 
     def get_actual_free_times(self, obj):
         from django.utils import timezone
@@ -985,6 +989,9 @@ class CarAvailabilitySerializer(serializers.ModelSerializer):
 
 
 class CarRentalSerializer(serializers.ModelSerializer):
+    car = CarAgencySerializer(read_only=True)
+    customer = CustomerSerializer(read_only=True)
+
     class Meta:
         model = CarRental
         fields = [
