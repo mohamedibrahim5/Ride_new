@@ -20,7 +20,10 @@ from authentication.models import (
     NameOfCar,
     SubService,
     ScheduledRide,
-    CarSaleListing
+    CarSaleListing,
+    RestaurantModel, ProductCategory, Product, ProductImage,
+    Cart, CartItem, Order, OrderItem, Coupon, ReviewRestaurant, OfferRestaurant, DeliveryAddress
+    
 )
 from authentication.serializers import (
     UserSerializer,
@@ -59,7 +62,9 @@ from authentication.serializers import (
     NameOfCarSerializer,
     SubServiceSerializer,
     ScheduledRideSerializer,
-    CarSaleListingSerializer
+    CarSaleListingSerializer,
+    RestaurantSerializer, CategorySerializer, ProductSerializer, ProductImageSerializer,
+    CartSerializer, CartItemSerializer, OrderSerializer, CouponSerializer, ReviewSerializer, OfferSerializer, DeliveryAddressSerializer, NotificationSerializer
 )
 from authentication.choices import ROLE_CUSTOMER, ROLE_PROVIDER
 from authentication.permissions import IsAdminOrReadOnly, IsCustomer, IsCustomerOrAdmin, IsAdminOrCarAgency, IsStoreProvider, IsAdminOrOwnCarAgency, ProductImagePermission
@@ -2923,3 +2928,357 @@ def test_notification(request):
             "status": "error",
             "message": str(e)
         }, status=500)
+        
+        
+# core/utils.py
+import math
+
+def haversine_distance(lat1, lon1, lat2, lon2):
+    # returns distance in kilometers
+    if None in (lat1, lon1, lat2, lon2):
+        return None
+    R = 6371  # Earth radius in km
+    phi1 = math.radians(lat1)
+    phi2 = math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlambda = math.radians(lon2 - lon1)
+    a = math.sin(dphi/2)**2 + math.cos(phi1)*math.cos(phi2)*math.sin(dlambda/2)**2
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
+    return R * c
+
+
+class RestaurantViewSet(viewsets.ModelViewSet):
+    queryset = RestaurantModel.objects.all()
+    serializer_class = RestaurantSerializer
+    permission_classes = [IsAdminOrReadOnly]
+
+    def get_queryset(self):
+        qs = RestaurantModel.objects.all()
+        q = self.request.query_params.get('q')
+        lat = self.request.query_params.get('lat')
+        lng = self.request.query_params.get('lng')
+        offer = self.request.query_params.get('offer')
+        min_rating = self.request.query_params.get('min_rating')
+
+        if q:
+            qs = qs.filter(Q(restaurant_name__icontains=q) | Q(restaurant_description__icontains=q) | Q(categories__name__icontains=q)).distinct()
+        if offer in ['1','true','True']:
+            qs = qs.filter(offers__active=True).distinct()
+
+        if min_rating:
+            try:
+                qs = qs.filter(average_rating__gte=float(min_rating))
+            except:
+                pass
+
+        if lat and lng:
+            try:
+                lat_f = float(lat); lng_f = float(lng)
+                # annotate distance in python after fetch small set
+                restaurants = list(qs)
+                restaurants.sort(key=lambda r: (haversine_distance(lat_f,lng_f, r.latitude, r.longitude) or 999999))
+                return restaurants
+            except:
+                pass
+        return qs
+
+    @action(detail=True, methods=['get'])
+    def reviews(self, request, pk=None):
+        restaurant = self.get_object()
+        qs = restaurant.reviews.all()
+        page = self.paginate_queryset(qs)
+        if page is not None:
+            from .serializers import ReviewSerializer
+            serializer = ReviewSerializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        serializer = ReviewSerializer(qs, many=True)
+        return Response(serializer.data)
+
+class CategoryViewSet(viewsets.ModelViewSet):
+    queryset = ProductCategory.objects.all()
+    serializer_class = CategorySerializer
+    permission_classes = [IsAdminOrReadOnly]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        restaurant = self.request.query_params.get('restaurant')
+        if restaurant:
+            qs = qs.filter(restaurant_id=restaurant)
+        return qs
+
+class ProductViewSet(viewsets.ModelViewSet):
+    queryset = Product.objects.prefetch_related('images').all()
+    serializer_class = ProductSerializer
+    permission_classes = [IsAdminOrReadOnly]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        q = self.request.query_params.get('q')
+        category = self.request.query_params.get('category')
+        is_offer = self.request.query_params.get('is_offer')
+        if q:
+            qs = qs.filter(Q(name__icontains=q) | Q(description__icontains=q))
+        if category:
+            qs = qs.filter(category_id=category)
+        if is_offer in ['1','true','True']:
+            qs = qs.filter(is_offer=True)
+        return qs
+
+class ProductImageViewSet(viewsets.ModelViewSet):
+    queryset = ProductImage.objects.all()
+    serializer_class = ProductImageSerializer
+    permission_classes = [IsAdminOrReadOnly]
+
+class CartViewSet(viewsets.ViewSet):
+    permission_classes = []
+    serializer_class = CartSerializer
+
+    def list(self, request):
+        user = request.user
+        cart, _ = Cart.objects.get_or_create(customer=user)
+        serializer = CartSerializer(cart, context={'request': request})
+        return Response(serializer.data)
+
+    @action(detail=False, methods=['post'])
+    def add_item(self, request):
+        user = request.user
+        cart, _ = Cart.objects.get_or_create(customer=user)
+        product_id = request.data.get('product_id')
+        quantity = int(request.data.get('quantity', 1))
+        try:
+            product = Product.objects.get(pk=product_id)
+        except Product.DoesNotExist:
+            return Response({'error':'product not found'}, status=404)
+        item, created = CartItem.objects.get_or_create(cart=cart, product=product, defaults={'quantity': quantity})
+        if not created:
+            item.quantity += quantity
+            item.save()
+        return Response(CartSerializer(cart).data)
+
+    @action(detail=False, methods=['patch'])
+    def update_item(self, request):
+        item_id = request.data.get('item_id')
+        quantity = int(request.data.get('quantity', 1))
+        try:
+            item = CartItem.objects.get(pk=item_id, cart__customer=request.user)
+        except CartItem.DoesNotExist:
+            return Response({'error':'item not found'}, status=404)
+        if quantity <= 0:
+            item.delete()
+        else:
+            item.quantity = quantity
+            item.save()
+        cart = item.cart if hasattr(item, 'cart') else Cart.objects.get(customer=request.user)
+        return Response(CartSerializer(cart).data)
+
+    @action(detail=False, methods=['delete'])
+    def remove_item(self, request):
+        item_id = request.data.get('item_id')
+        try:
+            item = CartItem.objects.get(pk=item_id, cart__customer=request.user)
+            cart = item.cart
+            item.delete()
+            return Response(CartSerializer(cart).data)
+        except CartItem.DoesNotExist:
+            return Response({'error':'item not found'}, status=404)
+
+class OrderViewSet(viewsets.ModelViewSet):
+    queryset = Order.objects.all().order_by('-created_at')
+    serializer_class = OrderSerializer
+
+    def get_queryset(self):
+        user = self.request.user
+        return self.queryset.filter(customer=user)
+
+    def create(self, request, *args, **kwargs):
+        user = request.user
+        cart = Cart.objects.filter(customer=user).first()
+        if not cart or cart.items.count() == 0:
+            return Response({'error': 'cart empty'}, status=400)
+
+        restaurant_id = request.data.get('restaurant')
+        coupon_code = request.data.get('coupon')
+
+        try:
+            restaurant = RestaurantModel.objects.get(pk=restaurant_id)
+        except RestaurantModel.DoesNotExist:
+            return Response({'error': 'restaurant not found'}, status=404)
+
+        order = Order.objects.create(
+            customer=user,
+            restaurant=restaurant,
+            payment_method=request.data.get('payment_method', 'cash')
+        )
+
+        # نقل عناصر الكارت
+        for ci in cart.items.all():
+            OrderItem.objects.create(
+                order=order,
+                product=ci.product,
+                quantity=ci.quantity,
+                price=ci.product.display_price
+            )
+
+        # الكوبون
+        if coupon_code:
+            try:
+                coupon = Coupon.objects.get(code__iexact=coupon_code)
+                if coupon.is_valid():
+                    discount = (coupon.discount_percentage / 100.0) * order.total_price
+                    order.discount = discount
+                else:
+                    return Response({'error': 'coupon invalid'}, status=400)
+            except Coupon.DoesNotExist:
+                return Response({'error': 'coupon not found'}, status=404)
+
+        order.recalc_prices()
+
+        # تفريغ الكارت
+        cart.items.all().delete()
+
+        serializer = OrderSerializer(order)
+
+        # إشعار المطعم (مؤقت)
+        # Notification.objects.create(
+        #     user=order.restaurant.owner if hasattr(order.restaurant, 'owner') else order.restaurant,
+        #     title="New Order",
+        #     body=f"New order #{order.id}",
+        #     data={'order_id': order.id}
+        # )
+
+        return Response(serializer.data, status=201)
+
+    @action(detail=True, methods=['post'])
+    def cancel(self, request, pk=None):
+        order = self.get_object()
+        if order.status != 'pending':
+            return Response({'error':'cannot cancel after processing'}, status=400)
+        order.status = 'cancelled'
+        order.save()
+        return Response({'status':'cancelled'})
+    @action(detail=True, methods=['post'])
+
+    def reorder(self, request, pk=None):
+        original = self.get_object()
+        user = request.user
+        cart, _ = Cart.objects.get_or_create(customer=user)
+        # empty old cart if needed or keep
+        for oi in original.items.all():
+            CartItem.objects.create(cart=cart, product=oi.product, quantity=oi.quantity)
+        return Response(CartSerializer(cart).data)
+
+    @action(detail=True, methods=['get'])
+    def track(self, request, pk=None):
+        order = self.get_object()
+        # Placeholder: real location needs driver telemetry
+        data = {
+            'status': order.status,
+            'driver_location': {'latitude': None, 'longitude': None},
+            'expected_time_minutes': int(order.expected_order_time.total_seconds()//60)
+        }
+        return Response(data)
+
+class CouponViewSet(viewsets.ModelViewSet):
+    queryset = Coupon.objects.all()
+    serializer_class = CouponSerializer
+    permission_classes = [IsAdminOrReadOnly]
+
+    @action(detail=False, methods=['get'])
+    def validate(self, request):
+        code = request.query_params.get('code')
+        if not code:
+            return Response({'error':'code required'}, status=400)
+        try:
+            coupon = Coupon.objects.get(code__iexact=code)
+            return Response({'valid': coupon.is_valid(), 'discount_percentage': coupon.discount_percentage})
+        except Coupon.DoesNotExist:
+            return Response({'valid': False}, status=404)
+
+class ReviewViewSet(viewsets.ModelViewSet):
+    queryset = ReviewRestaurant.objects.all()
+    serializer_class = ReviewSerializer
+
+    def perform_create(self, serializer):
+        serializer.save(customer=self.request.user)
+
+class OfferViewSet(viewsets.ModelViewSet):
+    queryset = OfferRestaurant.objects.all()
+    serializer_class = OfferSerializer
+    permission_classes = [IsAdminOrReadOnly]
+
+class AddressViewSet(viewsets.ModelViewSet):
+    queryset = DeliveryAddress.objects.all()
+    serializer_class = DeliveryAddressSerializer
+
+    def get_queryset(self):
+        return self.queryset.filter(customer=self.request.user)
+
+
+from django.db.models import Sum, Count, F
+from django.utils.timezone import now
+class ReportViewSet(viewsets.ViewSet):
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self, request):
+        # restrict to restaurant owner
+        return Order.objects.filter(restaurant__owner=request.user)
+
+    @action(detail=False, methods=['get'])
+    def summary(self, request):
+        qs = self.get_queryset(request)
+        today = now().date()
+
+        daily_sales = qs.filter(created_at__date=today).aggregate(
+            total_orders=Count('id'),
+            total_revenue=Sum('total_price')
+        )
+
+        monthly_sales = qs.filter(created_at__month=today.month, created_at__year=today.year).aggregate(
+            total_orders=Count('id'),
+            total_revenue=Sum('total_price')
+        )
+
+        total_sales = qs.aggregate(
+            total_orders=Count('id'),
+            total_revenue=Sum('total_price')
+        )
+
+        return Response({
+            "daily": daily_sales,
+            "monthly": monthly_sales,
+            "total": total_sales
+        })
+
+    @action(detail=False, methods=['get'])
+    def sales(self, request):
+        """
+        Report grouped by date (daily revenue & order count).
+        Query params: ?period=daily OR ?period=monthly
+        """
+        period = request.query_params.get('period', 'daily')
+        qs = self.get_queryset(request)
+
+        if period == 'monthly':
+            report = (
+                qs.values(year=F('created_at__year'), month=F('created_at__month'))
+                  .annotate(total_orders=Count('id'), total_revenue=Sum('total_price'))
+                  .order_by('-year', '-month')
+            )
+        else:  # daily
+            report = (
+                qs.values(date=F('created_at__date'))
+                  .annotate(total_orders=Count('id'), total_revenue=Sum('total_price'))
+                  .order_by('-date')
+            )
+
+        return Response(report)
+
+    @action(detail=False, methods=['get'])
+    def totals(self, request):
+        qs = self.get_queryset(request)
+        totals = qs.aggregate(
+            total_orders=Count('id'),
+            total_revenue=Sum('total_price'),
+            avg_order_value=Sum('total_price') / Count('id') if qs.exists() else 0
+        )
+        return Response(totals)

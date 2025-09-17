@@ -1172,72 +1172,72 @@ class UserPointsAdmin(admin.ModelAdmin):
         return obj.user.date_joined
     created_at.short_description = _('Created At')
 
-class ProductAdminForm(forms.ModelForm):
-    class Meta:
-        model = Product
-        fields = '__all__'
+# class ProductAdminForm(forms.ModelForm):
+#     class Meta:
+#         model = Product
+#         fields = '__all__'
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.fields['provider'].queryset = Provider.objects.filter(services__name__icontains='store')
+#     def __init__(self, *args, **kwargs):
+#         super().__init__(*args, **kwargs)
+#         self.fields['provider'].queryset = Provider.objects.filter(services__name__icontains='store')
 
-class ProductImageInline(admin.TabularInline):
-    model = ProductImage
-    extra = 1
+# class ProductImageInline(admin.TabularInline):
+#     model = ProductImage
+#     extra = 1
     
-@admin.register(Product)
-class ProductAdmin(admin.ModelAdmin):
-    form = ProductAdminForm
-    list_display = ('image_preview', 'name', 'provider_name', 'display_price', 'stock', 'status', 'created_at')
-    list_filter = ('is_active', 'provider', 'created_at')
-    search_fields = ('name', 'description', 'provider__user__name')
-    ordering = ('-created_at',)
-    readonly_fields = ('created_at', 'updated_at')
-    fieldsets = (
-        (_('Basic Information'), {
-            'fields': ('name', 'description', 'provider')
-        }),
-        (_('Pricing and Stock'), {
-            'fields': ('display_price', 'stock')
-        }),
-        (_('Status'), {
-            'fields': ('is_active',)
-        }),
-        (_('Timestamps'), {
-            'fields': ('created_at', 'updated_at'),
-            'classes': ('collapse',)
-        }),
-    )
-    inlines = [ProductImageInline]
+# @admin.register(Product)
+# class ProductAdmin(admin.ModelAdmin):
+#     form = ProductAdminForm
+#     list_display = ('image_preview', 'name', 'provider_name', 'display_price', 'stock', 'status', 'created_at')
+#     list_filter = ('is_active', 'provider', 'created_at')
+#     search_fields = ('name', 'description', 'provider__user__name')
+#     ordering = ('-created_at',)
+#     readonly_fields = ('created_at', 'updated_at')
+#     fieldsets = (
+#         (_('Basic Information'), {
+#             'fields': ('name', 'description', 'provider')
+#         }),
+#         (_('Pricing and Stock'), {
+#             'fields': ('display_price', 'stock')
+#         }),
+#         (_('Status'), {
+#             'fields': ('is_active',)
+#         }),
+#         (_('Timestamps'), {
+#             'fields': ('created_at', 'updated_at'),
+#             'classes': ('collapse',)
+#         }),
+#     )
+#     inlines = [ProductImageInline]
 
-    def provider_name(self, obj):
-        return obj.provider.user.name
-    provider_name.short_description = _('Provider Name')
+#     def provider_name(self, obj):
+#         return obj.provider.user.name
+#     provider_name.short_description = _('Provider Name')
 
-    def status(self, obj):
-        if obj.is_active:
-            return format_html('<span style="color: green;">●</span> {}', _('Active'))
-        return format_html('<span style="color: red;">●</span> {}', _('Inactive'))
-    status.short_description = _('Status')
+#     def status(self, obj):
+#         if obj.is_active:
+#             return format_html('<span style="color: green;">●</span> {}', _('Active'))
+#         return format_html('<span style="color: red;">●</span> {}', _('Inactive'))
+#     status.short_description = _('Status')
 
-    def image_preview(self, obj):
-        images = obj.images.all()[:3]
-        if images:
-            html = ""
-            for image in images:
-                html += format_html(
-                    '<img src="{}" style="max-height: 40px; max-width: 40px; object-fit: cover; border-radius: 4px; margin-right: 2px;" />',
-                    image.image.url
-                )
-            return format_html(html)
-        return "No image"
-    image_preview.short_description = _("Preview")
-    image_preview.allow_tags = True
+#     def image_preview(self, obj):
+#         images = obj.images.all()[:3]
+#         if images:
+#             html = ""
+#             for image in images:
+#                 html += format_html(
+#                     '<img src="{}" style="max-height: 40px; max-width: 40px; object-fit: cover; border-radius: 4px; margin-right: 2px;" />',
+#                     image.image.url
+#                 )
+#             return format_html(html)
+#         return "No image"
+#     image_preview.short_description = _("Preview")
+#     image_preview.allow_tags = True
 
 @admin.register(Purchase)
 class PurchaseAdmin(admin.ModelAdmin):
     list_display = ('customer_name', 'product_name', 'money_spent', 'quantity', 'status_display', 'created_at')
-    list_filter = ('status', 'created_at', 'product__provider')
+    list_filter = ('status', 'created_at')
     search_fields = ('customer__user__name', 'product__name')
     ordering = ('-created_at',)
     readonly_fields = ('created_at',)

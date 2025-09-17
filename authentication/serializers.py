@@ -26,6 +26,10 @@ from authentication.models import (
     DriverCarImage,
     ScheduledRideRating,
     RestaurantModel,
+    WorkingDay, ProductCategory, Product, ProductImage, 
+    Cart, CartItem, Order, OrderItem, Coupon, ReviewRestaurant, OfferRestaurant,
+    DeliveryAddress
+    
 )
 from authentication.utils import send_sms, extract_user_data, update_user_data
 from django.utils.translation import gettext_lazy as _
@@ -1686,3 +1690,112 @@ class ScheduledRideSerializer(serializers.ModelSerializer):
         c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
         return round(R * c, 2)
+
+
+class ProductImageSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProductImage
+        fields = ['id','image','alt_text','is_primary','created_at']
+
+class ProductSerializer(serializers.ModelSerializer):
+    images = ProductImageSerializer(many=True, read_only=True)
+    class Meta:
+        model = Product
+        fields = ['id','category','name','description','display_price','stock','is_offer','is_active','images','created_at','updated_at']
+
+class CategorySerializer(serializers.ModelSerializer):
+    products = ProductSerializer(many=True, read_only=True)
+    class Meta:
+        model = ProductCategory
+        fields = ['id','restaurant','name','products']
+
+class WorkingDaySerializer(serializers.ModelSerializer):
+    class Meta:
+        model = WorkingDay
+        fields = ['id','restaurant','day_of_week','opening_time','closing_time']
+
+class RestaurantSerializer(serializers.ModelSerializer):
+    categories = CategorySerializer(many=True, read_only=True)
+    offers = serializers.SerializerMethodField()
+    reviews_count = serializers.SerializerMethodField()
+    class Meta:
+        model = RestaurantModel
+        fields = ['id','restaurant_name','restaurant_id_image','restaurant_description','phone','email','address','latitude','longitude','is_verified','average_rating','menu_link','categories','offers','reviews_count']
+
+    def get_offers(self, obj):
+        now = timezone.now()
+        offers = obj.offers.filter(active=True, valid_from__lte=now, valid_to__gte=now)
+        return OfferSerializer(offers, many=True).data
+
+    def get_reviews_count(self, obj):
+        return obj.reviews.count()
+
+class CartItemSerializer(serializers.ModelSerializer):
+    product = ProductSerializer(read_only=True)
+    product_id = serializers.PrimaryKeyRelatedField(write_only=True, queryset=Product.objects.all(), source='product')
+    class Meta:
+        model = CartItem
+        fields = ['id','cart','product','product_id','quantity']
+
+class CartSerializer(serializers.ModelSerializer):
+    items = CartItemSerializer(many=True, read_only=True)
+    total = serializers.SerializerMethodField()
+    class Meta:
+        model = Cart
+        fields = ['id','customer','created_at','items','total']
+    def get_total(self, obj):
+        return obj.total_price()
+
+class OrderItemSerializer(serializers.ModelSerializer):
+    product = ProductSerializer(read_only=True)
+    product_id = serializers.PrimaryKeyRelatedField(write_only=True, queryset=Product.objects.all(), source='product')
+    class Meta:
+        model = OrderItem
+        fields = ['id','order','product','product_id','quantity','price']
+
+class OrderSerializer(serializers.ModelSerializer):
+    items = OrderItemSerializer(many=True)
+
+    class Meta:
+        model = Order
+        fields = [
+            'id', 'customer', 'restaurant', 'driver',
+            'total_price', 'discount', 'final_price',
+            'status', 'payment_method',
+            'expected_order_time', 'created_at', 'items'
+        ]
+
+    def create(self, validated_data):
+        items_data = validated_data.pop('items')
+        order = Order.objects.create(**validated_data)
+        for it in items_data:
+            OrderItem.objects.create(
+                order=order,
+                product=it['product'],
+                quantity=it['quantity'],
+                price=it['price']
+            )
+        order.recalc_prices()
+        return order
+
+
+class CouponSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Coupon
+        fields = ['id','code','discount_percentage','valid_from','valid_to','active']
+
+class ReviewSerializer(serializers.ModelSerializer):
+    customer = serializers.PrimaryKeyRelatedField(read_only=True, default=serializers.CurrentUserDefault())
+    class Meta:
+        model = ReviewRestaurant
+        fields = ['id','customer','restaurant','rating','comment','created_at']
+
+class OfferSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = OfferRestaurant
+        fields = ['id','restaurant','title','description','discount_percentage','valid_from','valid_to','active']
+
+class DeliveryAddressSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DeliveryAddress
+        fields = ['id','customer','address','latitude','longitude','is_default']

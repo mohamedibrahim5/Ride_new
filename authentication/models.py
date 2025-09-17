@@ -9,6 +9,7 @@ from django.utils import timezone
 from django.contrib.postgres.fields import JSONField
 from django.core.validators import MinValueValidator, MaxValueValidator
 from django.core.exceptions import ValidationError
+from datetime import timedelta
 
 
 class WhatsAppAPISettings(models.Model):
@@ -176,7 +177,28 @@ class RestaurantModel(models.Model):
     restaurant_name = models.CharField(_("Restaurant Name"), max_length=200)
     restaurant_id_image = models.ImageField(_("Restaurant Logo"), upload_to="restaurant/logo/")
     restaurant_license = models.FileField(_("Restaurant License"), upload_to="restaurant/license/")
+    restaurant_description = models.TextField(_("Restaurant Description"), blank=True, null=True)
+    
+    # Contact & Location
+    phone = models.CharField(_("Phone"), max_length=20, blank=True, null=True)
+    email = models.EmailField(_("Email"), blank=True, null=True)
+    address = models.CharField(_("Address"), max_length=255, blank=True, null=True)
+    latitude = models.FloatField(_("Latitude"), blank=True, null=True)
+    longitude = models.FloatField(_("Longitude"), blank=True, null=True)
+    
+    # Restaurant Details
+    is_verified = models.BooleanField(_("Is Verified"), default=False)
+    
+    average_rating = models.DecimalField(
+        _("Average Rating"),
+        max_digits=3,
+        decimal_places=2,
+        default=0.0
+    )
+    menu_link = models.URLField(_("Menu Link"), blank=True, null=True)
+    
     created_at = models.DateTimeField(_("Created At"), auto_now_add=True)
+    updated_at = models.DateTimeField(_("Updated At"), auto_now=True)
 
     def __str__(self):
         return self.restaurant_name
@@ -185,6 +207,273 @@ class RestaurantModel(models.Model):
         verbose_name = _("Restaurant")
         verbose_name_plural = _("Restaurants")
 
+class WorkingDay(models.Model):
+    DAYS_OF_WEEK = [
+        (2, _("Monday")),
+        (3, _("Tuesday")),
+        (4, _("Wednesday")),
+        (5, _("Thursday")),
+        (6, _("Friday")),
+        (0, _("Saturday")),
+        (1, _("Sunday")),
+    ]
+    
+    restaurant = models.ForeignKey(RestaurantModel, on_delete=models.CASCADE, related_name="working_days")
+    day_of_week = models.IntegerField(_("Day of Week"), choices=DAYS_OF_WEEK)
+    opening_time = models.TimeField(_("Opening Time"))
+    closing_time = models.TimeField(_("Closing Time"))
+
+    class Meta:
+        verbose_name = _("Working Day")
+        verbose_name_plural = _("Working Days")
+        unique_together = ("restaurant", "day_of_week")  # Prevent duplicate days for the same restaurant
+        ordering = ["day_of_week"]
+
+    def __str__(self):
+        return f"{self.get_day_of_week_display()} - {self.restaurant.restaurant_name}"
+
+class ProductCategory(models.Model):
+    """
+    A logical menu/category per restaurant.
+    Example: 'Starters', 'Main Dishes', 'Drinks', etc.
+    """
+    restaurant = models.ForeignKey(
+        'RestaurantModel',
+        on_delete=models.CASCADE,
+        related_name='categories',
+        verbose_name=_("Restaurant")
+    )
+    name = models.CharField(_("Category Name"), max_length=100)
+
+    class Meta:
+        verbose_name = _("Product Category")
+        verbose_name_plural = _("Product Categories")
+        unique_together = ("restaurant", "name")
+        ordering = ["name"]
+
+    def __str__(self):
+        return f"{self.name} ({self.restaurant.restaurant_name})"
+
+
+class Product(models.Model):
+    # provider type -> online store
+    category = models.ForeignKey(
+        ProductCategory,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="products",
+        verbose_name=_("Category")
+    )
+    name = models.CharField(_("Name"), max_length=100)
+    description = models.TextField(_("Description"))
+    display_price = models.PositiveIntegerField(_("Display Price"), default=0)
+    stock = models.PositiveIntegerField(_("Stock"), default=0)
+    is_offer = models.BooleanField(_("Is Offer"), default=False)
+    is_active = models.BooleanField(_("Is Active"), default=True)
+    created_at = models.DateTimeField(_("Created At"), auto_now_add=True)
+    updated_at = models.DateTimeField(_("Updated At"), auto_now=True)
+
+    def __str__(self):
+        return self.name
+    
+    def save(self, *args, **kwargs):
+        if self.stock <= 0:
+            self.is_active = False
+        super().save(*args, **kwargs)
+
+    class Meta:
+        verbose_name = _("Product")
+        verbose_name_plural = _("Products")
+
+
+class ProductImage(models.Model):
+    product = models.ForeignKey(
+        Product, 
+        on_delete=models.CASCADE, 
+        related_name='images'
+    )
+    image = models.ImageField(_("Image"), upload_to="product/images/")
+    alt_text = models.CharField(
+        _('Alt Text'),
+        max_length=255,
+        blank=True,
+        help_text=_('Alternative text for accessibility')
+    )
+    is_primary = models.BooleanField(
+        _('Primary Image'),
+        default=False,
+        help_text=_('Use as main image for this service')
+    )
+    created_at = models.DateTimeField(_('created at'), auto_now_add=True)
+
+    class Meta:
+        verbose_name = _("Product Image")
+        verbose_name_plural = _("Product Images")
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Image for {self.product.name}"
+
+class Cart(models.Model):
+    customer = models.ForeignKey(
+        'User',
+        on_delete=models.CASCADE,
+        related_name='carts',
+        verbose_name=_("Customer")
+    )
+    created_at = models.DateTimeField(_("Created At"), auto_now_add=True)
+
+    def __str__(self):
+        return f"Cart #{self.id} - {self.customer.name}"
+
+    def total_price(self):
+        return sum([item.get_total_price() for item in self.items.all()])
+
+class CartItem(models.Model):
+    cart = models.ForeignKey(
+        Cart, 
+        on_delete=models.CASCADE,
+        related_name='items'
+    )
+    product = models.ForeignKey(Product, on_delete=models.CASCADE)
+    quantity = models.PositiveIntegerField(_("Quantity"), default=1)
+
+    def get_total_price(self):
+        return self.product.display_price * self.quantity
+
+    def __str__(self):
+        return f"{self.quantity}x {self.product.name}"
+    
+class Order(models.Model):
+    STATUS_CHOICES = [
+        ("pending", _("Pending")),
+        ("preparing", _("Preparing")),
+        ("on_the_way", _("On The Way")),
+        ("delivered", _("Delivered")),
+        ("cancelled", _("Cancelled")),
+    ]
+    PAYMENT_CHOICES = [
+        ("cash", _("Cash on Delivery")),
+        ("card", _("Credit/Debit Card")),
+        ("wallet", _("Wallet")),
+    ]
+
+    customer = models.ForeignKey(
+        'User',
+        on_delete=models.CASCADE,
+        related_name='orders',
+        verbose_name=_("Customer")
+    )
+    restaurant = models.ForeignKey(
+        'RestaurantModel',
+        on_delete=models.CASCADE,
+        related_name='orders',
+        verbose_name=_("Restaurant")
+    )
+    driver = models.ForeignKey(
+        'Provider',
+        on_delete=models.SET_NULL,
+        null=True, blank=True,
+        related_name='deliveries',
+        verbose_name=_("Driver")
+    )
+    
+    total_price = models.DecimalField(_("Total Price"), max_digits=10, decimal_places=2)
+    discount = models.DecimalField(_("Discount"), max_digits=10, decimal_places=2, default=0)
+    final_price = models.DecimalField(_("Final Price"), max_digits=10, decimal_places=2)
+    status = models.CharField(_("Status"), max_length=20, choices=STATUS_CHOICES, default="pending")
+    payment_method = models.CharField(_("Payment Method"), max_length=10, choices=PAYMENT_CHOICES, default="cash")  # 👈 جديد
+    expected_order_time = models.DurationField(
+        _("Expected Order Time"),
+        help_text=_("Expected preparation/delivery time (e.g., 00:30:00 for 30 minutes)."),
+        default=timedelta(minutes=30)
+    )
+    created_at = models.DateTimeField(_("Created At"), auto_now_add=True)
+
+    def __str__(self):
+        return f"Order #{self.id} - {self.customer.name}"
+    
+    def recalc_prices(self):
+        """Recalculate total and final prices based on items and discount."""
+        total = sum([item.quantity * item.price for item in self.items.all()])
+        self.total_price = total
+        self.final_price = max(total - self.discount, 0)
+        self.save(update_fields=["total_price", "final_price", "discount"])
+
+
+class OrderItem(models.Model):
+    order = models.ForeignKey(
+        Order,
+        on_delete=models.CASCADE,
+        related_name='items'
+    )
+    product = models.ForeignKey(Product, on_delete=models.CASCADE)
+    quantity = models.PositiveIntegerField(_("Quantity"), default=1)
+    price = models.DecimalField(_("Price"), max_digits=10, decimal_places=2)  # snapshot at order time
+
+    def __str__(self):
+        return f"{self.quantity}x {self.product.name}"
+    
+
+class Coupon(models.Model):
+    code = models.CharField(_("Code"), max_length=20, unique=True)
+    discount_percentage = models.PositiveIntegerField(_("Discount Percentage"), default=0)
+    valid_from = models.DateTimeField(_("Valid From"))
+    valid_to = models.DateTimeField(_("Valid To"))
+    active = models.BooleanField(_("Active"), default=True)
+
+    def is_valid(self):
+        now = timezone.now()
+        return self.active and self.valid_from <= now <= self.valid_to
+
+    def __str__(self):
+        return self.code
+    
+class ReviewRestaurant(models.Model):
+    customer = models.ForeignKey(
+        'User',
+        on_delete=models.CASCADE,
+        related_name='reviews'
+    )
+    restaurant = models.ForeignKey(
+        'RestaurantModel',
+        on_delete=models.CASCADE,
+        related_name='reviews'
+    )
+    rating = models.PositiveIntegerField(_("Rating"), default=5)
+    comment = models.TextField(_("Comment"), blank=True, null=True)
+    created_at = models.DateTimeField(_("Created At"), auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.customer.name} -> {self.restaurant.restaurant_name} ({self.rating})"
+
+class OfferRestaurant(models.Model):
+    restaurant = models.ForeignKey(
+        'RestaurantModel',
+        on_delete=models.CASCADE,
+        related_name='offers',
+        verbose_name=_("Restaurant")
+    )
+    title = models.CharField(_("Title"), max_length=100)
+    description = models.TextField(_("Description"))
+    discount_percentage = models.PositiveIntegerField(_("Discount Percentage"), default=0)
+    valid_from = models.DateTimeField(_("Valid From"))
+    valid_to = models.DateTimeField(_("Valid To"))
+    active = models.BooleanField(_("Active"), default=True)
+
+    def __str__(self):
+        return f"{self.title} - {self.restaurant.restaurant_name}"
+
+class DeliveryAddress(models.Model):
+    customer = models.ForeignKey('User', on_delete=models.CASCADE, related_name="addresses")
+    address = models.CharField(max_length=255)
+    latitude = models.FloatField()
+    longitude = models.FloatField()
+    is_default = models.BooleanField(default=False)
+
+    def __str__(self):
+        return f"{self.address} ({getattr(self.customer,'username',self.customer.id)})"
 
 
 class Provider(models.Model):
@@ -369,28 +658,28 @@ class UserPoints(models.Model):
         verbose_name_plural = _("User Points")
 
 
-class Product(models.Model):
-    # provider type -> online store
-    provider = models.ForeignKey(Provider, on_delete=models.CASCADE, related_name="products", verbose_name=_("Provider"))
-    name = models.CharField(_("Name"), max_length=100)
-    description = models.TextField(_("Description"))
-    display_price = models.PositiveIntegerField(_("Display Price"), default=0)
-    stock = models.PositiveIntegerField(_("Stock"), default=0)
-    is_active = models.BooleanField(_("Is Active"), default=True)
-    created_at = models.DateTimeField(_("Created At"), auto_now_add=True)
-    updated_at = models.DateTimeField(_("Updated At"), auto_now=True)
+# class Product(models.Model):
+#     # provider type -> online store
+#     provider = models.ForeignKey(Provider, on_delete=models.CASCADE, related_name="products", verbose_name=_("Provider"))
+#     name = models.CharField(_("Name"), max_length=100)
+#     description = models.TextField(_("Description"))
+#     display_price = models.PositiveIntegerField(_("Display Price"), default=0)
+#     stock = models.PositiveIntegerField(_("Stock"), default=0)
+#     is_active = models.BooleanField(_("Is Active"), default=True)
+#     created_at = models.DateTimeField(_("Created At"), auto_now_add=True)
+#     updated_at = models.DateTimeField(_("Updated At"), auto_now=True)
 
-    def __str__(self):
-        return self.name
+#     def __str__(self):
+#         return self.name
     
-    def save(self, *args, **kwargs):
-        if self.stock <= 0:
-            self.is_active = False
-        super().save(*args, **kwargs)
+#     def save(self, *args, **kwargs):
+#         if self.stock <= 0:
+#             self.is_active = False
+#         super().save(*args, **kwargs)
 
-    class Meta:
-        verbose_name = _("Product")
-        verbose_name_plural = _("Products")
+#     class Meta:
+#         verbose_name = _("Product")
+#         verbose_name_plural = _("Products")
 
 
 class Purchase(models.Model):

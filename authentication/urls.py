@@ -50,6 +50,9 @@ from authentication.views import (
     ProviderScheduledRideAcceptView,
     UpdateScheduledRideStatusView,
     MyScheduledRidesView,
+    RestaurantViewSet, CategoryViewSet, ProductViewSet, ProductImageViewSet,
+    CartViewSet, OrderViewSet, CouponViewSet, ReviewViewSet, OfferViewSet,
+    AddressViewSet
 )
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
@@ -72,6 +75,16 @@ router.register(r'car-purchases', CarPurchaseViewSet, basename='car-purchase')
 router.register(r'car-sales', CarSaleListingViewSet, basename='car-sale')
 router.register("driver-profiles", DriverProfileViewSet, basename="driver-profiles")
 router.register("service-pricing", ProviderServicePricingViewSet, basename="service-pricing")
+router.register(r'restaurants', RestaurantViewSet, basename='restaurants')
+router.register(r'categories', CategoryViewSet, basename='categories')
+router.register(r'products', ProductViewSet, basename='products')
+router.register(r'product-images', ProductImageViewSet, basename='product-images')
+router.register(r'cart', CartViewSet, basename='cart')
+router.register(r'orders', OrderViewSet, basename='orders')
+router.register(r'coupons', CouponViewSet, basename='coupons')
+router.register(r'reviews', ReviewViewSet, basename='reviews')
+router.register(r'offers', OfferViewSet, basename='offers')
+router.register(r'addresses', AddressViewSet, basename='addresses')
 # router.register("pricing-zones", PricingZoneViewSet, basename="pricing-zones")
 
 
