@@ -1718,9 +1718,11 @@ class RestaurantSerializer(serializers.ModelSerializer):
     categories = CategorySerializer(many=True, read_only=True)
     offers = serializers.SerializerMethodField()
     reviews_count = serializers.SerializerMethodField()
+    working_days = WorkingDaySerializer(many=True, read_only=True)
+    
     class Meta:
         model = RestaurantModel
-        fields = ['id','restaurant_name','restaurant_id_image','restaurant_description','phone','email','address','latitude','longitude','is_verified','average_rating','menu_link','categories','offers','reviews_count']
+        fields = ['id','restaurant_name','restaurant_id_image','restaurant_description','phone','email','address','latitude','longitude','is_verified','average_rating','menu_link','categories','offers','reviews_count', 'working_days']
 
     def get_offers(self, obj):
         now = timezone.now()
