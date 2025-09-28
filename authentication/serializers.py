@@ -1698,10 +1698,33 @@ class ProductImageSerializer(serializers.ModelSerializer):
         fields = ['id','image','alt_text','is_primary','created_at']
 
 class ProductSerializer(serializers.ModelSerializer):
-    images = ProductImageSerializer(many=True, read_only=True)
+    images = ProductImageSerializer(many=True, required=False)
     class Meta:
         model = Product
         fields = ['id','category','name','description','display_price','stock','is_offer','is_active','images','created_at','updated_at']
+    
+    def create(self, validated_data):
+        images_data = validated_data.pop('images', [])
+        product = Product.objects.create(**validated_data)
+        for img_data in images_data:
+            ProductImage.objects.create(product=product, **img_data)
+        return product
+
+    def update(self, instance, validated_data):
+        images_data = validated_data.pop('images', None)
+
+        # Update basic fields
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+
+        if images_data is not None:
+            # Delete old images if client sends new ones
+            instance.images.all().delete()
+            for img_data in images_data:
+                ProductImage.objects.create(product=instance, **img_data)
+
+        return instance
 
 class CategorySerializer(serializers.ModelSerializer):
     products = ProductSerializer(many=True, read_only=True)
