@@ -1718,11 +1718,27 @@ class RestaurantSerializer(serializers.ModelSerializer):
     categories = CategorySerializer(many=True, read_only=True)
     offers = serializers.SerializerMethodField()
     reviews_count = serializers.SerializerMethodField()
-    working_days = WorkingDaySerializer(many=True, read_only=True)
+    working_days = WorkingDaySerializer(many=True)
     
     class Meta:
         model = RestaurantModel
         fields = ['id','restaurant_name','restaurant_id_image','restaurant_description','phone','email','address','latitude','longitude','is_verified','average_rating','menu_link','categories','offers','reviews_count', 'working_days']
+    
+    def create(self, validated_data):
+        working_days_data = validated_data.pop('working_days', [])
+        restaurant = super().create(validated_data)
+        for wd in working_days_data:
+            WorkingDay.objects.create(restaurant=restaurant, **wd)
+        return restaurant
+
+    def update(self, instance, validated_data):
+        working_days_data = validated_data.pop('working_days', None)
+        instance = super().update(instance, validated_data)
+        if working_days_data is not None:
+            instance.working_days.all().delete()
+            for wd in working_days_data:
+                WorkingDay.objects.create(restaurant=instance, **wd)
+        return instance
 
     def get_offers(self, obj):
         now = timezone.now()
