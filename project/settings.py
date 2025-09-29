@@ -141,7 +141,7 @@ if DEBUG:
     # settings.py or your appropriate config file
 
     REDIS_USER = "default"
-    REDIS_PASSWORD = "zQxrNvShCxZwBsDFPYzZhXoasgEorBND"
+    REDIS_PASSWORD = "uTdWhHjKcWlFWbcztjYyHrewzfKybtJl"
     REDIS_HOST = "redis.railway.internal"
     REDIS_PORT = 6379
     REDIS_DB = 0
