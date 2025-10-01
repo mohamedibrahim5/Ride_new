@@ -174,6 +174,7 @@ class ServiceImage(models.Model):
 
 
 class RestaurantModel(models.Model):
+    provider = models.ForeignKey('Provider', on_delete=models.CASCADE, verbose_name=_("Provider"), related_name='restaurants', blank=True, null=True)
     restaurant_name = models.CharField(_("Restaurant Name"), max_length=200)
     restaurant_id_image = models.ImageField(_("Restaurant Logo"), upload_to="restaurant/logo/")
     restaurant_license = models.FileField(_("Restaurant License"), upload_to="restaurant/license/")
@@ -255,6 +256,49 @@ class ProductCategory(models.Model):
         return f"{self.name} ({self.restaurant.restaurant_name})"
 
 
+
+
+    
+class ProductRestaurant(models.Model):
+    category = models.ForeignKey(ProductCategory, on_delete=models.CASCADE, related_name="products_restaurant", verbose_name=_("Category"))
+    name = models.CharField(_("Name"), max_length=100)
+    description = models.TextField(_("Description"))
+    display_price = models.PositiveIntegerField(_("Display Price"), default=0)
+    stock = models.PositiveIntegerField(_("Stock"), default=0)
+    is_offer = models.BooleanField(_("Is Offer"), default=False)
+    is_active = models.BooleanField(_("Is Active"), default=True)
+    # Primary image stored directly on the product (additional images can still use related model)
+    created_at = models.DateTimeField(_("Created At"), auto_now_add=True)
+    updated_at = models.DateTimeField(_("Updated At"), auto_now=True)
+    # Use JSONField for cross-database compatibility (SQLite doesn't support ArrayField)
+    images = models.JSONField(_("Images"), default=list, blank=True)
+    
+    
+    
+    def __str__(self):
+        return self.name
+    
+    class Meta:
+        verbose_name = _("Product Restaurant")
+        verbose_name_plural = _("Product Restaurants")
+        ordering = ["name"]
+
+
+class ProductImageRestaurant(models.Model):
+    product = models.ForeignKey(ProductRestaurant, on_delete=models.CASCADE, related_name="images_restaurant", verbose_name=_("Product"))
+    image = models.ImageField(_("Image"), upload_to="product/images/")
+    alt_text = models.CharField(_("Alt Text"), max_length=255)
+    is_primary = models.BooleanField(_("Is Primary"), default=False)
+    created_at = models.DateTimeField(_("Created At"), auto_now_add=True)
+    updated_at = models.DateTimeField(_("Updated At"), auto_now=True)
+
+    class Meta:
+        verbose_name = _("Product Image Restaurant")
+        verbose_name_plural = _("Product Images Restaurant")
+        unique_together = ("product", "image")
+        ordering = ["created_at"]
+        
+
 class Product(models.Model):
     # provider type -> online store
     category = models.ForeignKey(
@@ -287,33 +331,33 @@ class Product(models.Model):
         verbose_name_plural = _("Products")
 
 
-class ProductImage(models.Model):
-    product = models.ForeignKey(
-        Product, 
-        on_delete=models.CASCADE, 
-        related_name='images'
-    )
-    image = models.ImageField(_("Image"), upload_to="product/images/")
-    alt_text = models.CharField(
-        _('Alt Text'),
-        max_length=255,
-        blank=True,
-        help_text=_('Alternative text for accessibility')
-    )
-    is_primary = models.BooleanField(
-        _('Primary Image'),
-        default=False,
-        help_text=_('Use as main image for this service')
-    )
-    created_at = models.DateTimeField(_('created at'), auto_now_add=True)
+# class ProductImage(models.Model):
+#     product = models.ForeignKey(
+#         Product, 
+#         on_delete=models.CASCADE, 
+#         related_name='images'
+#     )
+#     image = models.ImageField(_("Image"), upload_to="product/images/")
+#     alt_text = models.CharField(
+#         _('Alt Text'),
+#         max_length=255,
+#         blank=True,
+#         help_text=_('Alternative text for accessibility')
+#     )
+#     is_primary = models.BooleanField(
+#         _('Primary Image'),
+#         default=False,
+#         help_text=_('Use as main image for this service')
+#     )
+#     created_at = models.DateTimeField(_('created at'), auto_now_add=True)
 
-    class Meta:
-        verbose_name = _("Product Image")
-        verbose_name_plural = _("Product Images")
-        ordering = ['-created_at']
+#     class Meta:
+#         verbose_name = _("Product Image")
+#         verbose_name_plural = _("Product Images")
+#         ordering = ['-created_at']
 
-    def __str__(self):
-        return f"Image for {self.product.name}"
+#     def __str__(self):
+#         return f"Image for {self.product.name}"
 
 class Cart(models.Model):
     customer = models.ForeignKey(
@@ -336,7 +380,7 @@ class CartItem(models.Model):
         on_delete=models.CASCADE,
         related_name='items'
     )
-    product = models.ForeignKey(Product, on_delete=models.CASCADE)
+    product = models.ForeignKey(ProductRestaurant, on_delete=models.CASCADE)
     quantity = models.PositiveIntegerField(_("Quantity"), default=1)
 
     def get_total_price(self):
@@ -379,9 +423,9 @@ class Order(models.Model):
         verbose_name=_("Driver")
     )
     
-    total_price = models.DecimalField(_("Total Price"), max_digits=10, decimal_places=2)
+    total_price = models.DecimalField(_("Total Price"), max_digits=10, decimal_places=2, default=0)
     discount = models.DecimalField(_("Discount"), max_digits=10, decimal_places=2, default=0)
-    final_price = models.DecimalField(_("Final Price"), max_digits=10, decimal_places=2)
+    final_price = models.DecimalField(_("Final Price"), max_digits=10, decimal_places=2, default=0)
     status = models.CharField(_("Status"), max_length=20, choices=STATUS_CHOICES, default="pending")
     payment_method = models.CharField(_("Payment Method"), max_length=10, choices=PAYMENT_CHOICES, default="cash")  # 👈 جديد
     expected_order_time = models.DurationField(
@@ -408,7 +452,7 @@ class OrderItem(models.Model):
         on_delete=models.CASCADE,
         related_name='items'
     )
-    product = models.ForeignKey(Product, on_delete=models.CASCADE)
+    product = models.ForeignKey(ProductRestaurant, on_delete=models.CASCADE)
     quantity = models.PositiveIntegerField(_("Quantity"), default=1)
     price = models.DecimalField(_("Price"), max_digits=10, decimal_places=2)  # snapshot at order time
 
@@ -416,11 +460,15 @@ class OrderItem(models.Model):
         return f"{self.quantity}x {self.product.name}"
     
 
+def default_coupon_valid_to():
+    return timezone.now() + timedelta(days=365)
+
+
 class Coupon(models.Model):
     code = models.CharField(_("Code"), max_length=20, unique=True)
     discount_percentage = models.PositiveIntegerField(_("Discount Percentage"), default=0)
-    valid_from = models.DateTimeField(_("Valid From"))
-    valid_to = models.DateTimeField(_("Valid To"))
+    valid_from = models.DateTimeField(_("Valid From"), default=timezone.now)
+    valid_to = models.DateTimeField(_("Valid To"), default=default_coupon_valid_to)
     active = models.BooleanField(_("Active"), default=True)
 
     def is_valid(self):
@@ -479,13 +527,13 @@ class DeliveryAddress(models.Model):
 class Provider(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE, verbose_name=_("User"))
     services = models.ManyToManyField(Service, verbose_name=_("Services"))
-    sub_services = models.ManyToManyField(SubService, verbose_name=_("Sub Services"),blank=True,null=True)
+    sub_services = models.ManyToManyField(SubService, verbose_name=_("Sub Services"), blank=True)
     name_of_car = models.ForeignKey(NameOfCar, on_delete=models.CASCADE, verbose_name=_("Name Of Car"),blank=True,null=True)
     sub_service = models.CharField(_("Sub Service"), max_length=50, blank=True, null=True)
     is_verified = models.BooleanField(_("Is Verified"), default=False)
     in_ride = models.BooleanField(_("In Ride"), default=False)
     onLine = models.BooleanField(_("On Line"), default=True,null=True,blank=True)
-    restaurant = models.ForeignKey(RestaurantModel, on_delete=models.CASCADE, verbose_name=_("Restaurant"),blank=True,null=True)
+    # restaurant = models.ForeignKey(RestaurantModel, on_delete=models.CASCADE, verbose_name=_("Restaurant"),blank=True,null=True)
 
     def __str__(self):
         return self.user.name
@@ -1254,7 +1302,7 @@ class Invoice(models.Model):
     def __str__(self):
         return f"Invoice #{self.id} for Ride #{self.ride_id}"
     
-class Coupon(models.Model):
+class CouponRestaurant(models.Model):
     code = models.CharField(_("Code"), max_length=50, unique=True)
     discount_percentage = models.DecimalField(_("Discount Percentage"), max_digits=5, decimal_places=2, validators=[MinValueValidator(0), MaxValueValidator(100)])
     is_active = models.BooleanField(_("Is Active"), default=True)

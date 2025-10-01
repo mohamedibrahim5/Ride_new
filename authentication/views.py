@@ -21,8 +21,9 @@ from authentication.models import (
     SubService,
     ScheduledRide,
     CarSaleListing,
-    RestaurantModel, ProductCategory, Product, ProductImage,
-    Cart, CartItem, Order, OrderItem, Coupon, ReviewRestaurant, OfferRestaurant, DeliveryAddress
+    RestaurantModel, ProductCategory, Product, ProductImage,ProductImageRestaurant,ProductRestaurant,
+    Cart, CartItem, Order, OrderItem, Coupon, ReviewRestaurant, OfferRestaurant, DeliveryAddress,
+    CouponRestaurant
     
 )
 from authentication.serializers import (
@@ -64,7 +65,9 @@ from authentication.serializers import (
     ScheduledRideSerializer,
     CarSaleListingSerializer,
     RestaurantSerializer, CategorySerializer, ProductSerializer, ProductImageSerializer,
-    CartSerializer, CartItemSerializer, OrderSerializer, CouponSerializer, ReviewSerializer, OfferSerializer, DeliveryAddressSerializer, NotificationSerializer
+    CartSerializer, CartItemSerializer, OrderSerializer, ReviewSerializer, OfferSerializer, DeliveryAddressSerializer, NotificationSerializer,
+    ProductRestaurantSerializer, ProductImageRestaurantSerializer,
+    CouponRestaurantSerializer
 )
 from authentication.choices import ROLE_CUSTOMER, ROLE_PROVIDER
 from authentication.permissions import IsAdminOrReadOnly, IsCustomer, IsCustomerOrAdmin, IsAdminOrCarAgency, IsStoreProvider, IsAdminOrOwnCarAgency, ProductImagePermission
@@ -104,6 +107,7 @@ from django.core.files.uploadedfile import UploadedFile
 import json
 
 from authentication.utils import set_request_data, clear_request_data, get_request_data
+import re
 
 
 def flatten_form_data(data):
@@ -172,10 +176,15 @@ class UserRegisterView(generics.CreateAPIView):
     def _process_request_data(self):
         if self.request.content_type.startswith('multipart/form-data') or \
            self.request.content_type.startswith('application/x-www-form-urlencoded'):
-            data = self.request.data.copy()
+            # Safely build a dict from POST and FILES without deepcopying file objects
+            data_dict = {}
+            for key in self.request.POST.keys():
+                values = self.request.POST.getlist(key)
+                data_dict[key] = values if len(values) > 1 else values[0]
             for file_key, file_list in self.request.FILES.lists():
-                data.setlist(file_key, file_list)
-            return flatten_form_data(data)
+                # Store file(s) directly without deepcopy
+                data_dict[file_key] = file_list if len(file_list) > 1 else file_list[0]
+            return flatten_form_data(data_dict)
         return self.request.data
 
     def post(self, request, *args, **kwargs):
@@ -2950,10 +2959,16 @@ def haversine_distance(lat1, lon1, lat2, lon2):
 class RestaurantViewSet(viewsets.ModelViewSet):
     queryset = RestaurantModel.objects.all()
     serializer_class = RestaurantSerializer
-    permission_classes = [IsAdminOrReadOnly]
+    permission_classes = [IsProvider]
 
     def get_queryset(self):
-        qs = RestaurantModel.objects.all()
+        # Filter by provider - providers can only see their own restaurants
+        if hasattr(self.request.user, 'provider'):
+            qs = RestaurantModel.objects.filter(provider=self.request.user.provider)
+        else:
+            qs = RestaurantModel.objects.none()
+        
+        # Apply search and filters
         q = self.request.query_params.get('q')
         lat = self.request.query_params.get('lat')
         lng = self.request.query_params.get('lng')
@@ -2982,6 +2997,24 @@ class RestaurantViewSet(viewsets.ModelViewSet):
                 pass
         return qs
 
+    def perform_create(self, serializer):
+        # Automatically assign the restaurant to the current provider
+        serializer.save(provider=self.request.user.provider)
+
+    def perform_update(self, serializer):
+        # Ensure provider can only update their own restaurant
+        if serializer.instance.provider != self.request.user.provider:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("You can only update your own restaurants.")
+        serializer.save()
+
+    def perform_destroy(self, instance):
+        # Ensure provider can only delete their own restaurant
+        if instance.provider != self.request.user.provider:
+            from rest_framework.exceptions import PermissionDenied
+            raise PermissionDenied("You can only delete your own restaurants.")
+        instance.delete()
+
     @action(detail=True, methods=['get'])
     def reviews(self, request, pk=None):
         restaurant = self.get_object()
@@ -2997,7 +3030,7 @@ class RestaurantViewSet(viewsets.ModelViewSet):
 class CategoryViewSet(viewsets.ModelViewSet):
     queryset = ProductCategory.objects.all()
     serializer_class = CategorySerializer
-    permission_classes = [IsAdminOrReadOnly]
+    permission_classes = [IsProvider]
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -3006,10 +3039,10 @@ class CategoryViewSet(viewsets.ModelViewSet):
             qs = qs.filter(restaurant_id=restaurant)
         return qs
 
-class ProductViewSet(viewsets.ModelViewSet):
-    queryset = Product.objects.prefetch_related('images').all()
-    serializer_class = ProductSerializer
-    permission_classes = [IsAdminOrReadOnly]
+class ProductRestaurantViewSet(viewsets.ModelViewSet):
+    queryset = ProductRestaurant.objects.prefetch_related('images_restaurant').all()
+    serializer_class = ProductRestaurantSerializer
+    permission_classes = [IsProvider]
 
     def get_queryset(self):
         qs = super().get_queryset()
@@ -3027,7 +3060,12 @@ class ProductViewSet(viewsets.ModelViewSet):
 class ProductImageViewSet(viewsets.ModelViewSet):
     queryset = ProductImage.objects.all()
     serializer_class = ProductImageSerializer
-    permission_classes = [IsAdminOrReadOnly]
+    permission_classes = [IsProvider]
+
+class ProductImageRestaurantViewSet(viewsets.ModelViewSet):
+    queryset = ProductImageRestaurant.objects.all()
+    serializer_class = ProductImageRestaurantSerializer
+    permission_classes = [IsProvider]
 
 class CartViewSet(viewsets.ViewSet):
     permission_classes = []
@@ -3046,8 +3084,8 @@ class CartViewSet(viewsets.ViewSet):
         product_id = request.data.get('product_id')
         quantity = int(request.data.get('quantity', 1))
         try:
-            product = Product.objects.get(pk=product_id)
-        except Product.DoesNotExist:
+            product = ProductRestaurant.objects.get(pk=product_id)
+        except ProductRestaurant.DoesNotExist:
             return Response({'error':'product not found'}, status=404)
         item, created = CartItem.objects.get_or_create(cart=cart, product=product, defaults={'quantity': quantity})
         if not created:
@@ -3119,19 +3157,21 @@ class OrderViewSet(viewsets.ModelViewSet):
                 price=ci.product.display_price
             )
 
-        # الكوبون
+        # Calculate totals before applying coupon
+        order.recalc_prices()
+
+        # Apply coupon after totals are calculated
         if coupon_code:
             try:
-                coupon = Coupon.objects.get(code__iexact=coupon_code)
+                coupon = CouponRestaurant.objects.get(code__iexact=coupon_code)
                 if coupon.is_valid():
                     discount = (coupon.discount_percentage / 100.0) * order.total_price
                     order.discount = discount
+                    order.recalc_prices()
                 else:
                     return Response({'error': 'coupon invalid'}, status=400)
-            except Coupon.DoesNotExist:
+            except CouponRestaurant.DoesNotExist:
                 return Response({'error': 'coupon not found'}, status=404)
-
-        order.recalc_prices()
 
         # تفريغ الكارت
         cart.items.all().delete()
@@ -3178,10 +3218,10 @@ class OrderViewSet(viewsets.ModelViewSet):
         }
         return Response(data)
 
-class CouponViewSet(viewsets.ModelViewSet):
-    queryset = Coupon.objects.all()
-    serializer_class = CouponSerializer
-    permission_classes = [IsAdminOrReadOnly]
+class CouponRestaurantViewSet(viewsets.ModelViewSet):
+    queryset = CouponRestaurant.objects.all()
+    serializer_class = CouponRestaurantSerializer
+    permission_classes = [IsProvider]
 
     @action(detail=False, methods=['get'])
     def validate(self, request):
@@ -3189,9 +3229,9 @@ class CouponViewSet(viewsets.ModelViewSet):
         if not code:
             return Response({'error':'code required'}, status=400)
         try:
-            coupon = Coupon.objects.get(code__iexact=code)
+            coupon = CouponRestaurant.objects.get(code__iexact=code)
             return Response({'valid': coupon.is_valid(), 'discount_percentage': coupon.discount_percentage})
-        except Coupon.DoesNotExist:
+        except CouponRestaurant.DoesNotExist:
             return Response({'valid': False}, status=404)
 
 class ReviewViewSet(viewsets.ModelViewSet):
@@ -3213,6 +3253,8 @@ class AddressViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         return self.queryset.filter(customer=self.request.user)
 
+    def perform_create(self, serializer):
+        serializer.save(customer=self.request.user)
 
 from django.db.models import Sum, Count, F
 from django.utils.timezone import now
@@ -3282,3 +3324,23 @@ class ReportViewSet(viewsets.ViewSet):
             avg_order_value=Sum('total_price') / Count('id') if qs.exists() else 0
         )
         return Response(totals)
+
+class PublicRestaurantListView(generics.ListAPIView):
+    permission_classes = [AllowAny]
+    serializer_class = RestaurantSerializer
+
+    def get_queryset(self):
+        qs = RestaurantModel.objects.all()
+        q = self.request.query_params.get('q')
+        min_rating = self.request.query_params.get('min_rating')
+        offer = self.request.query_params.get('offer')
+        if q:
+            qs = qs.filter(Q(restaurant_name__icontains=q) | Q(restaurant_description__icontains=q) | Q(categories__name__icontains=q)).distinct()
+        if offer in ['1','true','True']:
+            qs = qs.filter(offers__active=True).distinct()
+        if min_rating:
+            try:
+                qs = qs.filter(average_rating__gte=float(min_rating))
+            except Exception:
+                pass
+        return qs

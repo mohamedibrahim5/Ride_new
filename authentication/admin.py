@@ -60,8 +60,20 @@ from authentication.models import (
     Notification,
     DriverCarImage,
     RestaurantModel,
+    WorkingDay,
     Rating,
     Invoice,
+    ProductCategory,
+    Cart,
+    CartItem,
+    Order,
+    OrderItem,
+    ReviewRestaurant,
+    OfferRestaurant,
+    DeliveryAddress,
+    ProductRestaurant,
+    ProductImageRestaurant,
+    CouponRestaurant,
 )
 from .widgets import GoogleMapWidget
 from django import forms
@@ -1233,6 +1245,18 @@ class UserPointsAdmin(admin.ModelAdmin):
 #         return "No image"
 #     image_preview.short_description = _("Preview")
 #     image_preview.allow_tags = True
+@admin.register(Product)
+class ProductAdmin(admin.ModelAdmin):
+    list_display = ('name', 'category', 'display_price', 'stock', 'is_offer', 'is_active', 'created_at')
+    list_filter = ('is_active', 'is_offer', 'category', 'created_at')
+    search_fields = ('name', 'description', 'category__name')
+    ordering = ('-created_at',)
+    readonly_fields = ('created_at', 'updated_at')
+
+@admin.register(ProductImage)
+class ProductImageAdmin(admin.ModelAdmin):
+    list_display = ('product', 'image')
+    search_fields = ('product__name',)
 
 @admin.register(Purchase)
 class PurchaseAdmin(admin.ModelAdmin):
@@ -1293,20 +1317,126 @@ class SubServiceAdmin(admin.ModelAdmin):
 
 @admin.register(RestaurantModel)
 class RestaurantModelAdmin(admin.ModelAdmin):
-    # add her the user name and phone
-    list_display = ['provider_name','restaurant_name',  'restaurant_license','restaurant_id_image','created_at']
-    search_fields = ['restaurant_name']
+    list_display = [
+        'restaurant_name', 
+        'provider', 
+        'phone', 
+        'email', 
+        'is_verified', 
+        'average_rating', 
+        'working_days_count',
+        'created_at'
+    ]
+    list_filter = [
+        'is_verified', 
+        'provider',
+        'created_at', 
+        'average_rating'
+    ]
+    search_fields = [
+        'restaurant_name', 
+        'phone', 
+        'email', 
+        'address'
+    ]
+    readonly_fields = [
+        'created_at', 
+        'updated_at', 
+        'average_rating'
+    ]
+    fieldsets = (
+        (_('Basic Information'), {
+            'fields': (
+                'restaurant_name', 
+                'restaurant_id_image', 
+                'restaurant_license', 
+                'restaurant_description'
+            )
+        }),
+        (_('Contact & Location'), {
+            'fields': (
+                'phone', 
+                'email', 
+                'address', 
+                'latitude', 
+                'longitude'
+            )
+        }),
+        (_('Restaurant Details'), {
+            'fields': (
+                'provider',
+                'is_verified', 
+                'average_rating', 
+                'menu_link'
+            )
+        }),
+        (_('Timestamps'), {
+            'fields': (
+                'created_at', 
+                'updated_at'
+            ),
+            'classes': ('collapse',)
+        }),
+    )
     ordering = ['-created_at']
+    list_editable = ['is_verified']
+    list_per_page = 25
 
-    # add here the provider name when model of provider is restaurant = models.ForeignKey(RestaurantModel, on_delete=models.CASCADE, verbose_name=_("Restaurant"),blank=True,null=True) 
-    def provider_name(self, obj):
-        provider = getattr(obj, 'provider_set', None)
-        if provider is None:
-            return '-'
-        first_provider = provider.first()
-        return first_provider.user.name if first_provider else '-'
-    provider_name.short_description = _('Provider Name')
-    provider_name.admin_order_field = 'provider__user__name'
+    def working_days_count(self, obj):
+        count = obj.working_days.count()
+        return f"{count} days"
+    working_days_count.short_description = _('Working Days')
+    working_days_count.admin_order_field = 'working_days__count'
+
+
+@admin.register(WorkingDay)
+class WorkingDayAdmin(admin.ModelAdmin):
+    list_display = [
+        'restaurant_name',
+        'day_of_week_display', 
+        'opening_time', 
+        'closing_time',
+        'duration_display'
+    ]
+    list_filter = [
+        'day_of_week',
+        'restaurant',
+        'opening_time',
+        'closing_time'
+    ]
+    search_fields = [
+        'restaurant__restaurant_name',
+        'day_of_week'
+    ]
+    ordering = ['restaurant__restaurant_name', 'day_of_week']
+    list_per_page = 25
+
+    def restaurant_name(self, obj):
+        return obj.restaurant.restaurant_name
+    restaurant_name.short_description = _('Restaurant')
+    restaurant_name.admin_order_field = 'restaurant__restaurant_name'
+
+    def day_of_week_display(self, obj):
+        return obj.get_day_of_week_display()
+    day_of_week_display.short_description = _('Day')
+    day_of_week_display.admin_order_field = 'day_of_week'
+
+    def duration_display(self, obj):
+        from datetime import datetime, timedelta
+        try:
+            open_time = datetime.strptime(str(obj.opening_time), '%H:%M:%S')
+            close_time = datetime.strptime(str(obj.closing_time), '%H:%M:%S')
+            
+            # Handle case where closing time is next day
+            if close_time < open_time:
+                close_time += timedelta(days=1)
+            
+            duration = close_time - open_time
+            hours = duration.total_seconds() / 3600
+            return f"{hours:.1f} hours"
+        except:
+            return "-"
+    duration_display.short_description = _('Duration')
 
 
 # DriverProfileResource and Admin
@@ -2234,19 +2364,13 @@ class DriverProfileAdmin(ExportMixin, admin.ModelAdmin):
     
 @admin.register(Coupon)
 class CouponAdmin(admin.ModelAdmin):
-    # the list display for the admin interface are code,created_at ,updated_at, discount_percentage, is_active
-    list_display = ('code', 'created_at', 'updated_at', 'discount_percentage', 'is_active')
-    list_filter = ('is_active', 'created_at', 'updated_at')
+    list_display = ('code', 'discount_percentage', 'active', 'valid_from', 'valid_to')
+    list_filter = ('active', 'valid_from', 'valid_to')
     search_fields = ('code',)
-    ordering = ('-created_at',) 
-    readonly_fields = ('created_at', 'updated_at')
+    ordering = ('-valid_from',)
     fieldsets = (
         (_('Coupon Information'), {
-            'fields': ('code', 'discount_percentage', 'is_active')
-        }),
-        (_('Timestamps'), {
-            'fields': ('created_at', 'updated_at'),
-            'classes': ('collapse',)
+            'fields': ('code', 'discount_percentage', 'active', 'valid_from', 'valid_to')
         }),
     )
 
@@ -2354,4 +2478,83 @@ def print_invoice_view(request, invoice_id):
     </html>
     """
     return HttpResponse(html)
+
+# === Restaurant: Categories, Products, Images ===
+
+@admin.register(CouponRestaurant)
+class CouponRestaurantAdmin(admin.ModelAdmin):
+    list_display = ['code', 'discount_percentage', 'is_active', 'created_at', 'updated_at']
+    search_fields = ['code']
+    list_filter = ['is_active', 'created_at', 'updated_at']
+    ordering = ['-created_at']
+
+@admin.register(ProductCategory)
+class ProductCategoryAdmin(admin.ModelAdmin):
+    list_display = ['name', 'restaurant']
+    search_fields = ['name', 'restaurant__restaurant_name']
+    list_filter = ['restaurant']
+
+@admin.register(ProductRestaurant)
+class ProductAdmin(admin.ModelAdmin):
+    list_display = ['name', 'category', 'display_price', 'stock', 'is_offer', 'is_active', 'created_at']
+    search_fields = ['name', 'category__name', 'category__restaurant__restaurant_name']
+    list_filter = ['is_active', 'is_offer', 'category', 'created_at']
+    list_editable = ['is_active']
+    ordering = ['-created_at']
+
+@admin.register(ProductImageRestaurant)
+class ProductImageAdmin(admin.ModelAdmin):
+    # Match fields defined on authentication.models.ProductImage
+    list_display = ['product', 'image']
+    list_filter = ['product__category']
+    search_fields = ['product__name', 'product__category__restaurant__restaurant_name']
+    # No created_at on ProductImage model
+
+# === Cart, Orders ===
+@admin.register(Cart)
+class CartAdmin(admin.ModelAdmin):
+    list_display = ['id', 'customer', 'created_at']
+    search_fields = ['customer__name', 'customer__phone']
+    ordering = ['-created_at']
+
+@admin.register(CartItem)
+class CartItemAdmin(admin.ModelAdmin):
+    list_display = ['cart', 'product', 'quantity']
+    search_fields = ['cart__customer__name', 'product__name']
+
+@admin.register(Order)
+class OrderAdmin(admin.ModelAdmin):
+    list_display = ['id', 'customer', 'restaurant', 'driver', 'total_price', 'final_price', 'status', 'payment_method', 'created_at']
+    list_filter = ['status', 'payment_method', 'restaurant']
+    search_fields = ['customer__name', 'restaurant__restaurant_name', 'driver__user__name']
+    ordering = ['-created_at']
+
+@admin.register(OrderItem)
+class OrderItemAdmin(admin.ModelAdmin):
+    list_display = ['order', 'product', 'quantity', 'price']
+    search_fields = ['order__customer__name', 'product__name']
+
+
+
+@admin.register(ReviewRestaurant)
+class ReviewRestaurantAdmin(admin.ModelAdmin):
+    list_display = ['customer', 'restaurant', 'rating', 'created_at']
+    list_filter = ['rating', 'restaurant']
+    search_fields = ['customer__name', 'restaurant__restaurant_name']
+    ordering = ['-created_at']
+
+@admin.register(OfferRestaurant)
+class OfferRestaurantAdmin(admin.ModelAdmin):
+    list_display = ['restaurant', 'title', 'discount_percentage', 'active', 'valid_from', 'valid_to']
+    list_filter = ['active', 'restaurant']
+    search_fields = ['title', 'restaurant__restaurant_name']
+
+# === Addresses ===
+@admin.register(DeliveryAddress)
+class DeliveryAddressAdmin(admin.ModelAdmin):
+    list_display = ['customer', 'address', 'latitude', 'longitude', 'is_default']
+    list_filter = ['is_default']
+    search_fields = ['customer__name', 'address']
+
+# Reports are API views; no direct Model to register in admin.
 

@@ -27,8 +27,10 @@ from authentication.models import (
     ScheduledRideRating,
     RestaurantModel,
     WorkingDay, ProductCategory, Product, ProductImage, 
-    Cart, CartItem, Order, OrderItem, Coupon, ReviewRestaurant, OfferRestaurant,
-    DeliveryAddress
+    Cart, CartItem, Order, OrderItem, Coupon, ReviewRestaurant, OfferRestaurant,CouponRestaurant,
+    DeliveryAddress,
+    ProductImageRestaurant,
+    ProductRestaurant
     
 )
 from authentication.utils import send_sms, extract_user_data, update_user_data
@@ -1040,7 +1042,10 @@ class CarAvailabilitySerializer(serializers.ModelSerializer):
 
 
 class CarRentalSerializer(serializers.ModelSerializer):
-    car = CarAgencySerializer(read_only=True)
+    # Accept car id in requests
+    car = serializers.PrimaryKeyRelatedField(queryset=CarAgency.objects.all(), write_only=True)
+    # Return nested car details in responses
+    car_detail = CarAgencySerializer(source='car', read_only=True)
     customer = CustomerSerializer(read_only=True)
 
     class Meta:
@@ -1048,7 +1053,8 @@ class CarRentalSerializer(serializers.ModelSerializer):
         fields = [
             'id',
             'customer',
-            'car',
+            'car',            # write-only PK
+            'car_detail',     # read-only nested data
             'start_datetime',
             'end_datetime',
             'total_price',
@@ -1065,14 +1071,10 @@ class CarRentalSerializer(serializers.ModelSerializer):
         request = self.context['request']
         is_create = self.instance is None
 
-        # 🔑 Always get the car:
-        if is_create:
-            car = data.get('car')
-            if not car:
-                raise serializers.ValidationError({"car": "Car is required."})
-        else:
-            # If updating, get from existing instance
-            car = self.instance.car
+        # Get car instance
+        car = data.get('car') if is_create else getattr(self.instance, 'car', None)
+        if is_create and not car:
+            raise serializers.ValidationError({"car": "Car is required."})
 
         start_datetime = data.get('start_datetime', getattr(self.instance, 'start_datetime', None))
         end_datetime = data.get('end_datetime', getattr(self.instance, 'end_datetime', None))
@@ -1080,10 +1082,8 @@ class CarRentalSerializer(serializers.ModelSerializer):
         if is_create and (not start_datetime or not end_datetime):
             raise serializers.ValidationError({"detail": "Start and End are required for new rental."})
 
-        # Only check overlap if dates present
-        if start_datetime and end_datetime:
-            # 1. Check that the requested time is fully within an available slot
-            now = timezone.now()
+        if start_datetime and end_datetime and car:
+            # 1) Ensure requested range is within an available slot
             available_slots = car.availability_slots.filter(
                 start_time__lte=start_datetime,
                 end_time__gte=end_datetime
@@ -1093,7 +1093,7 @@ class CarRentalSerializer(serializers.ModelSerializer):
                     "detail": "The car is not available for the entire requested time range."
                 })
 
-            # 2. Check for overlapping rentals (excluding cancelled)
+            # 2) Ensure no overlapping rentals
             overlapping_rentals = CarRental.objects.filter(
                 car=car,
                 start_datetime__lt=end_datetime,
@@ -1109,7 +1109,6 @@ class CarRentalSerializer(serializers.ModelSerializer):
                 )
 
         return data
-
 
     def create(self, validated_data):
         validated_data['customer'] = self.context['request'].user.customer
@@ -1726,29 +1725,236 @@ class ProductSerializer(serializers.ModelSerializer):
 
         return instance
 
+
+
+
+
+
+
+class ProductImageRestaurantSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ProductImageRestaurant
+        fields = ['id','product','image','alt_text','is_primary','created_at']
+        read_only_fields = ['product']
+        extra_kwargs = {
+            'alt_text': {'required': False, 'allow_blank': True},
+        }
+
+
+        
+class ProductRestaurantSerializer(serializers.ModelSerializer):
+    images = ProductImageRestaurantSerializer(many=True, read_only=True, source='images_restaurant')
+    uploaded_images = serializers.ListField(child=serializers.ImageField(), write_only=True, required=False)
+    class Meta:
+        model = ProductRestaurant
+        fields = ['id','category','name','description','display_price','stock','is_offer','is_active','created_at','updated_at','images','uploaded_images']
+
+    def to_internal_value(self, data):
+        # Map form-data 'images' (list of files) → 'uploaded_images'
+        try:
+            incoming = data.get('images') if hasattr(data, 'get') else None
+            if incoming:
+                # If a single file, normalize to list
+                if not isinstance(incoming, list):
+                    if hasattr(data, 'setlist'):
+                        data.setlist('uploaded_images', [incoming])
+                    else:
+                        data = data.copy() if hasattr(data, 'copy') else data
+                        data['uploaded_images'] = [incoming]
+                else:
+                    # Already a list of files
+                    if hasattr(data, 'setlist'):
+                        data.setlist('uploaded_images', incoming)
+                    else:
+                        data = data.copy() if hasattr(data, 'copy') else data
+                        data['uploaded_images'] = incoming
+                # Remove original images key to avoid type errors
+                if hasattr(data, 'pop'):
+                    data.pop('images', None)
+
+            # Also support bracketed keys images[0][image]
+            if hasattr(data, 'getlist'):
+                collected = []
+                for key in list(data.keys()):
+                    if isinstance(key, str) and key.startswith('images[') and key.endswith('][image]'):
+                        f = data.get(key)
+                        if f:
+                            collected.append(f)
+                if collected:
+                    existing = data.get('uploaded_images') if hasattr(data, 'get') else None
+                    if existing and isinstance(existing, list):
+                        collected = existing + collected
+                    if hasattr(data, 'setlist'):
+                        data.setlist('uploaded_images', collected)
+                    else:
+                        data = data.copy() if hasattr(data, 'copy') else data
+                        data['uploaded_images'] = collected
+        except Exception:
+            pass
+        return super().to_internal_value(data)
+
+    def create(self, validated_data):
+        images_files = validated_data.pop('uploaded_images', [])
+        product = ProductRestaurant.objects.create(**validated_data)
+        for f in images_files:
+            ProductImageRestaurant.objects.create(product=product, image=f, alt_text='', is_primary=False)
+        return product
+
+    def update(self, instance, validated_data):
+        images_files = validated_data.pop('uploaded_images', [])
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+        for f in images_files:
+            ProductImageRestaurant.objects.create(product=instance, image=f, alt_text='', is_primary=False)
+        return instance
+        
+
+
 class CategorySerializer(serializers.ModelSerializer):
-    products = ProductSerializer(many=True, read_only=True)
+    products = ProductRestaurantSerializer(many=True, read_only=True)
     class Meta:
         model = ProductCategory
         fields = ['id','restaurant','name','products']
 
 class WorkingDaySerializer(serializers.ModelSerializer):
+    day_name = serializers.CharField(source='get_day_of_week_display', read_only=True)
+    
     class Meta:
         model = WorkingDay
-        fields = ['id','restaurant','day_of_week','opening_time','closing_time']
+        fields = ['id','restaurant','day_of_week','day_name','opening_time','closing_time']
+        
+
+
+
 
 class RestaurantSerializer(serializers.ModelSerializer):
     categories = CategorySerializer(many=True, read_only=True)
     offers = serializers.SerializerMethodField()
     reviews_count = serializers.SerializerMethodField()
-    working_days = WorkingDaySerializer(many=True)
+    working_days = WorkingDaySerializer(many=True, required=False)
+    provider_id = serializers.IntegerField(source='provider.id', read_only=True)
+    provider_name = serializers.CharField(source='provider.user.name', read_only=True)
     
     class Meta:
         model = RestaurantModel
-        fields = ['id','restaurant_name','restaurant_id_image','restaurant_description','phone','email','address','latitude','longitude','is_verified','average_rating','menu_link','categories','offers','reviews_count', 'working_days']
+        fields = ['id','restaurant_name','restaurant_id_image','restaurant_description','phone','email','address','latitude','longitude','is_verified','average_rating','menu_link','categories','offers','reviews_count','provider_id','provider_name','working_days','restaurant_license']
+        read_only_fields = ['provider']
+    
+    def to_internal_value(self, data):
+        # Handle form data for working_days
+        if hasattr(data, 'getlist'):
+            # This is form data
+            working_days_data = []
+            days = data.getlist('working_days[day]')
+            open_times = data.getlist('working_days[open_time]')
+            close_times = data.getlist('working_days[close_time]')
+            
+            print(f"DEBUG: Found {len(days)} days, {len(open_times)} open_times, {len(close_times)} close_times")
+            print(f"DEBUG: Days: {days}")
+            print(f"DEBUG: Open times: {open_times}")
+            print(f"DEBUG: Close times: {close_times}")
+            
+            for i, day in enumerate(days):
+                if i < len(open_times) and i < len(close_times):
+                    # Convert day name to day_of_week integer
+                    day_mapping = {
+                        'Monday': 2, 'Tuesday': 3, 'Wednesday': 4, 'Thursday': 5,
+                        'Friday': 6, 'Saturday': 0, 'Sunday': 1
+                    }
+                    day_of_week = day_mapping.get(day, 2)  # Default to Monday
+                    
+                    working_days_data.append({
+                        'day_of_week': day_of_week,
+                        'opening_time': open_times[i],
+                        'closing_time': close_times[i]
+                    })
+            
+            print(f"DEBUG: Working days data: {working_days_data}")
+            
+            # Create a mutable copy of data without file objects
+            data_copy = {}
+            for key, value in data.items():
+                if key != 'working_days':  # Skip working_days as we'll add it separately
+                    data_copy[key] = value
+            data_copy['working_days'] = working_days_data
+            return super().to_internal_value(data_copy)
+        
+        return super().to_internal_value(data)
     
     def create(self, validated_data):
+        print(f"DEBUG: Create method called with validated_data: {validated_data}")
+        
+        # Handle working_days from initial_data if not in validated_data
         working_days_data = validated_data.pop('working_days', [])
+        print(f"DEBUG: Working days from validated_data: {working_days_data}")
+        
+        # If no working_days in validated_data, try to get from initial_data
+        if not working_days_data and hasattr(self, 'initial_data'):
+            initial_data = self.initial_data
+            print(f"DEBUG: Initial data keys: {list(initial_data.keys()) if hasattr(initial_data, 'keys') else 'No keys method'}")
+            print(f"DEBUG: Initial data type: {type(initial_data)}")
+            
+            # Check if working_days is sent as JSON string
+            working_days_json = initial_data.get('working_days')
+            print(f"DEBUG: Working days JSON string: {working_days_json}")
+            print(f"DEBUG: Working days JSON type: {type(working_days_json)}")
+            
+            if working_days_json:
+                try:
+                    import json
+                    working_days_list = json.loads(working_days_json)
+                    print(f"DEBUG: Working days JSON parsed: {working_days_list}")
+                    
+                    for wd in working_days_list:
+                        # Convert day name to day_of_week integer
+                        day_mapping = {
+                            'Monday': 2, 'Tuesday': 3, 'Wednesday': 4, 'Thursday': 5,
+                            'Friday': 6, 'Saturday': 0, 'Sunday': 1
+                        }
+                        day_of_week = day_mapping.get(wd.get('day'), 2)  # Default to Monday
+                        
+                        working_days_data.append({
+                            'day_of_week': day_of_week,
+                            'opening_time': wd.get('open_time'),
+                            'closing_time': wd.get('close_time')
+                        })
+                    
+                    print(f"DEBUG: Converted working days data: {working_days_data}")
+                    
+                except json.JSONDecodeError as e:
+                    print(f"DEBUG: JSON decode error: {e}")
+                    pass
+            
+            # Fallback to old format (separate fields)
+            elif hasattr(initial_data, 'getlist'):
+                # This is form data
+                days = initial_data.getlist('working_days[day]')
+                open_times = initial_data.getlist('working_days[open_time]')
+                close_times = initial_data.getlist('working_days[close_time]')
+                
+                print(f"DEBUG: Found {len(days)} days, {len(open_times)} open_times, {len(close_times)} close_times")
+                print(f"DEBUG: Days: {days}")
+                print(f"DEBUG: Open times: {open_times}")
+                print(f"DEBUG: Close times: {close_times}")
+                
+                for i, day in enumerate(days):
+                    if i < len(open_times) and i < len(close_times):
+                        # Convert day name to day_of_week integer
+                        day_mapping = {
+                            'Monday': 2, 'Tuesday': 3, 'Wednesday': 4, 'Thursday': 5,
+                            'Friday': 6, 'Saturday': 0, 'Sunday': 1
+                        }
+                        day_of_week = day_mapping.get(day, 2)  # Default to Monday
+                        
+                        working_days_data.append({
+                            'day_of_week': day_of_week,
+                            'opening_time': open_times[i],
+                            'closing_time': close_times[i]
+                        })
+                
+                print(f"DEBUG: Working days data: {working_days_data}")
+        
         restaurant = super().create(validated_data)
         for wd in working_days_data:
             WorkingDay.objects.create(restaurant=restaurant, **wd)
@@ -1772,8 +1978,8 @@ class RestaurantSerializer(serializers.ModelSerializer):
         return obj.reviews.count()
 
 class CartItemSerializer(serializers.ModelSerializer):
-    product = ProductSerializer(read_only=True)
-    product_id = serializers.PrimaryKeyRelatedField(write_only=True, queryset=Product.objects.all(), source='product')
+    product = ProductRestaurantSerializer(read_only=True)
+    product_id = serializers.PrimaryKeyRelatedField(write_only=True, queryset=ProductRestaurant.objects.all(), source='product')
     class Meta:
         model = CartItem
         fields = ['id','cart','product','product_id','quantity']
@@ -1788,8 +1994,8 @@ class CartSerializer(serializers.ModelSerializer):
         return obj.total_price()
 
 class OrderItemSerializer(serializers.ModelSerializer):
-    product = ProductSerializer(read_only=True)
-    product_id = serializers.PrimaryKeyRelatedField(write_only=True, queryset=Product.objects.all(), source='product')
+    product = ProductRestaurantSerializer(read_only=True)
+    product_id = serializers.PrimaryKeyRelatedField(write_only=True, queryset=ProductRestaurant.objects.all(), source='product')
     class Meta:
         model = OrderItem
         fields = ['id','order','product','product_id','quantity','price']
@@ -1820,9 +2026,9 @@ class OrderSerializer(serializers.ModelSerializer):
         return order
 
 
-class CouponSerializer(serializers.ModelSerializer):
+class CouponRestaurantSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Coupon
+        model = CouponRestaurant
         fields = ['id','code','discount_percentage','valid_from','valid_to','active']
 
 class ReviewSerializer(serializers.ModelSerializer):
@@ -1840,3 +2046,4 @@ class DeliveryAddressSerializer(serializers.ModelSerializer):
     class Meta:
         model = DeliveryAddress
         fields = ['id','customer','address','latitude','longitude','is_default']
+        read_only_fields = ['customer']

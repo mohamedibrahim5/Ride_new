@@ -51,8 +51,11 @@ from authentication.views import (
     UpdateScheduledRideStatusView,
     MyScheduledRidesView,
     RestaurantViewSet, CategoryViewSet, ProductViewSet, ProductImageViewSet,
-    CartViewSet, OrderViewSet, CouponViewSet, ReviewViewSet, OfferViewSet,
-    AddressViewSet
+    CartViewSet, OrderViewSet, CouponRestaurantViewSet, ReviewViewSet, OfferViewSet,
+    AddressViewSet,
+    PublicRestaurantListView,
+    ProductRestaurantViewSet,
+    ProductImageRestaurantViewSet
 )
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
@@ -78,10 +81,14 @@ router.register("service-pricing", ProviderServicePricingViewSet, basename="serv
 router.register(r'restaurants', RestaurantViewSet, basename='restaurants')
 router.register(r'categories', CategoryViewSet, basename='categories')
 router.register(r'products', ProductViewSet, basename='products')
+# Primary route for restaurant-specific products
+router.register(r'product-restaurants', ProductRestaurantViewSet, basename='product-restaurants')
+# Backward-compatibility/alias for clients posting to "products-restaurants"
 router.register(r'product-images', ProductImageViewSet, basename='product-images')
+router.register(r'product-images-restaurants', ProductImageRestaurantViewSet, basename='product-images-restaurants')
 router.register(r'cart', CartViewSet, basename='cart')
 router.register(r'orders', OrderViewSet, basename='orders')
-router.register(r'coupons', CouponViewSet, basename='coupons')
+router.register(r'coupons', CouponRestaurantViewSet, basename='coupons')
 router.register(r'reviews', ReviewViewSet, basename='reviews')
 router.register(r'offers', OfferViewSet, basename='offers')
 router.register(r'addresses', AddressViewSet, basename='addresses')
@@ -101,6 +108,8 @@ urlpatterns = [
     path("fcm-device/", FcmDeviceView.as_view(), name="fcm-device"),
     path("logout/", LogoutView.as_view(), name="logout"),
     path("delete/", DeleteUserView.as_view(), name="delete-user"),
+    # public restaurants list (AllowAny) – placed BEFORE router to avoid shadowing by ViewSet
+    path("restaurants/public/", PublicRestaurantListView.as_view(), name="restaurants-public"),
     path("", include(router.urls)),
     path("request-provider/", RequestProviderView.as_view(), name="request-provider"),
 

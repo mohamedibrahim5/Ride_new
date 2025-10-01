@@ -111,12 +111,6 @@ if DEBUG:
     #         "NAME": os.path.join(BASE_DIR, "db.sqlite3"),
     #     }
     # }
-    # DATABASES = {
-    #     "default": {
-    #         "ENGINE": "django.db.backends.sqlite3",
-    #         "NAME": os.path.join(BASE_DIR, "db.sqlite3"),
-    #     }
-    # }
     DATABASES = {
         "default": {
             'ENGINE': 'django.db.backends.postgresql',
@@ -269,7 +263,7 @@ SIMPLEUI_LOGO = '/media/dashboard_logos/logo.png'  # Updated path
 
 SIMPLEUI_CONFIG = {
     'system_keep': False,
-    'menu_display': [_('Authentication'), _('Products'), _('Points'), _('Purchases'), _('Car Rentals'),  _('Services'),_('Ride'), _('Configuration') ,_('Coupons'),_('Notifications'), _('Scheduled Rides')],
+    'menu_display': [_('Authentication'), _('Products'), _('Points'), _('Purchases'), _('Car Rentals'),  _('Services'),_('Ride'), _('Configuration') ,_('Coupons'),_('Notifications'), _('Scheduled Rides'), _('Restaurants')],
     'dynamic': True,
     'menus': [
         {
@@ -489,6 +483,87 @@ SIMPLEUI_CONFIG = {
                     'url': 'authentication/scheduledriderating/'
                 }
                
+            ]
+        },
+        {
+            'name': _('Restaurants'),
+            'icon': 'fas fa-utensils',
+            'models': [
+                {
+                    'name': _('Restaurants'),
+                    'icon': 'fas fa-store',
+                    'url': 'authentication/restaurantmodel/'
+                },
+                {
+                    'name': _('Working Days'),
+                    'icon': 'fas fa-calendar-alt',
+                    'url': 'authentication/workingday/'
+                },
+                {
+                    'name': _('Categories'),
+                    'icon': 'fas fa-list',
+                    'url': 'authentication/productcategory/'
+                },
+                {
+                    'name': _('Coupons'),
+                    'icon': 'fas fa-tags',
+                    'url': 'authentication/couponrestaurant/'
+                },
+                {
+                    'name': _('Product Restaurants'),
+                    'icon': 'fas fa-box',
+                    'url': 'authentication/productrestaurant/'
+                },
+                {
+                    'name': _('Product Restaurant Images'),
+                    'icon': 'fas fa-image',
+                    'url': 'authentication/productimagerestaurant/'
+                },
+                {
+                    'name': _('Cart'),
+                    'icon': 'fas fa-shopping-cart',
+                    'url': 'authentication/cart/'
+                },
+                {
+                    'name': _('Cart Items'),
+                    'icon': 'fas fa-shopping-basket',
+                    'url': 'authentication/cartitem/'
+                },
+                {
+                    'name': _('Orders'),
+                    'icon': 'fas fa-receipt',
+                    'url': 'authentication/order/'
+                },
+                {
+                    'name': _('Order Items'),
+                    'icon': 'fas fa-list-ol',
+                    'url': 'authentication/orderitem/'
+                },
+                {
+                    'name': _('Coupons'),
+                    'icon': 'fas fa-tags',
+                    'url': 'authentication/coupon/'
+                },
+                {
+                    'name': _('Reviews'),
+                    'icon': 'fas fa-star',
+                    'url': 'authentication/reviewrestaurant/'
+                },
+                {
+                    'name': _('Offers'),
+                    'icon': 'fas fa-bullhorn',
+                    'url': 'authentication/offerrestaurant/'
+                },
+                {
+                    'name': _('Addresses'),
+                    'icon': 'fas fa-map-marker-alt',
+                    'url': 'authentication/deliveryaddress/'
+                },
+                {
+                    'name': _('Reports'),
+                    'icon': 'fas fa-chart-line',
+                    'url': '/admin/'  # placeholder or custom report view
+                },
             ]
         }
         
