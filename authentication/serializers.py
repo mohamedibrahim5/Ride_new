@@ -1699,11 +1699,14 @@ class ProductImageSerializer(serializers.ModelSerializer):
 class ProductSerializer(serializers.ModelSerializer):
     images = ProductImageSerializer(many=True, required=False)
     provider_name = serializers.CharField(source='provider.user.name', read_only=True)
+    provider = ProviderSerializer(read_only=True)
+
     
     class Meta:
         model = Product
-        fields = ['id','provider','provider_name','name','description','display_price','stock','is_active','images','created_at','updated_at']
+        fields = ['id','provider','provider_name','name','description','display_price','stock','is_active','images','created_at','updated_at','provider']
         read_only_fields = ['provider']
+    
     
     def create(self, validated_data):
         images_data = validated_data.pop('images', [])
