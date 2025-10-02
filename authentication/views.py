@@ -3188,6 +3188,21 @@ class OrderViewSet(viewsets.ModelViewSet):
 
         return Response(serializer.data, status=201)
 
+    @action(detail=False, methods=['get'], url_path='my-orders', permission_classes=[IsProvider])
+    def my_orders(self, request):
+        provider = getattr(request.user, 'provider', None)
+        if not provider:
+            return Response({'detail': 'Provider account required.'}, status=403)
+
+        orders = (
+            Order.objects
+            .filter(restaurant__provider=provider)
+            .order_by('-created_at')
+            .prefetch_related('items__product')
+        )
+        serializer = OrderSerializer(orders, many=True)
+        return Response(serializer.data)
+
     @action(detail=True, methods=['post'])
     def cancel(self, request, pk=None):
         order = self.get_object()
