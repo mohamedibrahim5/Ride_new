@@ -1694,16 +1694,23 @@ class ScheduledRideSerializer(serializers.ModelSerializer):
 class ProductImageSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProductImage
-        fields = ['id','image','alt_text','is_primary','created_at']
+        fields = ['id','image']
 
 class ProductSerializer(serializers.ModelSerializer):
     images = ProductImageSerializer(many=True, required=False)
+    provider_name = serializers.CharField(source='provider.user.name', read_only=True)
+    
     class Meta:
         model = Product
-        fields = ['id','category','name','description','display_price','stock','is_offer','is_active','images','created_at','updated_at']
+        fields = ['id','provider','provider_name','name','description','display_price','stock','is_active','images','created_at','updated_at']
+        read_only_fields = ['provider']
     
     def create(self, validated_data):
         images_data = validated_data.pop('images', [])
+        # Automatically set provider to current user's provider profile
+        request = self.context.get('request')
+        if request and hasattr(request.user, 'provider'):
+            validated_data['provider'] = request.user.provider
         product = Product.objects.create(**validated_data)
         for img_data in images_data:
             ProductImage.objects.create(product=product, **img_data)

@@ -299,36 +299,36 @@ class ProductImageRestaurant(models.Model):
         ordering = ["created_at"]
         
 
-class Product(models.Model):
-    # provider type -> online store
-    category = models.ForeignKey(
-        ProductCategory,
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="products",
-        verbose_name=_("Category")
-    )
-    name = models.CharField(_("Name"), max_length=100)
-    description = models.TextField(_("Description"))
-    display_price = models.PositiveIntegerField(_("Display Price"), default=0)
-    stock = models.PositiveIntegerField(_("Stock"), default=0)
-    is_offer = models.BooleanField(_("Is Offer"), default=False)
-    is_active = models.BooleanField(_("Is Active"), default=True)
-    created_at = models.DateTimeField(_("Created At"), auto_now_add=True)
-    updated_at = models.DateTimeField(_("Updated At"), auto_now=True)
+# class Product(models.Model):
+#     # provider type -> online store
+#     category = models.ForeignKey(
+#         ProductCategory,
+#         on_delete=models.SET_NULL,
+#         null=True,
+#         blank=True,
+#         related_name="products",
+#         verbose_name=_("Category")
+#     )
+#     name = models.CharField(_("Name"), max_length=100)
+#     description = models.TextField(_("Description"))
+#     display_price = models.PositiveIntegerField(_("Display Price"), default=0)
+#     stock = models.PositiveIntegerField(_("Stock"), default=0)
+#     is_offer = models.BooleanField(_("Is Offer"), default=False)
+#     is_active = models.BooleanField(_("Is Active"), default=True)
+#     created_at = models.DateTimeField(_("Created At"), auto_now_add=True)
+#     updated_at = models.DateTimeField(_("Updated At"), auto_now=True)
 
-    def __str__(self):
-        return self.name
+#     def __str__(self):
+#         return self.name
     
-    def save(self, *args, **kwargs):
-        if self.stock <= 0:
-            self.is_active = False
-        super().save(*args, **kwargs)
+#     def save(self, *args, **kwargs):
+#         if self.stock <= 0:
+#             self.is_active = False
+#         super().save(*args, **kwargs)
 
-    class Meta:
-        verbose_name = _("Product")
-        verbose_name_plural = _("Products")
+#     class Meta:
+#         verbose_name = _("Product")
+#         verbose_name_plural = _("Products")
 
 
 # class ProductImage(models.Model):
@@ -706,28 +706,28 @@ class UserPoints(models.Model):
         verbose_name_plural = _("User Points")
 
 
-# class Product(models.Model):
-#     # provider type -> online store
-#     provider = models.ForeignKey(Provider, on_delete=models.CASCADE, related_name="products", verbose_name=_("Provider"))
-#     name = models.CharField(_("Name"), max_length=100)
-#     description = models.TextField(_("Description"))
-#     display_price = models.PositiveIntegerField(_("Display Price"), default=0)
-#     stock = models.PositiveIntegerField(_("Stock"), default=0)
-#     is_active = models.BooleanField(_("Is Active"), default=True)
-#     created_at = models.DateTimeField(_("Created At"), auto_now_add=True)
-#     updated_at = models.DateTimeField(_("Updated At"), auto_now=True)
+class Product(models.Model):
+    # provider type -> online store
+    provider = models.ForeignKey(Provider, on_delete=models.CASCADE, related_name="products", verbose_name=_("Provider"), null=True, blank=True)
+    name = models.CharField(_("Name"), max_length=100)
+    description = models.TextField(_("Description"))
+    display_price = models.PositiveIntegerField(_("Display Price"), default=0)
+    stock = models.PositiveIntegerField(_("Stock"), default=0)
+    is_active = models.BooleanField(_("Is Active"), default=True)
+    created_at = models.DateTimeField(_("Created At"), auto_now_add=True)
+    updated_at = models.DateTimeField(_("Updated At"), auto_now=True)
 
-#     def __str__(self):
-#         return self.name
+    def __str__(self):
+        return self.name
     
-#     def save(self, *args, **kwargs):
-#         if self.stock <= 0:
-#             self.is_active = False
-#         super().save(*args, **kwargs)
+    def save(self, *args, **kwargs):
+        if self.stock <= 0:
+            self.is_active = False
+        super().save(*args, **kwargs)
 
-#     class Meta:
-#         verbose_name = _("Product")
-#         verbose_name_plural = _("Products")
+    class Meta:
+        verbose_name = _("Product")
+        verbose_name_plural = _("Products")
 
 
 class Purchase(models.Model):

@@ -119,3 +119,8 @@ class ProductImagePermission(BasePermission):
         has_store = provider.services.filter(name__icontains='store').exists()
         print(f"Provider has 'store' service: {has_store}")
         return has_store
+
+
+class IsProviderOrCustomer(BasePermission):
+    def has_permission(self, request, view):
+        return hasattr(request.user, 'provider') or hasattr(request.user, 'customer')

@@ -1861,7 +1861,7 @@ class CarSaleListingViewSet(viewsets.ModelViewSet):
         return qs.filter(is_active=True)
 
 
-from .permissions import IsProvider
+from .permissions import IsProvider,IsProviderOrCustomer
 
 class CarPurchaseViewSet(viewsets.ModelViewSet):
     queryset = CarPurchase.objects.select_related('listing__provider__user', 'customer__user').all()
@@ -3042,7 +3042,7 @@ class CategoryViewSet(viewsets.ModelViewSet):
 class ProductRestaurantViewSet(viewsets.ModelViewSet):
     queryset = ProductRestaurant.objects.prefetch_related('images_restaurant').all()
     serializer_class = ProductRestaurantSerializer
-    permission_classes = [IsProvider]
+    permission_classes = [IsProviderOrCustomer]
 
     def get_queryset(self):
         qs = super().get_queryset()

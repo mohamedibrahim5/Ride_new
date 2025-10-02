@@ -1247,9 +1247,9 @@ class UserPointsAdmin(admin.ModelAdmin):
 #     image_preview.allow_tags = True
 @admin.register(Product)
 class ProductAdmin(admin.ModelAdmin):
-    list_display = ('name', 'category', 'display_price', 'stock', 'is_offer', 'is_active', 'created_at')
-    list_filter = ('is_active', 'is_offer', 'category', 'created_at')
-    search_fields = ('name', 'description', 'category__name')
+    list_display = ('name', 'provider', 'display_price', 'stock', 'is_active', 'created_at')
+    list_filter = ('is_active', 'provider', 'created_at')
+    search_fields = ('name', 'description', 'provider__user__name')
     ordering = ('-created_at',)
     readonly_fields = ('created_at', 'updated_at')
 
@@ -2495,7 +2495,7 @@ class ProductCategoryAdmin(admin.ModelAdmin):
     list_filter = ['restaurant']
 
 @admin.register(ProductRestaurant)
-class ProductAdmin(admin.ModelAdmin):
+class ProductRestaurantAdmin(admin.ModelAdmin):
     list_display = ['name', 'category', 'display_price', 'stock', 'is_offer', 'is_active', 'created_at']
     search_fields = ['name', 'category__name', 'category__restaurant__restaurant_name']
     list_filter = ['is_active', 'is_offer', 'category', 'created_at']
