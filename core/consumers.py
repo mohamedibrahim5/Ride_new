@@ -274,23 +274,156 @@ class ApplyConsumer(AsyncWebsocketConsumer):
     async def ride_status_update(self, event): await self.send_json(event)
     async def scheduled_ride_status_update(self, event): await self.send_json(event)
 
-
+import uuid
 class LiveConsumer(AsyncWebsocketConsumer):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.user_id = None
+        self.user_name = None
+    
     async def connect(self):
         self.room_name = self.scope['url_route']['kwargs']['room_name']
         self.room_group_name = f"live_{self.room_name}"
+        
+        # Generate a unique user ID for this connection
+        self.user_id = str(uuid.uuid4())[:8]  # Short unique ID
+        self.user_name = f"User_{self.user_id}"
+        
+        # Join room group
         await self.channel_layer.group_add(self.room_group_name, self.channel_name)
         await self.accept()
+        
+        # Notify all users in the room that someone joined
+        await self.channel_layer.group_send(
+            self.room_group_name,
+            {
+                'type': 'user_joined',
+                'user_id': self.user_id,
+                'user_name': self.user_name,
+                'message': f'{self.user_name} joined the room'
+            }
+        )
+        
+        # Send current user their own ID
+        await self.send(text_data=json.dumps({
+            'type': 'your_user_id',
+            'user_id': self.user_id,
+            'user_name': self.user_name
+        }))
 
     async def disconnect(self, close_code):
+        # Notify all users in the room that someone left
+        if self.user_id:
+            await self.channel_layer.group_send(
+                self.room_group_name,
+                {
+                    'type': 'user_left',
+                    'user_id': self.user_id,
+                    'user_name': self.user_name,
+                    'message': f'{self.user_name} left the room'
+                }
+            )
+        
+        # Leave room group
         await self.channel_layer.group_discard(self.room_group_name, self.channel_name)
 
     async def receive(self, text_data):
-        data = json.loads(text_data)
-        await self.channel_layer.group_send(
-            self.room_group_name,
-            {"type": "signal_message", "message": data}
-        )
+        try:
+            data = json.loads(text_data)
+            message_type = data.get('type')
+            
+            if message_type == 'offer':
+                await self.channel_layer.group_send(
+                    self.room_group_name,
+                    {
+                        'type': 'webrtc_offer',
+                        'sender_id': self.user_id,
+                        'target_user': data.get('target_user'),
+                        'sdp': data.get('sdp'),
+                        'user_id': data.get('user_id', self.user_id)
+                    }
+                )
+            elif message_type == 'answer':
+                await self.channel_layer.group_send(
+                    self.room_group_name,
+                    {
+                        'type': 'webrtc_answer',
+                        'sender_id': self.user_id,
+                        'target_user': data.get('target_user'),
+                        'sdp': data.get('sdp'),
+                        'user_id': data.get('user_id', self.user_id)
+                    }
+                )
+            elif message_type == 'candidate':
+                await self.channel_layer.group_send(
+                    self.room_group_name,
+                    {
+                        'type': 'webrtc_candidate',
+                        'sender_id': self.user_id,
+                        'target_user': data.get('target_user'),
+                        'candidate': data.get('candidate'),
+                        'user_id': data.get('user_id', self.user_id)
+                    }
+                )
+                
+        except json.JSONDecodeError:
+            await self.send(text_data=json.dumps({
+                'type': 'error',
+                'message': 'Invalid JSON format'
+            }))
 
-    async def signal_message(self, event):
-        await self.send(text_data=json.dumps(event["message"]))
+    # Handle user join notification
+    async def user_joined(self, event):
+        if event['user_id'] != self.user_id:
+            await self.send(text_data=json.dumps({
+                'type': 'user_joined',
+                'user_id': event['user_id'],
+                'user_name': event['user_name'],
+                'message': event['message']
+            }))
+
+    # Handle user leave notification
+    async def user_left(self, event):
+        if event['user_id'] != self.user_id:
+            await self.send(text_data=json.dumps({
+                'type': 'user_left',
+                'user_id': event['user_id'],
+                'user_name': event['user_name'],
+                'message': event['message']
+            }))
+
+    # Handle WebRTC offer
+    async def webrtc_offer(self, event):
+        if (event.get('target_user') == self.user_id or 
+            not event.get('target_user') or 
+            event['sender_id'] != self.user_id):
+            await self.send(text_data=json.dumps({
+                'type': 'offer',
+                'sdp': event['sdp'],
+                'user_id': event['user_id'],
+                'sender_id': event['sender_id']
+            }))
+
+    # Handle WebRTC answer
+    async def webrtc_answer(self, event):
+        if (event.get('target_user') == self.user_id or 
+            not event.get('target_user') or 
+            event['sender_id'] != self.user_id):
+            await self.send(text_data=json.dumps({
+                'type': 'answer',
+                'sdp': event['sdp'],
+                'user_id': event['user_id'],
+                'sender_id': event['sender_id']
+            }))
+
+    # Handle ICE candidate
+    async def webrtc_candidate(self, event):
+        if (event.get('target_user') == self.user_id or 
+            not event.get('target_user') or 
+            event['sender_id'] != self.user_id):
+            await self.send(text_data=json.dumps({
+                'type': 'candidate',
+                'candidate': event['candidate'],
+                'user_id': event['user_id'],
+                'sender_id': event['sender_id']
+            }))
