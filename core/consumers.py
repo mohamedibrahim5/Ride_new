@@ -365,6 +365,17 @@ class LiveConsumer(AsyncWebsocketConsumer):
                         'user_id': data.get('user_id', self.user_id)
                     }
                 )
+            elif message_type == 'chat_message':
+                await self.channel_layer.group_send(
+                    self.room_group_name,
+                    {
+                        'type': 'chat_message',
+                        'user_id': self.user_id,
+                        'username': data.get('username', f'User_{self.user_id}'),
+                        'message': data.get('message'),
+                        'id': str(uuid.uuid4()),
+                    }
+                )
                 
         except json.JSONDecodeError:
             await self.send(text_data=json.dumps({
@@ -426,4 +437,15 @@ class LiveConsumer(AsyncWebsocketConsumer):
                 'candidate': event['candidate'],
                 'user_id': event['user_id'],
                 'sender_id': event['sender_id']
+            }))
+
+    # Handle chat message
+    async def chat_message(self, event):
+        if event['user_id'] != self.user_id:
+            await self.send(text_data=json.dumps({
+                'type': 'chat_message',
+                'user_id': event['user_id'],
+                'username': event['username'],
+                'message': event['message'],
+                'id': event['id']
             }))
