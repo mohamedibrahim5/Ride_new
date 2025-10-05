@@ -78,6 +78,13 @@ class TokenAuthMiddleware(BaseMiddleware):
         super().__init__(inner)
 
     async def __call__(self, scope, receive, send):
+        # Bypass auth for live streaming endpoints
+        if scope.get('type') == 'websocket':
+            path = scope.get('path', '')
+            if path.startswith('/ws/live/'):
+                scope['user'] = AnonymousUser()
+                return await super().__call__(scope, receive, send)
+        
         try:
             token_key = scope['query_string'].decode()
         except ValueError:
