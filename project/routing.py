@@ -1,5 +1,5 @@
-from core.consumers import ApplyConsumer
-from django.urls import  re_path
+from core.consumers import ApplyConsumer, LiveConsumer
+from django.urls import  re_path , path
 
 """
 This module defines the routing configuration for WebSocket connections in the project.
@@ -20,4 +20,6 @@ Example usage:
 
 websocket_urlpatterns = [
     re_path(r'^ws/$', ApplyConsumer.as_asgi()),
+    path("ws/live/<room_name>/", LiveConsumer.as_asgi())
+    
 ]
