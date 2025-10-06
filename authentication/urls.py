@@ -55,7 +55,8 @@ from authentication.views import (
     AddressViewSet,
     PublicRestaurantListView,
     ProductRestaurantViewSet,
-    ProductImageRestaurantViewSet
+    ProductImageRestaurantViewSet,
+    WebRTCIceServersView
 )
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
@@ -135,6 +136,7 @@ urlpatterns = [
     path('rides/<int:ride_id>/rating/', RideRatingView.as_view(), name='ride-rating'),
     path('provider-autocomplete/', ProviderAutocomplete.as_view(), name='provider-autocomplete'),
     path('service-autocomplete/', ServiceAutocomplete.as_view(), name='service-autocomplete'),
+    path('webrtc/ice-servers/', WebRTCIceServersView.as_view(), name='webrtc-ice-servers'),
     path('admin/logo/', dashboard_logo, name='dashboard_logo'),
     path('test-notifications/', notification_test_view, name='notification_test'),
     
