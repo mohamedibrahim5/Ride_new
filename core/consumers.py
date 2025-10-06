@@ -376,6 +376,17 @@ class LiveConsumer(AsyncWebsocketConsumer):
                         'id': str(uuid.uuid4()),
                     }
                 )
+
+            elif message_type == 'media_state':
+                await self.channel_layer.group_send(
+                    self.room_group_name,
+                    {
+                        'type': 'media_state',
+                        'user_id': self.user_id,
+                        'audio': bool(data.get('audio', True)),
+                        'video': bool(data.get('video', True)),
+                    }
+                )
                 
         except json.JSONDecodeError:
             await self.send(text_data=json.dumps({
@@ -448,4 +459,14 @@ class LiveConsumer(AsyncWebsocketConsumer):
                 'username': event['username'],
                 'message': event['message'],
                 'id': event['id']
+            }))
+
+    # Handle media state
+    async def media_state(self, event):
+        if event['user_id'] != self.user_id:
+            await self.send(text_data=json.dumps({
+                'type': 'media_state',
+                'user_id': event['user_id'],
+                'audio': event['audio'],
+                'video': event['video']
             }))
