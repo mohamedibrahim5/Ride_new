@@ -79,12 +79,6 @@ TEMPLATES = [
 ASGI_APPLICATION = "project.asgi.application"
 WSGI_APPLICATION = "project.wsgi.application"
 
-# WebRTC ICE servers (STUN/TURN) - configure via environment
-WEBRTC_STUN_URL = os.getenv("WEBRTC_STUN_URL", "stun:stun.l.google.com:19302")
-WEBRTC_TURN_URL = os.getenv("WEBRTC_TURN_URL")  # e.g., turn:turn.example.com:3478?transport=udp
-WEBRTC_TURN_USERNAME = os.getenv("WEBRTC_TURN_USERNAME")
-WEBRTC_TURN_PASSWORD = os.getenv("WEBRTC_TURN_PASSWORD")
-
 # GDAL configuration for Homebrew
 # GEOS_LIBRARY_PATH = '/usr/local/Cellar/geos/3.13.1/lib/libgeos_c.dylib'
 

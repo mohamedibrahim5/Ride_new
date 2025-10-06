@@ -78,7 +78,6 @@ from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
 from django.db import models
-from django.conf import settings
 from .pagination import SimplePagination
 from django.core.cache import cache
 import math
@@ -3233,21 +3232,6 @@ class OrderViewSet(viewsets.ModelViewSet):
             'expected_time_minutes': int(order.expected_order_time.total_seconds()//60)
         }
         return Response(data)
-
-from rest_framework.views import APIView
-class WebRTCIceServersView(APIView):
-    permission_classes = []  # public
-    authentication_classes = []
-
-    def get(self, request):
-        ice_servers = [{"urls": settings.WEBRTC_STUN_URL}] if getattr(settings, 'WEBRTC_STUN_URL', None) else []
-        if getattr(settings, 'WEBRTC_TURN_URL', None) and getattr(settings, 'WEBRTC_TURN_USERNAME', None) and getattr(settings, 'WEBRTC_TURN_PASSWORD', None):
-            ice_servers.append({
-                "urls": settings.WEBRTC_TURN_URL,
-                "username": settings.WEBRTC_TURN_USERNAME,
-                "credential": settings.WEBRTC_TURN_PASSWORD,
-            })
-        return Response({"iceServers": ice_servers})
 
 class CouponRestaurantViewSet(viewsets.ModelViewSet):
     queryset = CouponRestaurant.objects.all()
