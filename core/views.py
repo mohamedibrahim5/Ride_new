@@ -8,6 +8,12 @@ def LiveRoomLandingView(request, room_id: str):
     safe_room = escape(room_id)
     canonical_url = request.build_absolute_uri()
     app_link = f"ride://live/{safe_room}?url={quote(canonical_url)}"
+    target_path = request.path.lstrip('/')
+    referrer = f"utm_source=deeplink&utm_content={target_path}"
+    play_url = (
+        "https://play.google.com/store/apps/details?id=com.mintops.zynvo"
+        f"&referrer={quote(referrer)}"
+    )
     html = f"""
 <!doctype html>
 <html>
@@ -21,6 +27,15 @@ def LiveRoomLandingView(request, room_id: str):
     <h1>Join Live Room {safe_room}</h1>
     <p><strong>App link:</strong> <a href="{app_link}">Open in app</a></p>
     <p><strong>Page URL:</strong> <a href="{canonical_url}">{canonical_url}</a></p>
+    <p id="store-cta" style="display:none; margin-top:16px;">
+      <a href="{play_url}" style="padding:10px 14px; background:#1a73e8; color:#fff; text-decoration:none; border-radius:6px;">Get the app on Google Play</a>
+    </p>
+    <script>
+      setTimeout(function() {{
+        var el = document.getElementById('store-cta');
+        if (el) el.style.display = 'block';
+      }}, 1200);
+    </script>
     <p>If the app does not open automatically, tap the button above.</p>
   </body>
  </html>
