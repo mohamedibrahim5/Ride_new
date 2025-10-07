@@ -58,6 +58,7 @@ from authentication.views import (
     ProductImageRestaurantViewSet
 )
 from django.urls import path, include
+from core.views import LiveRoomLandingView
 from rest_framework.routers import DefaultRouter
 
 
@@ -96,6 +97,7 @@ router.register(r'addresses', AddressViewSet, basename='addresses')
 
 
 urlpatterns = [
+    path('live/<str:room_id>/', LiveRoomLandingView, name='live-room'),
     path("register/", UserRegisterView.as_view(), name="register"),
     path("login/", LoginView.as_view(), name="login"),
     path("send-otp/", SendOtpView.as_view(), name="send-otp"),

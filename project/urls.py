@@ -14,6 +14,7 @@ urlpatterns = [
     path("i18n/", include("django.conf.urls.i18n")),  # for language switching
     path("", lambda request: HttpResponse(_("Welcome to the Riders API")), name="welcome-page"),
     path("authentication/", include("authentication.urls")),
+    path("", include("core.urls")),  # include .well-known routes
 
 
     
