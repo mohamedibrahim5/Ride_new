@@ -3362,16 +3362,16 @@ class PublicRestaurantListView(generics.ListAPIView):
         return qs
 
 class AgoraTokenView(APIView):
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
 
     def post(self, request):
         channel = request.data.get('channel')
         if not channel:
             return Response({"detail": "channel is required"}, status=400)
         try:
-            uid = int(request.data.get('uid') or request.user.id)
+            uid = int(request.data.get('uid') or 0)
         except Exception:
-            uid = request.user.id
+            uid = 0
         expire = int(request.data.get('expire') or 3600)
 
         app_id = getattr(settings, 'AGORA_APP_ID', None)
