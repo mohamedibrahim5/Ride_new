@@ -3379,15 +3379,24 @@ class AgoraTokenView(APIView):
         if not app_id or not app_cert:
             return Response({"detail": "Agora not configured"}, status=500)
 
-        # Minimal HMAC-based token placeholder. For production, use Agora AccessToken2 builder.
-        from time import time
-        from hashlib import sha256
-        import hmac, base64
-        issue_ts = int(time())
-        expire_ts = issue_ts + expire
-        payload = f"{app_id}:{channel}:{uid}:{expire_ts}".encode()
-        sig = hmac.new(app_cert.encode(), payload, sha256).digest()
-        token = base64.urlsafe_b64encode(sig + b'.' + payload).decode()
+        # Use official Agora token builder
+        from agora_token_builder import RtcTokenBuilder
+        import time
+        
+        current_timestamp = int(time.time())
+        privilege_expired_ts = current_timestamp + expire
+        
+        # Build token with join channel privilege
+        token = RtcTokenBuilder.build_token_with_uid(
+            app_id=app_id,
+            app_certificate=app_cert,
+            channel_name=channel,
+            uid=uid,
+            role=1,  # 1 = publisher, 0 = subscriber
+            privilege_expired_ts=privilege_expired_ts
+        )
+        
+        expire_ts = privilege_expired_ts
 
         return Response({
             "appId": app_id,
