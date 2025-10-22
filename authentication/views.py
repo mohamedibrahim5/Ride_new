@@ -97,6 +97,8 @@ from authentication.signals import set_request_data
 from .utils import send_fcm_notification
 from django.core.cache import cache
 from django.conf import settings
+from agora_token_builder import RtcTokenBuilder
+import time
 
 import json
 from django.http import QueryDict
@@ -3368,40 +3370,25 @@ class AgoraTokenView(APIView):
         channel = request.data.get('channel')
         if not channel:
             return Response({"detail": "channel is required"}, status=400)
-        try:
-            uid = int(request.data.get('uid') or 0)
-        except Exception:
-            uid = 0
-        expire = int(request.data.get('expire') or 3600)
+        
+        uid = int(request.data.get('uid', 0))
+        expire = int(request.data.get('expire', 3600))
 
-        app_id = getattr(settings, 'AGORA_APP_ID', None)
-        app_cert = getattr(settings, 'AGORA_APP_CERTIFICATE', None)
-        if not app_id or not app_cert:
-            return Response({"detail": "Agora not configured"}, status=500)
-
-        # Use official Agora token builder
-        from agora_token_builder import RtcTokenBuilder
-        import time
+        app_id = settings.AGORA_APP_ID
+        app_cert = settings.AGORA_APP_CERTIFICATE
         
         current_timestamp = int(time.time())
         privilege_expired_ts = current_timestamp + expire
         
-        # Build token with join channel privilege
-        token = RtcTokenBuilder.build_token_with_uid(
-            app_id=app_id,
-            app_certificate=app_cert,
-            channel_name=channel,
-            uid=uid,
-            role=1,  # 1 = publisher, 0 = subscriber
-            privilege_expired_ts=privilege_expired_ts
+        # Generate token
+        token = RtcTokenBuilder.buildTokenWithUid(
+            app_id, app_cert, channel, uid, 1, privilege_expired_ts
         )
-        
-        expire_ts = privilege_expired_ts
 
         return Response({
             "appId": app_id,
             "channel": channel,
             "uid": uid,
-            "expireAt": expire_ts,
+            "expireAt": privilege_expired_ts,
             "token": token,
         })
