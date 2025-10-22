@@ -79,6 +79,10 @@ TEMPLATES = [
 ASGI_APPLICATION = "project.asgi.application"
 WSGI_APPLICATION = "project.wsgi.application"
 
+# Agora configuration (tokens generated server-side)
+AGORA_APP_ID = "614afabf08e44d928163202ff9842be6"
+AGORA_APP_CERTIFICATE = "39c1b9baa9ca4bb9b99c299091d3d7ee"
+
 # GDAL configuration for Homebrew
 # GEOS_LIBRARY_PATH = '/usr/local/Cellar/geos/3.13.1/lib/libgeos_c.dylib'
 

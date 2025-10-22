@@ -96,6 +96,7 @@ import json
 from authentication.signals import set_request_data
 from .utils import send_fcm_notification
 from django.core.cache import cache
+from django.conf import settings
 
 import json
 from django.http import QueryDict
@@ -3359,3 +3360,39 @@ class PublicRestaurantListView(generics.ListAPIView):
             except Exception:
                 pass
         return qs
+
+class AgoraTokenView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        channel = request.data.get('channel')
+        if not channel:
+            return Response({"detail": "channel is required"}, status=400)
+        try:
+            uid = int(request.data.get('uid') or request.user.id)
+        except Exception:
+            uid = request.user.id
+        expire = int(request.data.get('expire') or 3600)
+
+        app_id = getattr(settings, 'AGORA_APP_ID', None)
+        app_cert = getattr(settings, 'AGORA_APP_CERTIFICATE', None)
+        if not app_id or not app_cert:
+            return Response({"detail": "Agora not configured"}, status=500)
+
+        # Minimal HMAC-based token placeholder. For production, use Agora AccessToken2 builder.
+        from time import time
+        from hashlib import sha256
+        import hmac, base64
+        issue_ts = int(time())
+        expire_ts = issue_ts + expire
+        payload = f"{app_id}:{channel}:{uid}:{expire_ts}".encode()
+        sig = hmac.new(app_cert.encode(), payload, sha256).digest()
+        token = base64.urlsafe_b64encode(sig + b'.' + payload).decode()
+
+        return Response({
+            "appId": app_id,
+            "channel": channel,
+            "uid": uid,
+            "expireAt": expire_ts,
+            "token": token,
+        })

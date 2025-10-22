@@ -55,7 +55,8 @@ from authentication.views import (
     AddressViewSet,
     PublicRestaurantListView,
     ProductRestaurantViewSet,
-    ProductImageRestaurantViewSet
+    ProductImageRestaurantViewSet,
+    AgoraTokenView
 )
 from django.urls import path, include
 from core.views import LiveRoomLandingView
@@ -114,6 +115,9 @@ urlpatterns = [
     path("restaurants/public/", PublicRestaurantListView.as_view(), name="restaurants-public"),
     path("", include(router.urls)),
     path("request-provider/", RequestProviderView.as_view(), name="request-provider"),
+
+    # Agora token endpoint
+    path("agora/token/", AgoraTokenView.as_view(), name="agora-token"),
 
     path("start-ride/", StartRideRequestView.as_view(), name="start-ride"),
 
