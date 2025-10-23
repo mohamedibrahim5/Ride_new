@@ -56,7 +56,8 @@ from authentication.views import (
     PublicRestaurantListView,
     ProductRestaurantViewSet,
     ProductImageRestaurantViewSet,
-    AgoraTokenView
+    AgoraTokenView,
+    RestaurantReportsView
 )
 from django.urls import path, include
 from core.views import LiveRoomLandingView
@@ -154,4 +155,7 @@ urlpatterns = [
 
     # patch online and offline status provider 
     path("provider/online-status/", ProviderOnlineStatusUpdateView.as_view(), name="provider-online-status"),
+    
+    # Restaurant reports
+    path("restaurant-reports/", RestaurantReportsView.as_view(), name="restaurant-reports"),
 ]

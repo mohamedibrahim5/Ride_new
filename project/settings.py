@@ -564,9 +564,9 @@ SIMPLEUI_CONFIG = {
                     'url': 'authentication/deliveryaddress/'
                 },
                 {
-                    'name': _('Reports'),
+                    'name': _('Restaurant Reports'),
                     'icon': 'fas fa-chart-line',
-                    'url': '/admin/'  # placeholder or custom report view
+                    'url': '/authentication/restaurant-reports/'  # custom restaurant reports view
                 },
             ]
         }

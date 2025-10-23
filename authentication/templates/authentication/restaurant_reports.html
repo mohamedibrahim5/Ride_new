@@ -1,0 +1,259 @@
+{% extends "admin/base_site.html" %}
+{% load i18n static %}
+
+{% block title %}{% trans "Restaurant Reports" %}{% endblock %}
+
+{% block extrahead %}
+    {{ block.super }}
+    <style>
+        .reports-container {
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 20px;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .stat-card {
+            background: #fff;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .stat-card h3 {
+            margin: 0 0 10px 0;
+            color: #333;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .stat-card .value {
+            font-size: 32px;
+            font-weight: bold;
+            color: #007cba;
+            margin: 10px 0;
+        }
+        .recent-orders {
+            background: #fff;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        .recent-orders h3 {
+            margin: 0 0 15px 0;
+            color: #333;
+            border-bottom: 2px solid #007cba;
+            padding-bottom: 10px;
+        }
+        .order-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .order-item:last-child {
+            border-bottom: none;
+        }
+        .order-info {
+            flex: 1;
+        }
+        .order-price {
+            font-weight: bold;
+            color: #007cba;
+        }
+        .no-data {
+            text-align: center;
+            color: #666;
+            font-style: italic;
+            padding: 40px;
+        }
+        .restaurant-header {
+            background: linear-gradient(135deg, #007cba 0%, #005a87 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .restaurant-header h1 {
+            margin: 0;
+            font-size: 24px;
+        }
+        .restaurant-header p {
+            margin: 5px 0 0 0;
+            opacity: 0.9;
+        }
+        .restaurant-section {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+        .restaurant-section h2 {
+            margin: 0 0 10px 0;
+            color: #333;
+            font-size: 20px;
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+<div class="reports-container">
+    {% if restaurants_data %}
+        <div class="restaurant-header">
+            <h1>{% trans "Restaurant Reports" %}</h1>
+            <p>{% trans "Overview of all restaurants" %} ({{ total_restaurants }} {% trans "restaurants" %})</p>
+        </div>
+
+        <!-- Overall Statistics -->
+        <div class="stats-grid">
+            <div class="stat-card">
+                <h3>{% trans "Total Restaurants" %}</h3>
+                <div class="value">{{ total_restaurants|default:0 }}</div>
+            </div>
+            <div class="stat-card">
+                <h3>{% trans "Total Orders" %}</h3>
+                <div class="value">{{ total_orders|default:0 }}</div>
+            </div>
+            <div class="stat-card">
+                <h3>{% trans "Total Revenue" %}</h3>
+                <div class="value">${{ total_revenue|floatformat:2|default:"0.00" }}</div>
+            </div>
+            <div class="stat-card">
+                <h3>{% trans "Average per Restaurant" %}</h3>
+                <div class="value">
+                    {% if total_restaurants > 0 %}
+                        ${{ avg_per_restaurant|floatformat:2|default:"0.00" }}
+                    {% else %}
+                        $0.00
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Individual Restaurant Details -->
+        {% for restaurant_data in restaurants_data %}
+            <div class="restaurant-section">
+                <div class="restaurant-header" style="margin-bottom: 20px;">
+                    <h2>{{ restaurant_data.restaurant.restaurant_name }}</h2>
+                    <p>
+                        {% if restaurant_data.restaurant.is_verified %}
+                            <span style="color: #28a745;">✓ {% trans "Verified" %}</span>
+                        {% else %}
+                            <span style="color: #dc3545;">⏳ {% trans "Pending Verification" %}</span>
+                        {% endif %}
+                        | Rating: {{ restaurant_data.restaurant.average_rating|floatformat:1|default:"0.0" }} ⭐
+                    </p>
+                </div>
+
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <h3>{% trans "Orders" %}</h3>
+                        <div class="value">{{ restaurant_data.total_orders }}</div>
+                    </div>
+                    <div class="stat-card">
+                        <h3>{% trans "Revenue" %}</h3>
+                        <div class="value">${{ restaurant_data.total_revenue|floatformat:2 }}</div>
+                    </div>
+                    <div class="stat-card">
+                        <h3>{% trans "Average Order Value" %}</h3>
+                        <div class="value">
+                            {% if restaurant_data.total_orders > 0 %}
+                                ${{ restaurant_data.avg_order_value|floatformat:2|default:"0.00" }}
+                            {% else %}
+                                $0.00
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <h3>{% trans "Status" %}</h3>
+                        <div class="value">
+                            {% if restaurant_data.restaurant.is_verified %}
+                                <span style="color: #28a745;">{% trans "Active" %}</span>
+                            {% else %}
+                                <span style="color: #ffc107;">{% trans "Pending" %}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                {% if restaurant_data.recent_orders %}
+                    <div class="recent-orders">
+                        <h3>{% trans "Recent Orders for" %} {{ restaurant_data.restaurant.restaurant_name }}</h3>
+                        {% for order in restaurant_data.recent_orders %}
+                            <div class="order-item">
+                                <div class="order-info">
+                                    <strong>{% trans "Order" %} #{{ order.id }}</strong><br>
+                                    <small>{% trans "Customer" %}: {{ order.customer.name }}</small><br>
+                                    <small>{% trans "Date" %}: {{ order.created_at|date:"M d, Y H:i" }}</small><br>
+                                    <small>{% trans "Status" %}: 
+                                        <span style="color: 
+                                            {% if order.status == 'delivered' %}#28a745
+                                            {% elif order.status == 'cancelled' %}#dc3545
+                                            {% else %}#ffc107
+                                            {% endif %};">
+                                            {{ order.get_status_display }}
+                                        </span>
+                                    </small>
+                                </div>
+                                <div class="order-price">
+                                    ${{ order.final_price|floatformat:2 }}
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </div>
+        {% endfor %}
+
+        <!-- Combined Recent Orders -->
+        {% if recent_orders %}
+            <div class="recent-orders">
+                <h3>{% trans "Recent Orders (All Restaurants)" %}</h3>
+                {% for order in recent_orders %}
+                    <div class="order-item">
+                        <div class="order-info">
+                            <strong>{% trans "Order" %} #{{ order.id }}</strong><br>
+                            <small>{% trans "Restaurant" %}: {{ order.restaurant.restaurant_name }}</small><br>
+                            <small>{% trans "Customer" %}: {{ order.customer.name }}</small><br>
+                            <small>{% trans "Date" %}: {{ order.created_at|date:"M d, Y H:i" }}</small><br>
+                            <small>{% trans "Status" %}: 
+                                <span style="color: 
+                                    {% if order.status == 'delivered' %}#28a745
+                                    {% elif order.status == 'cancelled' %}#dc3545
+                                    {% else %}#ffc107
+                                    {% endif %};">
+                                    {{ order.get_status_display }}
+                                </span>
+                            </small>
+                        </div>
+                        <div class="order-price">
+                            ${{ order.final_price|floatformat:2 }}
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+    {% else %}
+        <div class="restaurant-header">
+            <h1>{% trans "Restaurant Reports" %}</h1>
+            <p>{% trans "No restaurants found." %}</p>
+        </div>
+        <div class="no-data">
+            {% if user.is_staff or user.is_superuser %}
+                {% trans "No restaurants have been created yet." %}
+            {% else %}
+                {% trans "Please contact an administrator to associate a restaurant with your account." %}
+            {% endif %}
+        </div>
+    {% endif %}
+</div>
+{% endblock %}

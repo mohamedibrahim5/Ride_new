@@ -74,6 +74,7 @@ from authentication.models import (
     ProductRestaurant,
     ProductImageRestaurant,
     CouponRestaurant,
+    RestaurantReportsProxy,
 )
 from .widgets import GoogleMapWidget
 from django import forms
@@ -2556,5 +2557,9 @@ class DeliveryAddressAdmin(admin.ModelAdmin):
     list_filter = ['is_default']
     search_fields = ['customer__name', 'address']
 
-# Reports are API views; no direct Model to register in admin.
+# Expose Restaurant Reports via a proxy model that redirects to the reports page
+@admin.register(RestaurantReportsProxy)
+class RestaurantReportsAdmin(admin.ModelAdmin):
+    def changelist_view(self, request, extra_context=None):
+        return HttpResponseRedirect('/authentication/restaurant-reports/')
 

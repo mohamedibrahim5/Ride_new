@@ -1319,3 +1319,14 @@ class CouponRestaurant(models.Model):
         if self.discount_percentage < 0 or self.discount_percentage > 100:
             raise ValidationError(_("Discount percentage must be between 0 and 100."))
         super().clean()
+
+
+# Proxy model to expose Restaurant Reports in Django admin (no database table)
+class RestaurantReportsProxy(RestaurantModel):
+    class Meta:
+        proxy = True
+        verbose_name = _("Restaurant Reports")
+        verbose_name_plural = _("Restaurant Reports")
+
+    def __str__(self):
+        return _("Restaurant Reports")

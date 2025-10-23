@@ -89,6 +89,7 @@ from django.utils.dateparse import parse_datetime
 from rest_framework import serializers
 from django.http import Http404
 from django.db.models import Avg
+from django.views.generic import TemplateView
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 from collections import defaultdict
@@ -3392,3 +3393,129 @@ class AgoraTokenView(APIView):
             "expireAt": privilege_expired_ts,
             "token": token,
         })
+
+
+class RestaurantReportsView(TemplateView):
+    """
+    Restaurant Reports Dashboard View
+    Renders an HTML template for restaurant reports
+    """
+    template_name = 'authentication/restaurant_reports.html'
+    permission_classes = [IsAuthenticated]
+    
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        
+        # Get restaurant data for context
+        try:
+            restaurants_data = []
+            all_orders = []
+            
+            # Check if user has a provider and restaurants
+            if hasattr(self.request.user, 'provider') and self.request.user.provider:
+                restaurants = self.request.user.provider.restaurants.all()
+                if restaurants.exists():
+                    for restaurant in restaurants:
+                        orders = Order.objects.filter(restaurant=restaurant)
+                        total_orders = orders.count()
+                        total_revenue = orders.aggregate(total=Sum('total_price'))['total'] or 0
+                        avg_order_value = total_revenue / total_orders if total_orders > 0 else 0
+                        
+                        restaurant_data = {
+                            'restaurant': restaurant,
+                            'total_orders': total_orders,
+                            'total_revenue': total_revenue,
+                            'avg_order_value': avg_order_value,
+                            'recent_orders': orders.order_by('-created_at')[:5]  # 5 recent orders per restaurant
+                        }
+                        restaurants_data.append(restaurant_data)
+                        all_orders.extend(orders.order_by('-created_at')[:3])  # Add to combined recent orders
+                    
+                    # Sort all recent orders by date and take top 10
+                    all_orders = sorted(all_orders, key=lambda x: x.created_at, reverse=True)[:10]
+                    
+                    total_orders_sum = sum(data['total_orders'] for data in restaurants_data)
+                    total_revenue_sum = sum(data['total_revenue'] for data in restaurants_data)
+                    avg_per_restaurant = total_revenue_sum / len(restaurants_data) if restaurants_data else 0
+                    
+                    context.update({
+                        'restaurants_data': restaurants_data,
+                        'total_restaurants': len(restaurants_data),
+                        'total_orders': total_orders_sum,
+                        'total_revenue': total_revenue_sum,
+                        'avg_per_restaurant': avg_per_restaurant,
+                        'recent_orders': all_orders
+                    })
+                else:
+                    # User has provider but no restaurants
+                    context.update({
+                        'restaurants_data': [],
+                        'total_restaurants': 0,
+                        'total_orders': 0,
+                        'total_revenue': 0,
+                        'recent_orders': []
+                    })
+            elif self.request.user.is_staff or self.request.user.is_superuser:
+                # For admin users, show all restaurants and their data
+                from .models import RestaurantModel
+                restaurants = RestaurantModel.objects.all()
+                if restaurants.exists():
+                    for restaurant in restaurants:
+                        orders = Order.objects.filter(restaurant=restaurant)
+                        total_orders = orders.count()
+                        total_revenue = orders.aggregate(total=Sum('total_price'))['total'] or 0
+                        avg_order_value = total_revenue / total_orders if total_orders > 0 else 0
+                        
+                        restaurant_data = {
+                            'restaurant': restaurant,
+                            'total_orders': total_orders,
+                            'total_revenue': total_revenue,
+                            'avg_order_value': avg_order_value,
+                            'recent_orders': orders.order_by('-created_at')[:5]  # 5 recent orders per restaurant
+                        }
+                        restaurants_data.append(restaurant_data)
+                        all_orders.extend(orders.order_by('-created_at')[:3])  # Add to combined recent orders
+                    
+                    # Sort all recent orders by date and take top 10
+                    all_orders = sorted(all_orders, key=lambda x: x.created_at, reverse=True)[:10]
+                    
+                    total_orders_sum = sum(data['total_orders'] for data in restaurants_data)
+                    total_revenue_sum = sum(data['total_revenue'] for data in restaurants_data)
+                    avg_per_restaurant = total_revenue_sum / len(restaurants_data) if restaurants_data else 0
+                    
+                    context.update({
+                        'restaurants_data': restaurants_data,
+                        'total_restaurants': len(restaurants_data),
+                        'total_orders': total_orders_sum,
+                        'total_revenue': total_revenue_sum,
+                        'avg_per_restaurant': avg_per_restaurant,
+                        'recent_orders': all_orders
+                    })
+                else:
+                    context.update({
+                        'restaurants_data': [],
+                        'total_restaurants': 0,
+                        'total_orders': 0,
+                        'total_revenue': 0,
+                        'recent_orders': []
+                    })
+            else:
+                # User is not a provider or has no provider
+                context.update({
+                    'restaurants_data': [],
+                    'total_restaurants': 0,
+                    'total_orders': 0,
+                    'total_revenue': 0,
+                    'recent_orders': []
+                })
+        except Exception as e:
+            # Handle any errors gracefully
+            context.update({
+                'restaurants_data': [],
+                'total_restaurants': 0,
+                'total_orders': 0,
+                'total_revenue': 0,
+                'recent_orders': []
+            })
+        
+        return context
