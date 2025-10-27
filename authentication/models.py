@@ -94,7 +94,7 @@ class User(AbstractUser):
     username = None
     first_name = None
     last_name = None
-    groups = None
+    # groups = None  # REMOVED - Using property instead to fix Django admin compatibility
     user_permissions = None
     REQUIRED_FIELDS = []
     is_active = models.BooleanField(_("Is Active"), default=False)
@@ -104,6 +104,105 @@ class User(AbstractUser):
 
     def __str__(self):
         return f"{self.name} -> {self.phone}"
+    
+    @property
+    def groups(self):
+        """Return a manager-like object for groups to fix Django admin compatibility"""
+        from django.db import connection
+        from django.contrib.auth.models import Group
+        
+        class GroupsProxy:
+            def __init__(self, user):
+                self.user = user
+                self._cache = None
+            
+            def _get_groups(self):
+                if self._cache is None:
+                    try:
+                        if not hasattr(self.user, 'id') or self.user.id is None:
+                            self._cache = Group.objects.none()
+                        else:
+                            with connection.cursor() as cursor:
+                                cursor.execute(
+                                    """
+                                    SELECT g.id FROM auth_group g
+                                    INNER JOIN auth_user_groups ug ON g.id = ug.group_id
+                                    WHERE ug.user_id = %s
+                                    """,
+                                    [self.user.id]
+                                )
+                                group_ids = [row[0] for row in cursor.fetchall()]
+                            if group_ids:
+                                self._cache = Group.objects.filter(id__in=group_ids)
+                            else:
+                                self._cache = Group.objects.none()
+                    except Exception as e:
+                        # Log error in production but return empty queryset
+                        import logging
+                        logger = logging.getLogger(__name__)
+                        logger.error(f"Error getting groups for user {getattr(self.user, 'id', 'unknown')}: {e}")
+                        self._cache = Group.objects.none()
+                return self._cache if self._cache is not None else Group.objects.none()
+            
+            def all(self):
+                """Return all groups for this user"""
+                result = self._get_groups()
+                # Return empty queryset if None to prevent AttributeError
+                if result is None:
+                    from django.contrib.auth.models import Group
+                    return Group.objects.none()
+                return result
+            
+            def filter(self, **kwargs):
+                return self._get_groups().filter(**kwargs)
+            
+            def values_list(self, *fields, **kwargs):
+                return self._get_groups().values_list(*fields, **kwargs)
+            
+            def exists(self):
+                return self._get_groups().exists()
+            
+            def count(self):
+                return self._get_groups().count()
+            
+            def add(self, *groups):
+                """Add user to groups"""
+                from django.db import connection
+                try:
+                    with connection.cursor() as cursor:
+                        for group in groups:
+                            group_id = group.id if hasattr(group, 'id') else group
+                            cursor.execute(
+                                "SELECT COUNT(*) FROM auth_user_groups WHERE user_id = %s AND group_id = %s",
+                                [self.user.id, group_id]
+                            )
+                            if cursor.fetchone()[0] == 0:
+                                cursor.execute(
+                                    "INSERT INTO auth_user_groups (user_id, group_id) VALUES (%s, %s)",
+                                    [self.user.id, group_id]
+                                )
+                        connection.commit()
+                    self._cache = None  # Clear cache
+                except Exception as e:
+                    raise
+            
+            def remove(self, *groups):
+                """Remove user from groups"""
+                from django.db import connection
+                try:
+                    with connection.cursor() as cursor:
+                        for group in groups:
+                            group_id = group.id if hasattr(group, 'id') else group
+                            cursor.execute(
+                                "DELETE FROM auth_user_groups WHERE user_id = %s AND group_id = %s",
+                                [self.user.id, group_id]
+                            )
+                        connection.commit()
+                    self._cache = None  # Clear cache
+                except Exception as e:
+                    raise
+        
+        return GroupsProxy(self)
     
     class Meta:
         verbose_name = _("User")

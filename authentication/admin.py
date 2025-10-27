@@ -117,8 +117,116 @@ logger = logging.getLogger(__name__)
 
 import os
 from utils.pdf_export import export_pdf
+from authentication.admin_mixins import RestrictedModelAdminMixin
 
 admin.site.unregister(Group)
+
+# Register Group with custom admin for managing permissions
+@admin.register(Group)
+class GroupAdmin(admin.ModelAdmin):
+    """
+    Custom admin for Group model to manage user permissions.
+    The 'Super User' group should be created using the management command:
+    python manage.py create_superuser_group
+    """
+    list_display = ('name', 'user_count', 'permission_count', 'permissions_preview', 'create_user_action')
+    list_filter = ('name',)
+    search_fields = ('name',)
+    filter_horizontal = ('permissions',)
+    ordering = ('name',)
+    
+    fieldsets = (
+        (_('Group Information'), {
+            'fields': ('name',)
+        }),
+        (_('Users'), {
+            'fields': (),
+            'description': _('To add users to this group, edit the user and select this group in their "Groups" field. Or use the "Create User for This Group" button below. Or go to Users and filter by this group.')
+        }),
+        (_('Permissions'), {
+            'fields': ('permissions',),
+            'description': _('Select permissions for this group. Users in this group will only see models they have permissions for. You can create groups with specific permissions using: python manage.py create_superuser_group')
+        }),
+    )
+    
+    def create_user_action(self, obj):
+        """Button to create a user for this group"""
+        if obj.pk:
+            url = reverse('admin:authentication_user_add') + f'?group_id={obj.id}'
+            return format_html(
+                '<a class="button" href="{}" style="padding: 5px 10px; background: #417690; color: white; text-decoration: none; border-radius: 3px;">Create User</a>',
+                url
+            )
+        return '-'
+    create_user_action.short_description = _('Create User')
+    
+    def response_add(self, request, obj, post_url_continue=None):
+        """Redirect to create user form with group pre-selected"""
+        if '_create_user' in request.POST:
+            return HttpResponseRedirect(
+                reverse('admin:authentication_user_add') + f'?group_id={obj.id}'
+            )
+        return super().response_add(request, obj, post_url_continue)
+    
+    def changeform_view(self, request, object_id=None, form_url='', extra_context=None):
+        """Add create user button to change form"""
+        extra_context = extra_context or {}
+        if object_id:
+            extra_context['show_create_user'] = True
+            extra_context['group_id'] = object_id
+        return super().changeform_view(request, object_id, form_url, extra_context)
+    
+    def user_count(self, obj):
+        """Display the number of users in this group"""
+        from django.db import connection
+        from authentication.models import User
+        
+        # Since User model has groups=None, we need to query the auth_user_groups table directly
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT COUNT(*) FROM auth_user_groups WHERE group_id = %s",
+                    [obj.id]
+                )
+                count = cursor.fetchone()[0]
+            
+            if count:
+                # Try to link to user admin if available
+                try:
+                    url = reverse('admin:authentication_user_changelist') + f'?groups__id__exact={obj.id}'
+                    return format_html('<a href="{}">{} users</a>', url, count)
+                except:
+                    return f'{count} users'
+            return '0 users'
+        except Exception as e:
+            # Fallback: return question mark if query fails
+            return '? users'
+    user_count.short_description = _('Users')
+    
+    def permission_count(self, obj):
+        """Display the number of permissions"""
+        count = obj.permissions.count()
+        return f'{count} permissions'
+    permission_count.short_description = _('Permissions')
+    permission_count.admin_order_field = 'permissions__count'
+    
+    def permissions_preview(self, obj):
+        """Show a preview of what permissions this group has"""
+        perms = obj.permissions.all()[:5]
+        if not perms:
+            return _('No permissions')
+        
+        preview = ', '.join([p.name.split(' | ')[0] for p in perms])
+        remaining = obj.permissions.count() - 5
+        if remaining > 0:
+            preview += f' + {remaining} more'
+        return preview
+    permissions_preview.short_description = _('Permissions Preview')
+    
+    class Media:
+        css = {
+            'all': ('admin/css/groups.css',)
+        }
 
 class UserAdminForm(forms.ModelForm):
     password = forms.CharField(
@@ -173,7 +281,7 @@ class UserAdminForm(forms.ModelForm):
 
 class UserAdmin(admin.ModelAdmin):
     form = UserAdminForm
-    list_display = ('name', 'phone', 'role', 'is_staff', 'is_superuser', 'is_active')
+    list_display = ('name', 'phone', 'role', 'is_staff', 'is_superuser', 'is_active', 'group_list')
     list_filter = ('role', 'is_staff', 'is_superuser', 'is_active')
     search_fields = ('name', 'phone', 'role')
     ordering = ('-date_joined',)
@@ -187,6 +295,10 @@ class UserAdmin(admin.ModelAdmin):
         (_('Authentication'), {
             'fields': ('password', 'is_active', 'is_staff', 'is_superuser'),
             'classes': ('wide',)
+        }),
+        (_('Groups & Permissions'), {
+            'fields': (),
+            'description': _('Users will only see models they have permissions for based on their group membership. To assign groups, use the Django shell or edit the auth_user_groups table directly.')
         }),
         (_('Profile Information'), {
             'fields': ('image', 'location', 'location2_lat', 'location2_lng'),
@@ -203,6 +315,59 @@ class UserAdmin(admin.ModelAdmin):
     # Make certain fields read-only
     readonly_fields = ('date_joined', 'last_login', 'average_rating')
     actions = ['activate_users', 'deactivate_users', 'make_staff', 'remove_staff', 'send_bulk_notification']
+    
+    def group_list(self, obj):
+        """Display groups the user belongs to"""
+        from django.db import connection
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    """
+                    SELECT g.name FROM auth_group g
+                    INNER JOIN auth_user_groups ug ON g.id = ug.group_id
+                    WHERE ug.user_id = %s
+                    """,
+                    [obj.id]
+                )
+                groups = [row[0] for row in cursor.fetchall()]
+            if groups:
+                return ', '.join(groups)
+            return '-'
+        except:
+            return '-'
+    group_list.short_description = _('Groups')
+    
+    def get_form(self, request, obj=None, **kwargs):
+        """Pre-select group if group_id is in query params"""
+        form = super().get_form(request, obj, **kwargs)
+        if obj is None and 'group_id' in request.GET:
+            # Store group_id for later use in save_model
+            form.group_id = request.GET.get('group_id')
+        return form
+    
+    def save_model(self, request, obj, form, change):
+        """Assign user to group after saving"""
+        super().save_model(request, obj, form, change)
+        
+        # Add user to group if group_id was provided
+        if hasattr(form, 'group_id') and form.group_id:
+            from django.db import connection
+            try:
+                with connection.cursor() as cursor:
+                    # Check if user is already in group
+                    cursor.execute(
+                        "SELECT COUNT(*) FROM auth_user_groups WHERE user_id = %s AND group_id = %s",
+                        [obj.id, form.group_id]
+                    )
+                    if cursor.fetchone()[0] == 0:
+                        cursor.execute(
+                            "INSERT INTO auth_user_groups (user_id, group_id) VALUES (%s, %s)",
+                            [obj.id, form.group_id]
+                        )
+                        connection.commit()
+                messages.success(request, f'User has been added to the group.')
+            except Exception as e:
+                messages.warning(request, f'Could not add user to group: {str(e)}')
     
     def activate_users(self, request, queryset):
         updated = queryset.update(is_active=True)

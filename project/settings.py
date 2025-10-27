@@ -109,32 +109,32 @@ if DEBUG:
     #         'PORT':'3306',
     #     }
     # }
-    # DATABASES = {
-    #     "default": {
-    #         "ENGINE": "django.db.backends.sqlite3",
-    #         "NAME": os.path.join(BASE_DIR, "db.sqlite3"),
-    #     }
-    # }
     DATABASES = {
         "default": {
-            'ENGINE': 'django.db.backends.postgresql',
-            "NAME": "railway",  # Replace with your actual DB name
-            "USER": "postgres",  # Replace with your actual DB user
-            "PASSWORD": "difLNiOGlvcRXAtXnHZrsKpGjboiyrQH",  # Replace with your actual DB password
-            "HOST": "postgres.railway.internal",  # Use Railway's host
-            "PORT": "5432",  # PostgreSQL default por
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": os.path.join(BASE_DIR, "db.sqlite3"),
         }
     }
-    
-    # CHANNEL_LAYERS = {
+    # DATABASES = {
     #     "default": {
-    #         "BACKEND": "channels_redis.core.RedisChannelLayer",
-    #         "CONFIG": {
-    #             "hosts": [("127.0.0.1", 6379)],#192.168.1.8, 192.168.1.23
-    #             # "prefix": "gradcam",
-    #         },
-    #     },
+    #         'ENGINE': 'django.db.backends.postgresql',
+    #         "NAME": "railway",  # Replace with your actual DB name
+    #         "USER": "postgres",  # Replace with your actual DB user
+    #         "PASSWORD": "difLNiOGlvcRXAtXnHZrsKpGjboiyrQH",  # Replace with your actual DB password
+    #         "HOST": "postgres.railway.internal",  # Use Railway's host
+    #         "PORT": "5432",  # PostgreSQL default por
+    #     }
     # }
+    
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels_redis.core.RedisChannelLayer",
+            "CONFIG": {
+                "hosts": [("127.0.0.1", 6379)],#192.168.1.8, 192.168.1.23
+                # "prefix": "gradcam",
+            },
+        },
+    }
 
     # settings.py or your appropriate config file
 
@@ -146,18 +146,18 @@ if DEBUG:
 
     REDIS_URL = f"redis://{REDIS_USER}:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
 
-    # CELERY_BROKER_URL = "redis://127.0.0.1:6379/0"
-    # CELERY_RESULT_BACKEND = "redis://127.0.0.1:6379/0"
-    # CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
+    CELERY_BROKER_URL = "redis://127.0.0.1:6379/0"
+    CELERY_RESULT_BACKEND = "redis://127.0.0.1:6379/0"
+    CELERY_BROKER_CONNECTION_RETRY_ON_STARTUP = True
 
-    CHANNEL_LAYERS = {
-        "default": {
-            "BACKEND": "channels_redis.core.RedisChannelLayer",
-            "CONFIG": {
-                "hosts": [REDIS_URL],
-            },
-        },
-    }
+    # CHANNEL_LAYERS = {
+    #     "default": {
+    #         "BACKEND": "channels_redis.core.RedisChannelLayer",
+    #         "CONFIG": {
+    #             "hosts": [REDIS_URL],
+    #         },
+    #     },
+    # }
 # #     # Only inside: if DEBUG:
 #     REDIS_HOST = "localhost"  # or "localhost"
 #     REDIS_PORT = 6379
@@ -283,6 +283,11 @@ SIMPLEUI_CONFIG = {
                     'name': _('Providers'),
                     'icon': 'fas fa-store',
                     'url': 'authentication/provider/'
+                },
+                {
+                    'name': _('Groups'),
+                    'icon': 'fas fa-users-cog',
+                    'url': 'auth/group/'
                 },
                 {
                     'name': _('Customers'),
