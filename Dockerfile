@@ -3,10 +3,6 @@ FROM ghcr.io/osgeo/gdal:ubuntu-full-latest
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-# Tell pip where to find GDAL headers
-ENV CPLUS_INCLUDE_PATH=/usr/include/gdal
-ENV C_INCLUDE_PATH=/usr/include/gdal
-
 WORKDIR /ride_server
 COPY . /ride_server/
 
@@ -21,13 +17,9 @@ RUN python3 -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
 RUN pip install --upgrade pip
-
-# Install GDAL matching system version
-RUN pip install --no-cache-dir GDAL==$(gdal-config --version)
-
-# Install your project requirements
 RUN pip install -r requirements.txt
 
+# Copy entrypoint and make it executable
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
